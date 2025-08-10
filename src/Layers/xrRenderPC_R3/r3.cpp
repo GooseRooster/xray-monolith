@@ -572,15 +572,6 @@ void CRender::reset_end()
 	m_bFirstFrameAfterReset = true;
 }
 
-/*
-void CRender::OnFrame()
-{
-	Models->DeleteQueue			();
-	if (ps_r2_ls_flags.test(R2FLAG_EXP_MT_CALC))	{
-		Device.seqParallel.insert	(Device.seqParallel.begin(),
-			xr_make_delegate(&HOM,&CHOM::MT_RENDER));
-	}
-}*/
 void CRender::OnFrame()
 {
 	Models->DeleteQueue();

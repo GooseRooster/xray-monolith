@@ -128,7 +128,14 @@ void CHOM::Load()
 	S->close();
 	FS.r_close(fs);
 
-	Device.seqParallelRender.push_back(xr_make_delegate(this, &CHOM::MT_RENDER));
+	if (ps_r2_ls_flags.test(R2FLAG_EXP_MT_CALC))
+	{
+		// MT-details (@front)
+		//Device.seqParallelRender.push_back(fastdelegate::FastDelegate0<>(Details, &CDetailManager::MT_CALC));
+
+		// MT-HOM (@front)
+		Device.seqParallelRender.push_back(xr_make_delegate(this, &CHOM::MT_RENDER));
+	}
 }
 
 void CHOM::Unload()

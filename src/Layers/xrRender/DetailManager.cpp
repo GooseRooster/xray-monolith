@@ -242,7 +242,11 @@ void CDetailManager::Load()
 	swing_desc[1].rot2 = pSettings->r_float("details", "swing_fast_rot2");
 	swing_desc[1].speed = pSettings->r_float("details", "swing_fast_speed");
 
-	Device.seqParallelRender.push_back(xr_make_delegate(this, &CDetailManager::MT_CALC));
+	if (ps_r2_ls_flags.test(R2FLAG_EXP_MT_CALC))
+	{
+		// MT-details (@front)
+		Device.seqParallelRender.push_back(xr_make_delegate(this, &CDetailManager::MT_CALC));
+	}
 }
 #endif
 void CDetailManager::Unload()

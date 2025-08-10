@@ -163,16 +163,6 @@ void CRender::reset_end()
 void CRender::OnFrame()
 {
 	Models->DeleteQueue();
-
-	//if (ps_r2_ls_flags.test(R2FLAG_EXP_MT_CALC))
-	//{
-	//	// MT-details (@front)
-	//	Device.seqParallel.insert(
-	//		Device.seqParallel.begin(), xr_make_delegate(Details, &CDetailManager::MT_CALC));
-
-	//	// MT-HOM (@front)
-	//	Device.seqParallel.insert(Device.seqParallel.begin(), xr_make_delegate(&HOM, &CHOM::MT_RENDER));
-	//}
 }
 
 // Implementation

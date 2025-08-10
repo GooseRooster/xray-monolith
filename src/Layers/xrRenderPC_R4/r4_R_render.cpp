@@ -753,6 +753,8 @@ void CRender::Render()
 		Target->accum_direct_blend();
 	}
 
+	phase = PHASE_NORMAL;
+
 	{
 		PIX_EVENT(DEFER_SELF_ILLUM);
 		Target->phase_accumulator();
@@ -799,6 +801,8 @@ void CRender::Render()
 		if (RImplementation.o.ssfx_volumetric)
 			Target->phase_ssfx_volumetric_blur();
 	}
+
+	phase = PHASE_NORMAL;
 
 	// Postprocess
 	{

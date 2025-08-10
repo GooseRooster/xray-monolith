@@ -1187,9 +1187,10 @@ void xrRender_initconsole()
 
 	CMD3(CCC_Token, "r_screenshot_mode", &ps_r_screenshot_token, screenshot_mode_token);
 
+	CMD3(CCC_Mask64, "r2_mt", &ps_r2_ls_flags, R2FLAG_EXP_MT_CALC);
+
 #ifdef DEBUG
 	CMD3(CCC_Mask64,		"r2_use_nvdbt",			&ps_r2_ls_flags,			R2FLAG_USE_NVDBT);
-	CMD3(CCC_Mask64,		"r2_mt",				&ps_r2_ls_flags,			R2FLAG_EXP_MT_CALC);
 #endif // DEBUG
 
 	CMD3(CCC_Mask64, "r2_sun", &ps_r2_ls_flags, R2FLAG_SUN);

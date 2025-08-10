@@ -1,5 +1,5 @@
 #pragma once
-#include <fast_delegate/fastdelegate.h>
+#include <fastdelegate/fastdelegate.h>
 
 namespace
 {

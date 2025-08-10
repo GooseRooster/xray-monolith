@@ -3,10 +3,6 @@
 
 #include "xr_delegate.h"
 
-#ifdef USE_ROBINHOOD
-#include "robin_hood.h"
-#endif
-
 // refs
 class CInifile;
 struct xr_token;

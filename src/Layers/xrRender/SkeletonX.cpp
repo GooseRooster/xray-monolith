@@ -136,23 +136,23 @@ void CSkeletonX::_Render(ref_geom& hGeom, u32 vCount, u32 iOffset, u32 pCount)
 				u32 count = RMS_bonecount;
 				for (u32 mid = 0; mid < count; mid++)
 				{
-					if (RImplementation.phase == RImplementation.PHASE_NORMAL)
-					{
-						Fmatrix& M = Parent->LL_GetTransform_R(u16(mid));
-						u32 id = mid * 3;
-						RCache.set_ca(&*array, id + 0, M._11, M._21, M._31, M._41);
-						RCache.set_ca(&*array, id + 1, M._12, M._22, M._32, M._42);
-						RCache.set_ca(&*array, id + 2, M._13, M._23, M._33, M._43);
-					}
+					Fmatrix& M = Parent->LL_GetTransform_R(u16(mid));
+					u32 id = mid * 3;
+					RCache.set_ca(&*array, id + 0, M._11, M._21, M._31, M._41);
+					RCache.set_ca(&*array, id + 1, M._12, M._22, M._32, M._42);
+					RCache.set_ca(&*array, id + 2, M._13, M._23, M._33, M._43);
 
 #ifdef USE_DX11
-					if (RImplementation.o.ssfx_motionvectors) 
+					if (RImplementation.phase == RImplementation.PHASE_NORMAL)
 					{
-						// Save previous transform
-						Fmatrix& Mprev = Parent->LL_GetBoneInstance(u16(mid)).mRenderTransform_prev;
-						RCache.set_ca(&*array_prev, id + 0, Mprev._11, Mprev._21, Mprev._31, Mprev._41);
-						RCache.set_ca(&*array_prev, id + 1, Mprev._12, Mprev._22, Mprev._32, Mprev._42);
-						RCache.set_ca(&*array_prev, id + 2, Mprev._13, Mprev._23, Mprev._33, Mprev._43);
+						if (RImplementation.o.ssfx_motionvectors)
+						{
+							// Save previous transform
+							Fmatrix& Mprev = Parent->LL_GetBoneInstance(u16(mid)).mRenderTransform_prev;
+							RCache.set_ca(&*array_prev, id + 0, Mprev._11, Mprev._21, Mprev._31, Mprev._41);
+							RCache.set_ca(&*array_prev, id + 1, Mprev._12, Mprev._22, Mprev._32, Mprev._42);
+							RCache.set_ca(&*array_prev, id + 2, Mprev._13, Mprev._23, Mprev._33, Mprev._43);
+						}
 					}
 #endif
 				}

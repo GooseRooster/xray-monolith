@@ -177,7 +177,7 @@ CUIWindow::~CUIWindow()
 void CUIWindow::Draw()
 {
 	PROF_EVENT("CUIWindow::Draw");
-	for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it)
+	for (WINDOW_LIST_it it = GetChildWndList().begin(); GetChildWndList().end() != it; ++it)
 	{
 		if (!(*it)) continue;
 		if (!(*it)->IsShown()) continue;

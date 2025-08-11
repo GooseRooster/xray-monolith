@@ -75,6 +75,7 @@ void ISpatial::spatial_register()
 	{
 		// register
 		R_ASSERT(spatial.space);
+		xrSRWLockGuard guard(&spatial.space->db_lock, false);
 		spatial.space->insert(this);
 		spatial.sector = 0;
 	}
@@ -85,6 +86,7 @@ void ISpatial::spatial_unregister()
 	if (spatial.node_ptr)
 	{
 		// remove
+		xrSRWLockGuard guard(&spatial.space->db_lock, false);
 		spatial.space->remove(this);
 		spatial.node_ptr = NULL;
 		spatial.sector = NULL;
@@ -108,6 +110,7 @@ void ISpatial::spatial_move()
 
 		//*** check if we are supposed to correct it's spatial location
 		if (spatial_inside()) return; // ???
+		xrSRWLockGuard guard(&spatial.space->db_lock, false);
 		spatial.space->remove(this);
 		spatial.space->insert(this);
 	}

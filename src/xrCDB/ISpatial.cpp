@@ -301,9 +301,12 @@ void ISpatial_DB::insert(ISpatial* S)
 	{
 		// Object outside our DB, put it into root node and hack bounds
 		// Object will reinsert itself until fits into "real", "controlled" space
-		m_root->_insert(S);
-		S->spatial.node_center.set(m_center);
-		S->spatial.node_radius = m_bounds;
+		if (m_root)
+		{
+			m_root->_insert(S);
+			S->spatial.node_center.set(m_center);
+			S->spatial.node_radius = m_bounds;
+		}
 	}
 #ifdef DEBUG
 	stat_insert.End		();

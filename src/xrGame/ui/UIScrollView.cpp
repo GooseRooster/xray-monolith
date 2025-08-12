@@ -236,11 +236,12 @@ void CUIScrollView::Draw()
 		}
 	}
 	else
-		xrCriticalSectionGuard g(script_gc_guard);
-		for (int idx = 0; it != m_pad->GetChildWndList().end(); ++it, ++idx)
+		// demonized: TODO: try to actually fix this crash
+		try
 		{
-			// demonized: TODO: try to actually fix this crash later
-			try {
+			xrCriticalSectionGuard g(script_gc_guard);
+			for (int idx = 0; it != m_pad->GetChildWndList().end(); ++it, ++idx)
+			{
 				Frect item_rect;
 				(*it)->GetAbsoluteRect(item_rect);
 				if (visible_rect.intersected(item_rect))
@@ -256,10 +257,10 @@ void CUIScrollView::Draw()
 				else if (m_visible_rgn.x != -1)
 					break;
 			}
-			catch (...)
-			{
-				//
-			}
+		}
+		catch (...)
+		{
+			//
 		}
 	UI().PopScissor();
 

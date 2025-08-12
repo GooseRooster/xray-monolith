@@ -596,7 +596,6 @@ void CRender::reset_begin()
 	if (b_loaded && ((dm_current_size != dm_size) || (ps_r__Detail_density != ps_current_detail_density) || (
 		ps_r__Detail_height != ps_current_detail_height)))
 	{
-		Device.remove_from_seq_parallel(xr_make_delegate(Details, &CDetailManager::MT_CALC));
 		Details->Unload();
 		xr_delete(Details);
 	}

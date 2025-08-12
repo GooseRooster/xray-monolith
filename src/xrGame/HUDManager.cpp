@@ -483,19 +483,22 @@ void CHUDManager::OnScreenResolutionChanged()
 		funct();
 }
 
+BOOL hud_frequent_updates = TRUE;
 void CHUDManager::OnDisconnected()
 {
 	b_online = false;
-	if (pUIGame)
-		Device.seqFrame.Remove(pUIGame);
+	if (hud_frequent_updates)
+		if (pUIGame)
+			Device.seqFrame.Remove(pUIGame);
 }
 
 void CHUDManager::OnConnected()
 {
 	if (b_online) return;
 	b_online = true;
-	if (pUIGame)
-		Device.seqFrame.Add(pUIGame, REG_PRIORITY_LOW - 1000);
+	if (hud_frequent_updates)
+		if (pUIGame)
+			Device.seqFrame.Add(pUIGame, REG_PRIORITY_LOW - 1000);
 }
 
 void CHUDManager::net_Relcase(CObject* obj)

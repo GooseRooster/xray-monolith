@@ -1,3 +1,5 @@
+#include <memory>
+
 #ifdef DEBUG_MEMORY_NAME
 // new(0)
 template <class T>
@@ -202,8 +204,6 @@ void XRCORE_API mem_alloc_gather_stats_frequency(const float& value);
 void XRCORE_API mem_alloc_show_stats();
 void XRCORE_API mem_alloc_clear_stats();
 #endif // DEBUG_MEMORY_MANAGER
-
-#include <memory>
 
 template<typename T>
 using xr_shared_ptr = std::shared_ptr<T>;

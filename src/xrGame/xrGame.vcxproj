@@ -362,6 +362,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\3rd party\fastdelegate\fastdelegate.h" />
     <ClInclude Include="..\3rd party\fast_dynamic_cast\fast_dynamic_cast.hpp" />
     <ClInclude Include="..\xrCore\ChooseTypes.H" />
     <ClInclude Include="..\xrServerEntities\ai_sounds.h" />
@@ -1964,6 +1965,7 @@
     <ClInclude Include="WeaponCustomPistol.h" />
     <ClInclude Include="WeaponFN2000.h" />
     <ClInclude Include="WeaponFORT.h" />
+    <ClInclude Include="WeaponGrenadeLauncher.h" />
     <ClInclude Include="WeaponGroza.h" />
     <ClInclude Include="WeaponHPSA.h" />
     <ClInclude Include="WeaponKnife.h" />
@@ -4195,6 +4197,7 @@
       <PrecompiledHeaderFile>pch_script.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(ProjectName)_script.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="WeaponGrenadeLauncher.cpp" />
     <ClCompile Include="WeaponGroza.cpp">
       <PrecompiledHeaderFile>pch_script.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(ProjectName)_script.pch</PrecompiledHeaderOutputFile>

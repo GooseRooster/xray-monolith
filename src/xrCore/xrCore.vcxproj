@@ -558,6 +558,8 @@
     <ClCompile Include="DateTime.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\3rd party\fastdelegate\fastdelegate.h" />
+    <ClInclude Include="..\3rd party\robin_hood\robin_hood.h" />
     <ClInclude Include="..\3rd party\stackwalker\include\StackWalker.h" />
     <ClInclude Include="..\build_config_defines.h" />
     <ClInclude Include="blackbox\BugslayerUtil.h" />
@@ -611,7 +613,6 @@
     <ClInclude Include="ppmd_compressor.h" />
     <ClInclude Include="profiler.h" />
     <ClInclude Include="resource.h" />
-    <ClInclude Include="robin_hood.h" />
     <ClInclude Include="rt_compressor.h" />
     <ClInclude Include="rt_config1x.h" />
     <ClInclude Include="rt_lzo1x.h" />

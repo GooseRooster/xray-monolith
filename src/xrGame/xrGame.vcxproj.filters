@@ -2497,6 +2497,9 @@
     <Filter Include="UI\Common\ImGui">
       <UniqueIdentifier>{c14ffa0c-947d-49b9-8e01-269569b48371}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Core\Client\Objects\items &amp; weapons\Weapons\Various weapons\Weapon Grenade Launcher">
+      <UniqueIdentifier>{6750ea25-06ba-4a57-b46a-dd2be81676ad}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="mt_config.h">
@@ -7389,8 +7392,15 @@
     <ClInclude Include="script_imgui_inline.h">
       <Filter>UI\Common\ImGui</Filter>
     </ClInclude>
+    <ClInclude Include="WeaponGrenadeLauncher.h">
+      <Filter>Core\Client\Objects\items &amp; weapons\Weapons\Various weapons\Weapon Grenade Launcher</Filter>
     <ClInclude Include="..\3rd party\fast_dynamic_cast\fast_dynamic_cast.hpp">
       <Filter>Core\Common\SmartCast</Filter>
+    <ClInclude Include="WeaponGrenadeLauncher.h">
+      <Filter>Core\Client\Objects\items &amp; weapons\Weapons\Various weapons\Weapon Grenade Launcher</Filter>
+    </ClInclude>
+    <ClInclude Include="..\3rd party\fastdelegate\fastdelegate.h">
+      <Filter>Core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -11083,6 +11093,9 @@
     </ClCompile>
     <ClCompile Include="script_imgui_script.cpp">
       <Filter>UI\Common\ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="WeaponGrenadeLauncher.cpp">
+      <Filter>Core\Client\Objects\items &amp; weapons\Weapons\Various weapons\Weapon Grenade Launcher</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

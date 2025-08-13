@@ -597,7 +597,6 @@
     <ClInclude Include="ScopeLock.hpp">
       <Filter>Threading</Filter>
     </ClInclude>
-    <ClInclude Include="robin_hood.h" />
     <ClInclude Include="..\3rd party\stackwalker\include\StackWalker.h">
       <Filter>Debug core</Filter>
     </ClInclude>
@@ -610,6 +609,8 @@
     <ClInclude Include="profiler.h">
       <Filter>Profiling</Filter>
     </ClInclude>
+    <ClInclude Include="..\3rd party\robin_hood\robin_hood.h" />
+    <ClInclude Include="..\3rd party\fastdelegate\fastdelegate.h" />
     <ClInclude Include="_thread_types.h">
       <Filter>Kernel</Filter>
     </ClInclude>

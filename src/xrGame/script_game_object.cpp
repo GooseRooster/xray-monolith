@@ -1169,8 +1169,9 @@ CGameObject& CScriptGameObject::object() const
 
 	IRenderVisual* vis = k->dcast_RenderVisual();
 	xr_vector<IRenderVisual*>* children = vis->get_children();
+	xr_vector<IRenderVisual*>* children_invisible = vis->get_children_invisible();
 
-	if (!children)
+	if (!children && !children_invisible)
 	{
 		::luabind::object subtable = ::luabind::newtable(ai().script_engine().lua());
 		subtable["shader"] = vis->getDebugShader();
@@ -1179,15 +1180,20 @@ CGameObject& CScriptGameObject::object() const
 		return table;
 	}
 
-	int i = 1;
-
 	for (auto* child : *children)
 	{
 		::luabind::object subtable = ::luabind::newtable(ai().script_engine().lua());
 		subtable["shader"] = child->getDebugShader();
 		subtable["texture"] = child->getDebugTexture();
-		table[i] = subtable;
-		++i;
+		table[child->getID()] = subtable;
+	}
+
+	for (auto* child : *children_invisible)
+	{
+		::luabind::object subtable = ::luabind::newtable(ai().script_engine().lua());
+		subtable["shader"] = child->getDebugShader();
+		subtable["texture"] = child->getDebugTexture();
+		table[child->getID()] = subtable;
 	}
 
 	return table;
@@ -1220,8 +1226,9 @@ CGameObject& CScriptGameObject::object() const
 
 	IRenderVisual* vis = k->dcast_RenderVisual();
 	xr_vector<IRenderVisual*>* children = vis->get_children();
+	xr_vector<IRenderVisual*>* children_invisible = vis->get_children_invisible();
 
-	if (!children)
+	if (!children && !children_invisible)
 	{
 		::luabind::object subtable = ::luabind::newtable(ai().script_engine().lua());
 		subtable["shader"] = vis->getDebugShaderDef();
@@ -1230,15 +1237,20 @@ CGameObject& CScriptGameObject::object() const
 		return table;
 	}
 
-	int i = 1;
-
 	for (auto* child : *children)
 	{
 		::luabind::object subtable = ::luabind::newtable(ai().script_engine().lua());
 		subtable["shader"] = child->getDebugShaderDef();
 		subtable["texture"] = child->getDebugTextureDef();
-		table[i] = subtable;
-		++i;
+		table[child->getID()] = subtable;
+	}
+
+	for (auto* child : *children_invisible)
+	{
+		::luabind::object subtable = ::luabind::newtable(ai().script_engine().lua());
+		subtable["shader"] = child->getDebugShaderDef();
+		subtable["texture"] = child->getDebugTextureDef();
+		table[child->getID()] = subtable;
 	}
 
 	return table;
@@ -1247,51 +1259,77 @@ CGameObject& CScriptGameObject::object() const
 void set_shader_tex(IRenderVisual* vis, int id, LPCSTR shader, LPCSTR texture)
 {
 	xr_vector<IRenderVisual*>* children = vis->get_children();
+	xr_vector<IRenderVisual*>* children_invisible = vis->get_children_invisible();
 
-	if (!children)
+	if (!children && !children_invisible)
 	{
 		vis->SetShaderTexture(shader, texture);
 		return;
 	}
 
-	if (id == -1)
+	if (id < 1)
 	{
 		for (auto* child : *children)
+		{
+			child->SetShaderTexture(shader, texture);
+		}
+		for (auto* child : *children_invisible)
 		{
 			child->SetShaderTexture(shader, texture);
 		}
 		return;
 	}
 
-	id--;
-
-	if (id >= 0 && children->size() > id)
-		children->at(id)->SetShaderTexture(shader, texture);
+	for (auto* child : *children)
+	{
+		if (child->getID() != id) continue;
+		child->SetShaderTexture(shader, texture);
+		return;
+	}
+	for (auto* child : *children_invisible)
+	{
+		if (child->getID() != id) continue;
+		child->SetShaderTexture(shader, texture);
+		return;
+	}
 }
 
 void reset_shader_tex(IRenderVisual* vis, int id)
 {
 	xr_vector<IRenderVisual*>* children = vis->get_children();
+	xr_vector<IRenderVisual*>* children_invisible = vis->get_children_invisible();
 
-	if (!children)
+	if (!children && !children_invisible)
 	{
 		vis->ResetShaderTexture();
 		return;
 	}
 
-	if (id == -1)
+	if (id < 1)
 	{
 		for (auto* child : *children)
+		{
+			child->ResetShaderTexture();
+		}
+		for (auto* child : *children_invisible)
 		{
 			child->ResetShaderTexture();
 		}
 		return;
 	}
 
-	id--;
-
-	if (id >= 0 && children->size() > id)
-		children->at(id)->ResetShaderTexture();
+	for (auto* child : *children)
+	{
+		if (child->getID() != id) continue;
+		child->ResetShaderTexture();
+		return;
+	}
+	for (auto* child : *children_invisible)
+	{
+		if (child->getID() != id) continue;
+		child->ResetShaderTexture();
+		return;
+	}
 }
 
 void CScriptGameObject::SetShaderTexture(int id, LPCSTR shader, LPCSTR texture, bool bHud)

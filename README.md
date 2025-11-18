@@ -29,6 +29,9 @@ Here is list of exe files for Anomaly 1.5.3 that contains all engine patches by 
 * Q: The game crashes on DX11 Fullscreen on Linux
 * A: You need to add `--dxgi-old` parameter into `commandline.txt` file or via making a shortcut to exe and adding argument there
 
+* Q: I have low FPS near campfires or when shooting
+* A: Disable "Volumetric lighting", known issue for now: https://github.com/themrdemonized/xray-monolith/issues/94 https://github.com/themrdemonized/xray-monolith/issues/123
+
 * Q: I have conflicts, crashes and bugs with shaders when i use Beef NVG, SSS, or Enhanced Shaders
 * A: If you are using those mods, install this package via MO2, and put it higher priority than those mods: https://github.com/deggua/xray-hdr10-shaders/releases/latest
 
@@ -171,6 +174,10 @@ How to compile exes:
 6. For successful compilation, **the latest build tools with MFC and ATL libraries is required**
 
 ## Changelog
+**2025.11.17**
+* Fixed `g_recon_maxdist`, minspeed and maxspeed commands to set proper variables
+* GhenTuong: Small tweak and fix bugs for CCar, CExplosive, CWeaponStatMgun, SPATIAL_CHANGE.
+
 **2025.10.28**
 * Temporary revert https://github.com/themrdemonized/xray-monolith/pull/326 to fix issue https://github.com/themrdemonized/xray-monolith/issues/387#issuecomment-3453531244
 

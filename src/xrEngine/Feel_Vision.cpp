@@ -48,7 +48,7 @@ IC BOOL feel_vision_callback(collide::rq_result& result, LPVOID params)
 IC BOOL feel_vision_test_callback(const collide::ray_defs& rd, CObject* object, LPVOID user_data)
 {
 	/* Return FALSE to see through object. */
-	if (object->SpatialComponent->spatial.type | STYPE_FEELVISIONIGNORE)
+	if (object->SpatialComponent->spatial.type & STYPE_FEELVISIONIGNORE)
 	{
 		return FALSE;
 	}
@@ -252,7 +252,7 @@ void Vision::o_trace(Fvector& P, float dt, float vis_threshold)
 				}
 			}
 			// Log("Vis",feel_params.vis);
-			r_spatial.resize(0);
+			r_spatial.clear_not_free();
 			g_SpatialSpace->q_ray(r_spatial, 0, STYPE_VISIBLEFORAI, P, D, f);
 
 			RD.flags = CDB::OPT_ONLYFIRST;
@@ -269,6 +269,12 @@ void Vision::o_trace(Fvector& P, float dt, float vis_threshold)
 				if (object == I->O)
 					continue;
 
+#ifdef SPATIAL_CHANGE
+				if (object->SpatialComponent->spatial.type & STYPE_FEELVISIONIGNORE)
+					/* See through objects that have the flag. */
+					continue;
+#endif
+				
 				RQR.r_clear();
 				if (object && object->collidable.model && !object->collidable.model->_RayQuery(RD, RQR))
 					continue;

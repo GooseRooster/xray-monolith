@@ -1534,26 +1534,6 @@ bool CLevel::InterpolationDisabled()
 	return g_cl_lvInterp < 0;
 }
 
-void CLevel::PhisStepsCallback(u32 Time0, u32 Time1)
-{
-	if (!Level().game)
-		return;
-	if (GameID() == eGameIDSingle)
-		return;
-	//#pragma todo("Oles to all: highly inefficient and slow!!!")
-	//fixed (Andy)
-	/*
-	for (xr_vector<CObject*>::iterator O=Level().Objects.objects.begin(); O!=Level().Objects.objects.end(); ++O)
-	{
-	if( smart_cast<CActor*>((*O)){
-	CActor* pActor = smart_cast<CActor*>(*O);
-	if (!pActor || pActor->Remote()) continue;
-	pActor->UpdatePosStack(Time0, Time1);
-	}
-	};
-	*/
-}
-
 void CLevel::SetNumCrSteps(u32 NumSteps)
 {
 	m_bNeed_CrPr = true;

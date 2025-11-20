@@ -90,17 +90,23 @@ namespace PS
 			dxRender_Visual* _effect;
 			VisualVec _children_related;
 			VisualVec _children_free;
+			VisualVec _children_destroy;
+
 		public:
+			~SItem();
+
 			void Set(dxRender_Visual* e);
 			void Clear();
 
 			IC u32 GetVisuals(xr_vector<dxRender_Visual*>& visuals)
 			{
 				visuals.reserve(_children_related.size() + _children_free.size() + 1);
-				if (_effect) visuals.push_back(_effect);
+				if (_effect)
+					visuals.push_back(_effect);
+
 				visuals.insert(visuals.end(), _children_related.begin(), _children_related.end());
 				visuals.insert(visuals.end(), _children_free.begin(), _children_free.end());
-				return visuals.size();
+				return u32(visuals.size());
 			}
 
 			void OnDeviceCreate();
@@ -112,9 +118,10 @@ namespace PS
 
 			void UpdateParent(const Fmatrix& m, const Fvector& velocity, BOOL bXFORM);
 			void OnFrame(u32 u_dt, const CPGDef::SEffect& def, Fbox& box, bool& bPlaying);
+			void DelayDeleteChilds();
 
 			u32 ParticlesCount();
-			BOOL IsPlaying();
+			BOOL IsPlaying() const;
 			void Play();
 			void Stop(BOOL def_stop);
 		};

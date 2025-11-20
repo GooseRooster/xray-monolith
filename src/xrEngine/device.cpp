@@ -34,6 +34,7 @@
 #include "igame_persistent.h"
 
 #include "CustomHUD.h"
+#include "EngineThreading.h"
 #include "IGame_Level.h"
 
 #include "Rain.h"
@@ -396,67 +397,9 @@ void CRenderDevice::on_idle()
 	STOP_PROFILE;
 
 	// TODO: Try to move this upper
-	secondary_tasks.run([]()
-	{
-		PROF_THREAD("Secondary Task 1");
+	secondary_tasks.run(&XRay::Engine::PreRenderThread);
 
-		{
-			PROF_EVENT("seqParallelRender");
-			for (auto& it : Device.seqParallelRender)
-				it();
-		}
-
-		{
-			PROF_EVENT("CEffect_Rain::UpdateItems");
-			if (g_pGamePersistent &&
-				g_pGamePersistent->pEnvironment &&
-				g_pGamePersistent->pEnvironment->eff_Rain
-			)
-				g_pGamePersistent->pEnvironment->eff_Rain->UpdateItems();
-		}
-
-		{
-			PROF_EVENT("Process Particles");
-			if (Device.ParticleWorkerCallback)
-				Device.ParticleWorkerCallback();
-		}
-	});
-
-	secondary_tasks.run([]()
-	{
-		PROF_THREAD("Secondary Task 2");
-
-		// we has granted permission to execute
-		{
-			PROF_EVENT("g_hud OnFrameMT");
-			if (g_hud)
-				g_hud->OnFrameMT();
-		}
-
-		{
-			PROF_EVENT("SoundEvent_Dispatch");
-			if (g_pGameLevel && g_pGameLevel->bReady)
-				g_pGameLevel->SoundEvent_Dispatch();
-		}
-
-		{
-			PROF_EVENT("Sheduler");
-			if (!Device.Paused())
-				Engine.Sheduler.Update();
-		}
-
-		{
-			PROF_EVENT("seqParallel");			
-			for (u32 pit = 0; pit < Device.seqParallel.size(); pit++)
-				Device.seqParallel[pit]();
-			Device.seqParallel.clear();
-		}
-
-		{
-			PROF_EVENT("seqFrameMT");
-			Device.seqFrameMT.Process(rp_Frame);
-		}
-	});
+	secondary_tasks.run(&XRay::Engine::GameThread);
 
 #ifdef ECO_RENDER // ECO_RENDER START
 	if (Device.Paused() || IsMainMenuActive() || ps_framelimiter)

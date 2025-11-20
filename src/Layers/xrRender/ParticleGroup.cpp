@@ -50,7 +50,8 @@ void CPGDef::Clone	(CPGDef* source)
 //------------------------------------------------------------------------------
 BOOL CPGDef::Load(IReader& F)
 {
-	R_ASSERT(F.find_chunk(PGD_CHUNK_VERSION));
+	bool FoundedChunk = !!F.find_chunk(PGD_CHUNK_VERSION);
+	R_ASSERT2(FoundedChunk, "Not found chunk PGD_CHUNK_VERSION");
 	u16 version = F.r_u16();
 
 	if (version != PGD_VERSION)
@@ -59,7 +60,8 @@ BOOL CPGDef::Load(IReader& F)
 		return FALSE;
 	}
 
-	R_ASSERT(F.find_chunk(PGD_CHUNK_NAME));
+	FoundedChunk = !!F.find_chunk(PGD_CHUNK_NAME);
+	R_ASSERT2(FoundedChunk, "Not found chunk PGD_CHUNK_NAME");
 	F.r_stringZ(m_Name);
 
 	F.r_chunk(PGD_CHUNK_FLAGS, &m_Flags);
@@ -180,6 +182,18 @@ void CPGDef::Save2(CInifile& ini)
 	ini.w_float("_group", "timelimit", m_fTimeLimit);
 }
 
+PS::CParticleGroup::SItem::~SItem()
+{
+	if (_children_destroy.empty())
+		return;
+
+	auto Iter = std::find(Device.seqParallelBeforRender.begin(), Device.seqParallelBeforRender.end(), xr_make_delegate(this, &PS::CParticleGroup::SItem::DelayDeleteChilds));
+	if (Iter != Device.seqParallelBeforRender.end())
+	{
+		Device.seqParallelBeforRender.erase(Iter);
+	}
+}
+
 //------------------------------------------------------------------------------
 // Particle Group item
 //------------------------------------------------------------------------------
@@ -194,8 +208,19 @@ void CParticleGroup::SItem::Clear()
 	GetVisuals(visuals);
 	for (VisualVecIt it = visuals.begin(); it != visuals.end(); it++)
 	{
-		IRenderVisual* pVisual = smart_cast<IRenderVisual*>(*it);
-		::Render->model_Delete_Deffered(pVisual);
+		//::Render->model_Delete(*it);
+		auto Iter = std::find(_children_destroy.begin(), _children_destroy.end(), *it);
+		if (_children_destroy.empty() || Iter == _children_destroy.end())
+		{
+			IRenderVisual* pVisual = smart_cast<IRenderVisual*>(*it);
+			::Render->model_Delete_Deffered(pVisual);
+		}
+#ifdef DEBUG
+		else
+		{
+			Msg("!Found deleted model");
+		}
+#endif
 		*it = 0;
 	}
 
@@ -275,43 +300,48 @@ void CParticleGroup::SItem::StartFreeChild(CParticleEffect* emitter, LPCSTR nm, 
 
 void CParticleGroup::SItem::Play()
 {
-	CParticleEffect* E = static_cast<CParticleEffect*>(_effect);
-	if (E) E->Play();
+	if (_effect == nullptr)
+		return;
+
+	static_cast<CParticleEffect*>(_effect)->Play();
 }
 
 void CParticleGroup::SItem::Stop(BOOL def_stop)
 {
-	// stop all effects
-	CParticleEffect* E = static_cast<CParticleEffect*>(_effect);
-	if (E) E->Stop(def_stop);
-	VisualVecIt it;
-	for (it = _children_related.begin(); it != _children_related.end(); it++)
-		static_cast<CParticleEffect*>(*it)->Stop(def_stop);
-	for (it = _children_free.begin(); it != _children_free.end(); it++)
-		static_cast<CParticleEffect*>(*it)->Stop(def_stop);
-	// and delete if !deffered
+	/// stop all effects
+	if (CParticleEffect* E = static_cast<CParticleEffect*>(_effect))
+	{
+		E->Stop(def_stop);
+	}
+
+	for (dxRender_Visual* ChildPart : _children_related)
+	{
+		static_cast<CParticleEffect*>(ChildPart)->Stop(def_stop);
+		if (!def_stop) 
+		{
+			IRenderVisual* pVisual = ChildPart;
+			::Render->model_Delete_Deffered(pVisual);
+		}
+	}
+
+	for (dxRender_Visual* ChildPart : _children_free)
+	{
+		static_cast<CParticleEffect*>(ChildPart)->Stop(def_stop);
+		if (!def_stop)
+		{
+			IRenderVisual* pVisual = ChildPart;
+			::Render->model_Delete_Deffered(pVisual);
+		}
+	}
+
 	if (!def_stop)
 	{
-		for (it = _children_related.begin(); it != _children_related.end(); it++)
-		{
-			//::Render->model_Delete(*it);
-			IRenderVisual* pVisual = smart_cast<IRenderVisual*>(*it);
-			::Render->model_Delete_Deffered(pVisual);
-			*it = 0;
-		}
-		for (it = _children_free.begin(); it != _children_free.end(); it++)
-		{
-			//::Render->model_Delete(*it);
-			IRenderVisual* pVisual = smart_cast<IRenderVisual*>(*it);
-			::Render->model_Delete_Deffered(pVisual);
-			*it = 0;
-		}
 		_children_related.clear();
 		_children_free.clear();
 	}
 }
 
-BOOL CParticleGroup::SItem::IsPlaying()
+BOOL CParticleGroup::SItem::IsPlaying() const
 {
 	CParticleEffect* E = static_cast<CParticleEffect*>(_effect);
 	return E ? E->IsPlaying() : FALSE;
@@ -436,18 +466,16 @@ void CParticleGroup::SItem::OnFrame(u32 u_dt, const CPGDef::SEffect& def, Fbox& 
 				else
 				{
 					rem_cnt++;
-					//::Render->model_Delete(*it);
 					IRenderVisual* pVisual = smart_cast<IRenderVisual*>(*it);
 					::Render->model_Delete_Deffered(pVisual);
-					*it = 0;
+					_children_destroy.push_back(*it);
 				}
 			}
 		}
-		// remove if stopped
-		if (rem_cnt)
+
+		if (!_children_destroy.empty())
 		{
-			VisualVecIt new_end = std::remove_if(_children_free.begin(), _children_free.end(), zero_vis_pred());
-			_children_free.erase(new_end, _children_free.end());
+			Device.seqParallelBeforRender.push_back(xr_make_delegate(this, &PS::CParticleGroup::SItem::DelayDeleteChilds));
 		}
 	}
 	//	Msg("C: %d CS: %d",_children.size(),_children_stopped.size());
@@ -477,6 +505,20 @@ u32 CParticleGroup::SItem::ParticlesCount()
 	for (VisualVecIt it = visuals.begin(); it != visuals.end(); it++)
 		p_count += static_cast<CParticleEffect*>(*it)->ParticlesCount();
 	return p_count;
+}
+
+void PS::CParticleGroup::SItem::DelayDeleteChilds()
+{
+	for (dxRender_Visual* Vis : _children_destroy)
+	{
+		auto Iter = std::find(_children_free.begin(), _children_free.end(), Vis);
+		if (Iter != _children_free.end());
+		{
+			_children_free.erase(Iter);
+		}
+	}
+
+	_children_destroy.clear();
 }
 
 

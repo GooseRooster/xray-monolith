@@ -253,6 +253,9 @@ void CEffect_Rain::OnFrame()
 extern xr_atomic_u32 current_items;
 void CEffect_Rain::UpdateItems()
 {
+	PROF_EVENT("CEffect_Rain::UpdateItems");
+	xrCriticalSectionGuard guard(&rainCS);
+
 	float factor = g_pGamePersistent->Environment().CurrentEnv->rain_density;
 	if (factor < EPS_L)			return;
 
@@ -277,7 +280,6 @@ void CEffect_Rain::UpdateItems()
 	// owner.items.reserve		(desired_items);
 	while (items.size() < desired_items)
 	{
-		xrCriticalSectionGuard guard(&rainCS);
 		Born(items.emplace_back(), rain_radius, _drop_speed);
 	}
 

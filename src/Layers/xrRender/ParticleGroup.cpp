@@ -208,7 +208,6 @@ void CParticleGroup::SItem::Clear()
 	GetVisuals(visuals);
 	for (VisualVecIt it = visuals.begin(); it != visuals.end(); it++)
 	{
-		//::Render->model_Delete(*it);
 		auto Iter = std::find(_children_destroy.begin(), _children_destroy.end(), *it);
 		if (_children_destroy.empty() || Iter == _children_destroy.end())
 		{
@@ -317,10 +316,9 @@ void CParticleGroup::SItem::Stop(BOOL def_stop)
 	for (dxRender_Visual* ChildPart : _children_related)
 	{
 		static_cast<CParticleEffect*>(ChildPart)->Stop(def_stop);
-		if (!def_stop) 
+		if (!def_stop)
 		{
-			IRenderVisual* pVisual = ChildPart;
-			::Render->model_Delete_Deffered(pVisual);
+			_children_destroy.push_back(ChildPart);
 		}
 	}
 
@@ -329,8 +327,7 @@ void CParticleGroup::SItem::Stop(BOOL def_stop)
 		static_cast<CParticleEffect*>(ChildPart)->Stop(def_stop);
 		if (!def_stop)
 		{
-			IRenderVisual* pVisual = ChildPart;
-			::Render->model_Delete_Deffered(pVisual);
+			_children_destroy.push_back(ChildPart);
 		}
 	}
 
@@ -467,7 +464,6 @@ void CParticleGroup::SItem::OnFrame(u32 u_dt, const CPGDef::SEffect& def, Fbox& 
 				{
 					rem_cnt++;
 					IRenderVisual* pVisual = smart_cast<IRenderVisual*>(*it);
-					::Render->model_Delete_Deffered(pVisual);
 					_children_destroy.push_back(*it);
 				}
 			}
@@ -512,10 +508,21 @@ void PS::CParticleGroup::SItem::DelayDeleteChilds()
 	for (dxRender_Visual* Vis : _children_destroy)
 	{
 		auto Iter = std::find(_children_free.begin(), _children_free.end(), Vis);
-		if (Iter != _children_free.end());
+		if (Iter != _children_free.end())
 		{
 			_children_free.erase(Iter);
 		}
+		else
+		{
+			Iter = std::find(_children_related.begin(), _children_related.end(), Vis);
+			if (Iter != _children_related.end())
+			{
+				_children_related.erase(Iter);
+			}
+		}
+
+		IRenderVisual* pVisual = smart_cast<IRenderVisual*>(Vis);
+		::Render->model_Delete_Deffered(pVisual);
 	}
 
 	_children_destroy.clear();

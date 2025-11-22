@@ -12,6 +12,7 @@ struct str_container_impl
 {
 	static const u32 buffer_size = 1024 * 256;
 	xr_unordered_set<str_value, str_value_hash> buffer;
+	xrSRWLock rwlock;
 
 	str_container_impl()
 	{
@@ -20,6 +21,7 @@ struct str_container_impl
 
 	str_value* find(str_value& value)
 	{
+		xrSRWLockGuard guard(&rwlock, true);
 		auto it = buffer.find(value);
 		if (it == buffer.end())
 			return nullptr;
@@ -29,17 +31,20 @@ struct str_container_impl
 
 	str_value* insert(str_value& value)
 	{
+		xrSRWLockGuard guard(&rwlock, false);
 		auto p = buffer.insert(value);
 		return &(*p.first);
 	}
 
 	void erase(str_value& value)
 	{
+		xrSRWLockGuard guard(&rwlock, false);
 		buffer.erase(value);
 	}
 
 	void clean()
 	{
+		xrSRWLockGuard guard(&rwlock, false);
 		buffer.clear();
 		buffer.rehash(buffer_size);
 	}
@@ -51,16 +56,18 @@ struct str_container_impl
 		Msg("strings verify completed");
 	}
 
-	void dump(FILE* f) const
+	void dump(FILE* f)
 	{
+		xrSRWLockGuard guard(&rwlock, true);
 		for (const auto& s : buffer)
 		{
 			fprintf(f, "ref[%d]-len[%d] : %s\n", s.dwReference.load(), (u32)s.value.length(), s.value.c_str());
 		}
 	}
 
-	void dump(IWriter* f) const
+	void dump(IWriter* f)
 	{
+		xrSRWLockGuard guard(&rwlock, true);
 		for (const auto& s : buffer)
 		{
 			string4096 temp;
@@ -69,8 +76,9 @@ struct str_container_impl
 		}
 	}
 
-	void dump_console() const
+	void dump_console()
 	{
+		xrSRWLockGuard guard(&rwlock, true);
 		xr_set<str_value> set;
 		for (const auto& s : buffer)
 		{
@@ -85,6 +93,7 @@ struct str_container_impl
 
 	u32 stat_economy(u32& count, u32& unique)
 	{
+		xrSRWLockGuard guard(&rwlock, true);
 		count = buffer.size();
 		u32 size = sizeof(buffer);
 		xr_unordered_set<xr_string> strings;
@@ -107,33 +116,28 @@ str_value* str_container::dock(str_c value)
 {
 	if (!value) return nullptr;
 
-	xrCriticalSectionGuard g(cs);
 	str_value s(value);
 	return impl->insert(s);
 }
 
 void str_container::erase(str_c value)
 {
-	xrCriticalSectionGuard g(cs);
 	str_value s(value);
 	impl->erase(s);
 }
 
 void str_container::clean()
 {
-	xrCriticalSectionGuard g(cs);
 	impl->clean();
 }
 
 void str_container::verify()
 {
-	xrCriticalSectionGuard g(cs);
 	impl->verify();
 }
 
 void str_container::dump()
 {
-	xrCriticalSectionGuard g(cs);
 	FILE* F = fopen("d:\\$str_dump$.txt", "w");
 	impl->dump(F);
 	fclose(F);
@@ -141,19 +145,16 @@ void str_container::dump()
 
 void str_container::dump(IWriter* W)
 {
-	xrCriticalSectionGuard g(cs);
 	impl->dump(W);
 }
 
 void str_container::dump_console()
 {
-	xrCriticalSectionGuard g(cs);
 	impl->dump_console();
 }
 
 u32 str_container::stat_economy(u32& count, u32& unique)
 {
-	xrCriticalSectionGuard g(cs);
 	return impl->stat_economy(count, unique);
 }
 

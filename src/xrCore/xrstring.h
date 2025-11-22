@@ -124,7 +124,6 @@ class IWriter;
 class XRCORE_API str_container
 {
 private:
-	xrCriticalSection cs;
 	str_container_impl* impl;
 public:
 	str_container();

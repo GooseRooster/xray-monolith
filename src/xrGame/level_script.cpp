@@ -1040,9 +1040,14 @@ void refresh_npc_names()
 			if (g_pGameLevel)
 			{
 				CObject* obj = g_pGameLevel->Objects.net_Find(it->first);
-				CInventoryOwner* owner = smart_cast<CInventoryOwner*>(obj);
-				if (owner)
-					owner->refresh_npc_name();
+				if (obj)
+				{
+					CInventoryOwner* owner = smart_cast<CInventoryOwner*>(obj);
+					if (owner)
+					{
+						owner->refresh_npc_name();
+					}
+				}
 			}
 		}
 	}

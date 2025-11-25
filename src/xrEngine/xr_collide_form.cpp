@@ -65,6 +65,7 @@ bool pred_find_elem(const CCF_Skeleton::SElement& E, u16 elem)
 
 bool CCF_Skeleton::_ElementCenter(u16 elem_id, Fvector& e_center)
 {
+	xrSRWLockGuard guard(&build_lock, true);
 	ElementVecIt it = std::lower_bound(elements.begin(), elements.end(), elem_id, pred_find_elem);
 	if (it->elem_id == elem_id)
 	{
@@ -133,6 +134,7 @@ void CCF_Skeleton::BuildState()
 	//K->CalculateBones();
 	const Fmatrix& L2W = owner->XFORM();
 
+	xrSRWLockGuard guard(&build_lock, false);
 	if (vis_mask != K->LL_GetBonesVisible())
 	{
 		vis_mask = K->LL_GetBonesVisible();

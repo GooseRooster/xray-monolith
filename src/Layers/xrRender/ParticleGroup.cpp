@@ -471,7 +471,7 @@ void CParticleGroup::SItem::OnFrame(u32 u_dt, const CPGDef::SEffect& def, Fbox& 
 
 		if (!_children_destroy.empty())
 		{
-			Device.seqParallelBeforRender.push_back(xr_make_delegate(this, &PS::CParticleGroup::SItem::DelayDeleteChilds));
+			Device.seqParallelBeforRender.insert(xr_make_delegate(this, &PS::CParticleGroup::SItem::DelayDeleteChilds));
 		}
 	}
 	//	Msg("C: %d CS: %d",_children.size(),_children_stopped.size());

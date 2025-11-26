@@ -12,11 +12,11 @@ using std::swap;
 #ifdef __BORLANDC__
 #define M_NOSTDCONTAINERS_EXT
 #endif
-#ifdef _M_AMD64
-#define M_DONTDEFERCLEAR_EXT
-#endif
 
-#define M_DONTDEFERCLEAR_EXT //. for mem-debug only
+//#ifdef _M_AMD64
+//#define M_DONTDEFERCLEAR_EXT
+//#endif
+//#define M_DONTDEFERCLEAR_EXT //. for mem-debug only
 
 //--------
 #ifdef M_NOSTDCONTAINERS_EXT

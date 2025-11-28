@@ -10,14 +10,6 @@ void XRay::Engine::PreRenderThread()
 	PROF_THREAD("Secondary Task 1");
 
 	{
-		PROF_EVENT("seqParallelBeforRender");
-		for (auto& it : Device.seqParallelBeforRender)
-			it();
-
-		Device.seqParallelBeforRender.clear();
-	}
-
-	{
 		PROF_EVENT("seqParallelRender");
 		for (auto& it : Device.seqParallelRender)
 			it();

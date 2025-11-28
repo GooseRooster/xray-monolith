@@ -324,6 +324,14 @@ void CRenderDevice::on_idle()
 		Device.ModelDefferClear();
 	}
 
+	{
+		PROF_EVENT("seqParallelBeforRender");
+		for (auto& it : Device.seqParallelBeforRender)
+			it();
+
+		Device.seqParallelBeforRender.clear();
+	}
+
 	FrameMove();
 
 	// Precache

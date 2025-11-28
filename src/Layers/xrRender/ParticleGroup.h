@@ -90,7 +90,7 @@ namespace PS
 			dxRender_Visual* _effect;
 			VisualVec _children_related;
 			VisualVec _children_free;
-			VisualVec _children_destroy;
+			xr_set<dxRender_Visual*> _children_destroy;
 
 		public:
 			~SItem();

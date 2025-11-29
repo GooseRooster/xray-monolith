@@ -174,24 +174,22 @@ static void play_object(dxGeomUserData* data, SGameMtlPair* mtl_pair, const dCon
 	VERIFY(mtl_pair);
 	VERIFY(c);
 
-	CPHSoundPlayer* sp = NULL;
-#ifdef	DEBUG
-						__try{
-							sp=data->ph_ref_object->ObjectPhSoundPlayer();
-						}
-						__except(EXCEPTION_EXECUTE_HANDLER){
-							Msg( "data->ph_ref_object: %p ", data->ph_ref_object );
-							Msg( "data: %p ", data );
-							Msg( "materials: %s ", mtl_pair->dbg_Name() );
-							xrLogger::FlushLog();
-							FATAL( "bad data->ph_ref_object" );
-						}
-#else
-	if (data->ph_ref_object)
+	CPHSoundPlayer* sp = nullptr;
+
+	try
+	{
 		sp = data->ph_ref_object->ObjectPhSoundPlayer();
-#endif
+	}
+	catch (...)
+	{
+		Msg("! Physics callbacks sound player play_object error");
+		sp = nullptr;
+	}
+
 	if (sp)
+	{
 		sp->Play(mtl_pair, *(Fvector*)c->pos);
+	}
 }
 
 template <class Pars>

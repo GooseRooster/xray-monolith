@@ -442,6 +442,8 @@ CBlend* CKinematicsAnimated::PlayCycle(MotionID motion_ID, BOOL bMixIn, PlayCall
                                        u8 channel /*= 0*/)
 {
 	VERIFY(motion_ID.valid());
+	if (!motion_ID.valid()) return NULL;
+
 	CMotionDef* m_def = m_Motions[motion_ID.slot].motions.motion_def(motion_ID.idx);
 	VERIFY(m_def);
 	if (!m_def) return NULL;

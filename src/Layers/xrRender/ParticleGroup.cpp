@@ -187,7 +187,8 @@ PS::CParticleGroup::SItem::~SItem()
 	if (_children_destroy.empty())
 		return;
 
-	auto Iter = std::find(Device.seqParallelBeforRender.begin(), Device.seqParallelBeforRender.end(), xr_make_delegate(this, &PS::CParticleGroup::SItem::DelayDeleteChilds));
+	auto Callback = xr_make_delegate(this, &PS::CParticleGroup::SItem::DelayDeleteChilds);
+	auto Iter = std::find(Device.seqParallelBeforRender.begin(), Device.seqParallelBeforRender.end(), Callback);
 	if (Iter != Device.seqParallelBeforRender.end())
 	{
 		Device.seqParallelBeforRender.erase(Iter);
@@ -465,7 +466,11 @@ void CParticleGroup::SItem::OnFrame(u32 u_dt, const CPGDef::SEffect& def, Fbox& 
 
 		if (!_children_destroy.empty())
 		{
-			Device.seqParallelBeforRender.insert(xr_make_delegate(this, &PS::CParticleGroup::SItem::DelayDeleteChilds));
+			auto Callback = xr_make_delegate(this, &PS::CParticleGroup::SItem::DelayDeleteChilds);
+			if (std::find(Device.seqParallelBeforRender.begin(), Device.seqParallelBeforRender.end(), Callback) == Device.seqParallelBeforRender.end())
+			{
+				Device.seqParallelBeforRender.emplace_back(std::move(Callback));
+			}
 		}
 	}
 	//	Msg("C: %d CS: %d",_children.size(),_children_stopped.size());

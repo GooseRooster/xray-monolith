@@ -230,14 +230,13 @@ void CUIScrollView::Draw()
 		for (int idx = m_visible_rgn.x; idx <= m_visible_rgn.y; ++it, ++idx)
 		{
 			CUIScrollView* sw = smart_cast<CUIScrollView*>(*it);
-			VERIFY(sw == NULL);
+			VERIFY(sw==NULL);
 
 			if ((*it)->GetVisible())
 				(*it)->Draw();
 		}
 	}
 	else
-		xrCriticalSectionGuard g(DeletedChildWndListGuard);
 		for (int idx = 0; it != m_pad->GetChildWndList().end(); ++it, ++idx)
 		{
 			Frect item_rect;

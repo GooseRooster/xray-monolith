@@ -290,13 +290,12 @@ protected:
 	bool m_bCursorOverWindow;
 	bool m_bCustomDraw;
 
-protected:
+private:
 	//список дочерних окон
 	WINDOW_LIST m_ChildWndList;
-	xr_unordered_set<CUIWindow*> m_DeletedChildWndList;
+	WINDOW_LIST m_DeletedChildWndList;
 	void FreeDeletedChildWnd();
 	void RemoveFromDeletedChildWnd(CUIWindow* w);
-	xrCriticalSection DeletedChildWndListGuard;
 
 public:
 	WINDOW_LIST& GetChildWndList() { return m_ChildWndList; }

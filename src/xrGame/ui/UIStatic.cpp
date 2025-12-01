@@ -320,7 +320,7 @@ void CUITextWnd::Draw()
 
 void CUITextWnd::Update()
 {
-	R_ASSERT(GetChildWndList().size()==0);
+	R_ASSERT(GetChildNum() == 0);
 	UpdateColorAnimation();
 	inherited::Update();
 }

@@ -21,6 +21,7 @@ void CUIColorAnimConrollerContainer::Update()
 
 void CUIColorAnimConrollerContainer::ColorAnimationSetTextureColor(u32 color, bool only_alpha)
 {
+	xrCriticalSectionGuard guard(csUi);
 	WINDOW_LIST::iterator it = GetChildWndList().begin();
 	WINDOW_LIST::iterator it_e = GetChildWndList().end();
 	for (; it != it_e; ++it)
@@ -33,6 +34,7 @@ void CUIColorAnimConrollerContainer::ColorAnimationSetTextureColor(u32 color, bo
 
 void CUIColorAnimConrollerContainer::ColorAnimationSetTextColor(u32 color, bool only_alpha)
 {
+	xrCriticalSectionGuard guard(csUi);
 	WINDOW_LIST::iterator it = GetChildWndList().begin();
 	WINDOW_LIST::iterator it_e = GetChildWndList().end();
 	for (; it != it_e; ++it)

@@ -81,21 +81,21 @@ float CUIListBoxItem::FieldsLength() const
 {
 	xrCriticalSectionGuard guard(const_cast<xrCriticalSection&>(csUi));
 
-	if (GetChildWndList().empty())
+	if (m_ChildWndList.empty())
 		return 0.0f;
 
 	float len = 0.0f;
 	/*
-		WINDOW_LIST::const_iterator it		= GetChildWndList().begin();
-		WINDOW_LIST::const_iterator it_e	= GetChildWndList().end();
-
+		WINDOW_LIST::const_iterator it		= m_ChildWndList.begin();
+		WINDOW_LIST::const_iterator it_e	= m_ChildWndList.end();
+	
 		for(;it!=it_e;++it)
 		{
 			CUIWindow* w	= *it;
 			len				+= w->GetWndPos().x + w->GetWidth();
 		}
 	*/
-	CUIWindow* w = GetChildWndList().back();
+	CUIWindow* w = m_ChildWndList.back();
 	len += w->GetWndPos().x + w->GetWidth();
 	return len;
 }

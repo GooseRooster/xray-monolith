@@ -209,7 +209,6 @@ void CUIScrollView::SetFixedScrollBar(bool b)
 	m_flags.set(eFixedScrollBar, b);
 }
 
-extern xrCriticalSection script_gc_guard;
 void CUIScrollView::Draw()
 {
 	if (m_flags.test(eNeedRecalc))
@@ -238,31 +237,23 @@ void CUIScrollView::Draw()
 		}
 	}
 	else
-		// demonized: TODO: try to actually fix this crash
-		try
+		xrCriticalSectionGuard g(DeletedChildWndListGuard);
+		for (int idx = 0; it != m_pad->GetChildWndList().end(); ++it, ++idx)
 		{
-			xrCriticalSectionGuard g(script_gc_guard);
-			for (int idx = 0; it != m_pad->GetChildWndList().end(); ++it, ++idx)
+			Frect item_rect;
+			(*it)->GetAbsoluteRect(item_rect);
+			if (visible_rect.intersected(item_rect))
 			{
-				Frect item_rect;
-				(*it)->GetAbsoluteRect(item_rect);
-				if (visible_rect.intersected(item_rect))
-				{
-					if (m_visible_rgn.x == -1) //first visible
-						m_visible_rgn.x = idx;
+				if (m_visible_rgn.x == -1) //first visible
+					m_visible_rgn.x = idx;
 
 					m_visible_rgn.y = idx;
 
-					if ((*it)->GetVisible())
-						(*it)->Draw();
-				}
-				else if (m_visible_rgn.x != -1)
-					break;
+				if ((*it)->GetVisible())
+					(*it)->Draw();
 			}
-		}
-		catch (...)
-		{
-			//
+			else if (m_visible_rgn.x != -1)
+				break;
 		}
 	UI().PopScissor();
 

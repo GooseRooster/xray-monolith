@@ -1078,10 +1078,8 @@ void CLevel::OnFrame()
 
 int psLUA_GCSTEP = 300;
 
-xrCriticalSection script_gc_guard;
 void CLevel::script_gc()
 {
-	xrCriticalSectionGuard g(script_gc_guard);
 	{
 		PROF_EVENT("m_ph_commander");
 		ai().script_engine().script_process(ScriptEngine::eScriptProcessorLevel)->update();

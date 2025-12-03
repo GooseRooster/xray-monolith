@@ -377,6 +377,9 @@ void CHUDTarget::Render()
 	if (!m_bShowCrosshair)
 		return;
 
+	if (load_screen_renderer.IsActive())
+		return;
+
 	CHUDManager& hud = HUD();
 	bool firepos_active = hud.FireposActive();
 	bool aimpos_active = hud.AimposActive();

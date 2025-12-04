@@ -560,7 +560,7 @@ namespace crash_saving {
 void CGamePersistent::update_game_loaded()
 {
 	xr_delete(m_intro);
-	Msg("intro_delete ::update_game_loaded");
+	load_screen_renderer.stop();
 	start_game_intro();
 
 	// demonized

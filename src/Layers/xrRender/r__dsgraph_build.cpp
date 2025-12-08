@@ -385,6 +385,7 @@ void CRender::add_leafs_Dynamic(dxRender_Visual* pVisual)
 		{
 			// Add all children, doesn't perform any tests
 			PS::CParticleGroup* pG = (PS::CParticleGroup*)pVisual;
+			xrCriticalSectionGuard guard(&pG->onframe_lock);
 			for (PS::CParticleGroup::SItemVecIt i_it = pG->items.begin(); i_it != pG->items.end(); ++i_it)
 			{
 				PS::CParticleGroup::SItem& I = *i_it;

@@ -14,6 +14,7 @@
 #include "UI/UIComboBox.h"
 #include "ui/UIOptionsManagerScript.h"
 #include "ui/UIMapInfo.h"
+#include "map_manager.h"
 #include "ScriptXmlInit.h"
 #include "ui/UIActorMenu.h"
 
@@ -80,4 +81,6 @@ void UIRegistrator::script_register(lua_State* L)
 	[
 		def("get_main_menu", &MainMenu)
 	];
+
+	CMapManager::script_register(L);
 }

@@ -171,6 +171,29 @@
         table GetQuickSlotIcons()
     }
 
+    class CMapManager {
+        void RemoveMapLocationByObjectID(u16 id)
+        void RemoveMapLocation(CMapLocation* ml)
+        void DisableAllPointers()
+    }
+
+    class CMapLocation {
+        bool HintEnabled()
+        string GetHint()
+        void SetHint(string hint)
+        bool PointerEnabled()
+        void EnablePointer()
+        void DisablePointer()
+        bool Collidable()
+        bool SpotEnabled()
+        void EnableSpot()
+        void DisableSpot()
+        string GetLevelName()
+        Fvector2 GetPosition()
+        u16 ObjectID()
+        Fvector3 GetLastPosition()
+    }
+
     class render_device {
         // Switch the pause, with sound emitters and without hint on screen
         void pause_ex(bool state)

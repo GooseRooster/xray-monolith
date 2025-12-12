@@ -1,6 +1,7 @@
 #pragma once
 #include "object_interfaces.h"
 #include "map_location_defs.h"
+#include "script_export_space.h"
 
 class CMapLocationWrapper;
 class CInventoryOwner;
@@ -41,4 +42,10 @@ public:
 	void					Dump						();
 #endif
 	void Destroy(CMapLocation*);
+
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 };
+
+add_to_type_list(CMapManager)
+#undef script_type_list
+#define script_type_list save_type_list(CMapManager)

@@ -451,6 +451,11 @@ u16 map_has_object_spot(u16 id, LPCSTR spot_type)
 	return Level().MapManager().HasMapLocation(spot_type, id);
 }
 
+CMapManager* get_map_manager()
+{
+	return &Level().MapManager();
+}
+
 bool patrol_path_exists(LPCSTR patrol_path)
 {
 	return (!!ai().patrol_paths().path(patrol_path, true));
@@ -1120,9 +1125,26 @@ void stop_tutorial()
 		g_tutorial->Stop();
 }
 
+LPCSTR tutorial_name()
+{
+	if (g_tutorial)
+		return g_tutorial->m_name;
+	return "invalid";
+}
+
 LPCSTR translate_string(LPCSTR str)
 {
 	return *CStringTable().translate(str);
+}
+
+void patrol_path_add(LPCSTR patrol_path, CPatrolPath* path)
+{
+	ai().patrol_paths_raw().add_path(shared_str(patrol_path), path);
+}
+
+void patrol_path_remove(LPCSTR patrol_path)
+{
+	ai().patrol_paths_raw().remove_path(shared_str(patrol_path));
 }
 
 bool has_active_tutotial()
@@ -2414,6 +2436,7 @@ void CLevel::script_register(lua_State* L)
 			def("map_remove_object_spot", map_remove_object_spot),
 			def("map_has_object_spot", map_has_object_spot),
 			def("map_change_spot_hint", map_change_spot_hint),
+			def("map_manager", get_map_manager),
 
 			// demonized: remove all map object spots by id
 			def("map_remove_all_object_spots", map_remove_all_object_spots),
@@ -2499,7 +2522,10 @@ void CLevel::script_register(lua_State* L)
 			def("get_attachment", &GetAttachment),
 			def("remove_attachment", (void (*)(LPCSTR)) &RemoveAttachment),
 			def("remove_attachment", (void (*)(script_attachment*)) &RemoveAttachment),
-			def("iterate_attachments", &IterateAttachments)
+			def("iterate_attachments", &IterateAttachments),
+
+			def("patrol_path_add", &patrol_path_add),
+			def("patrol_path_remove", &patrol_path_remove)
 		],
 
 		module(L, "actor_stats")
@@ -2647,6 +2673,7 @@ void CLevel::script_register(lua_State* L)
 		def("start_tutorial", &start_tutorial),
 		def("stop_tutorial", &stop_tutorial),
 		def("has_active_tutorial", &has_active_tutotial),
+		def("active_tutorial_name", &tutorial_name),
 		def("translate_string", &translate_string),
 		def("reload_language", &reload_language),
 		def("get_resolutions", &vid_modes_string),

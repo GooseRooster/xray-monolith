@@ -89,6 +89,7 @@
         string dik_to_keyname(number dik, boolean localize)
         int get_modded_exes_version() // Returns modded exes version in integer format
         table get_string_table() // Returns all translated strings in [string id] = string text format 
+        string active_tutorial_name()
     }
 
     get_console() {
@@ -288,6 +289,10 @@
             spot_type: string, icon ID from map_spots XML
             text: string, text when spot is hovered
         // }
+
+        CMapManager* get_map_manager()
+        void patrol_path_add(string patrol_path, CPatrolPath* path)
+        void patrol_path_remove(string patrol_path)
 
         add_bullet(Fvector pos, Fvector dir, float speed, float power, float impulse, u16 sender, ALife::EHitType hit_type, float max_dist, LPCSTR ammo_sect, float air_resistance)
 

@@ -96,6 +96,7 @@ bool CUISequenceItem::Stop(bool bForce)
 CUISequencer::CUISequencer()
 {
 	m_flags.zero();
+	m_name = "invalid";
 }
 
 void CUISequencer::Start(LPCSTR tutor_name)
@@ -105,6 +106,8 @@ void CUISequencer::Start(LPCSTR tutor_name)
 
 
 	m_UIWindow = xr_new<CUIWindow>();
+
+	m_name = tutor_name;
 
 	CUIXml uiXml;
 	uiXml.Load(CONFIG_PATH, UI_PATH, "game_tutorials.xml");

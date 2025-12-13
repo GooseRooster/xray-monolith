@@ -225,7 +225,6 @@
     <ClCompile Include="luabind\src\function.cpp" />
     <ClCompile Include="luabind\src\implicit_cast.cpp" />
     <ClCompile Include="luabind\src\link_compatibility.cpp" />
-    <ClCompile Include="luabind_memory.cpp" />
     <ClInclude Include="luabind\src\luabind_api.h" />
     <ClCompile Include="luabind\src\object.cpp" />
     <ClCompile Include="luabind\src\object_rep.cpp" />

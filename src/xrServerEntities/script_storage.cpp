@@ -161,38 +161,32 @@ u32 game_lua_memory_usage()
 }
 #endif //!USE_DL_ALLOCATOR
 
-static void* __cdecl luabind_allocator(
-	const void* pointer,
+static LPVOID __cdecl luabind_allocator(
+	luabind::memory_allocation_function_parameter const,
+	void const* const pointer,
 	size_t const size
 )
 {
 	if (!size)
 	{
-		void* non_const_pointer = const_cast<void*>(pointer);
+		LPVOID non_const_pointer = const_cast<LPVOID>(pointer);
 		xr_free(non_const_pointer);
-		return nullptr;
+		return (0);
 	}
 
 	if (!pointer)
 	{
-#ifdef DEBUG
-		return	(Memory.mem_alloc(size, "luabind"));
-#else //!DEBUG
 		return (Memory.mem_alloc(size));
-#endif //-DEBUG
 	}
 
-	void* non_const_pointer = const_cast<void*>(pointer);
-#ifdef DEBUG
-	return		(Memory.mem_realloc(non_const_pointer, size, "luabind"));
-#else //!DEBUG
+	LPVOID non_const_pointer = const_cast<LPVOID>(pointer);
 	return (Memory.mem_realloc(non_const_pointer, size));
-#endif //-DEBUG
 }
 
 void setup_luabind_allocator()
 {
-	::luabind::set_allocator(&luabind_allocator);
+	::luabind::allocator = &luabind_allocator;
+	::luabind::allocator_parameter = 0;
 }
 
 #ifdef USE_LUAJIT_ONE //  [1/14/2015 Andrey]

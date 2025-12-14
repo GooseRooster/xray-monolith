@@ -138,6 +138,10 @@
         CUIMessagesWindow get_messages_menu()
     }
 
+    class cse_alife_item_weapon {
+        function clone_upgrades(cse_alife_item_weapon*)
+    }
+
     class CUIProgressBar {
         CUIStatic GetProgressStatic()
     }

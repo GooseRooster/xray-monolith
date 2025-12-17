@@ -15,6 +15,7 @@
 #include "script_storage.h"
 #include <unordered_map>
 #include <set>
+#include <luabind/class_info.hpp>
 
 #ifdef USE_DEBUGGER
 #	ifndef USE_LUA_STUDIO
@@ -384,6 +385,7 @@ void CScriptEngine::init()
 #endif // #ifdef USE_LUA_STUDIO
 
 	::luabind::open(lua());
+	::luabind::bind_class_info(lua());
 	setup_callbacks();
 	export_classes(lua());
 	setup_auto_load();

@@ -70,6 +70,9 @@ private:
 
 	void CreateMapLocation(bool on_load);
 
+	bool isTaskCompleted();
+	bool isTaskFail();
+	void checkTask();
 
 	CGameTask(const CGameTask&);
 public:

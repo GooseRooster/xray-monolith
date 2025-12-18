@@ -7,6 +7,7 @@ using std::swap;
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
+#include <array>
 #include "_type_traits.h"
 
 #ifdef __BORLANDC__
@@ -30,6 +31,9 @@ using std::swap;
 #define xr_hash_map std::hash_map
 #define xr_multimap std::multimap
 #define xr_string std::string
+
+template<typename Type, size_t Size>
+using xr_array = std::array<Type, Size>;
 
 template <class T>
 class xr_vector : public std::vector < T >

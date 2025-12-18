@@ -11087,6 +11087,9 @@
     <ClCompile Include="map_manager_script.cpp">
       <Filter>Core\Client\Objects\tasks_info_dialogs\map</Filter>
     </ClCompile>
+    <ClCompile Include="GametaskManager_script.cpp">
+      <Filter>Core\Client\Objects\tasks_info_dialogs\game tasks</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Explosive.h">

@@ -92,6 +92,7 @@
         player_hud* get_player_hud()
         string active_tutorial_name()
         class class_info(object) // Returns luabind class with information about object's class: name, methods, attributes
+        CGameTaskManager* get_game_task_manager()
     }                                                               
                                                                     
     get_console() {

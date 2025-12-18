@@ -131,6 +131,11 @@ CGameTask* CGameTaskManager::GiveGameTaskToActor(CGameTask* t, u32 timeToComplet
 	return t;
 }
 
+void CGameTaskManager::test_groid()
+{
+	int a = 0;
+}
+
 void CGameTaskManager::SetTaskState(CGameTask* t, ETaskState state)
 {
 	PROF_EVENT("CGameTaskManager::SetTaskState");
@@ -381,3 +386,5 @@ void CGameTaskManager::DumpTasks()
 		    gt->m_priority);
 	}
 }
+
+CGameTaskManager* get_task_manager() { return Level().GameTaskManager(); }

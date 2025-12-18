@@ -158,4 +158,5 @@
 #	include "script_attachment_manager.h"
 #	include "player_hud.h"
 #	include "script_imgui.h"
+#	include "GametaskManager.h"
 #endif

@@ -1628,14 +1628,14 @@ bool CLevel::IsClient()
 void CLevel::OnAlifeSimulatorUnLoaded()
 {
 	MapManager().ResetStorage();
-	GameTaskManager().ResetStorage();
+	GameTaskManager()->ResetStorage();
 	delete_data(m_debug_render_queue);
 }
 
 void CLevel::OnAlifeSimulatorLoaded()
 {
 	MapManager().ResetStorage();
-	GameTaskManager().ResetStorage();
+	GameTaskManager()->ResetStorage();
 	delete_data(m_debug_render_queue);
 }
 

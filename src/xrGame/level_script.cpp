@@ -1063,7 +1063,7 @@ void refresh_npc_names()
 		Actor()->RPC_UpdateRank();
 		Actor()->RPC_UpdateReputation();
 
-		Level().GameTaskManager().RPC_UpdateTaskName();
+		Level().GameTaskManager()->RPC_UpdateTaskName();
 	}
 }
 

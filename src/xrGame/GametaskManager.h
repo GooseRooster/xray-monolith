@@ -1,7 +1,9 @@
 #pragma once
 
+#include "GameTask.h"
 #include "GameTaskDefs.h"
 #include "object_interfaces.h"
+#include "script_export_space.h"
 
 class CGameTaskWrapper;
 class CGameTask;
@@ -27,6 +29,7 @@ public:
 	CGameTask* HasGameTask(const CMapLocation* ml, bool only_inprocess);
 	CGameTask* HasGameTask(const shared_str& id, bool only_inprocess);
 	CGameTask* GiveGameTaskToActor(CGameTask* t, u32 timeToComplete, bool bCheckExisting, u32 timer_ttl);
+	void test_groid();
 	void SetTaskState(const shared_str& id, ETaskState state);
 	void SetTaskState(CGameTask* t, ETaskState state);
 
@@ -46,4 +49,10 @@ public:
 
 	void ResetStorage() { m_gametasks = NULL; };
 	void DumpTasks();
+	
+	DECLARE_SCRIPT_REGISTER_FUNCTION
 };
+
+add_to_type_list(CGameTaskManager)
+#undef script_type_list
+#define script_type_list save_type_list(CGameTaskManager)

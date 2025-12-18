@@ -177,7 +177,7 @@ void CHUDManager::OnFrameMT()
 	PROF_EVENT("CHUDManager::OnFrameMT");
 
 	if (Device.dwPrecacheFrame == 0)
-		Level().GameTaskManager().UpdateTasks();
+		Level().GameTaskManager()->UpdateTasks();
 }
 
 //--------------------------------------------------------------------

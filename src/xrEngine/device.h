@@ -436,7 +436,7 @@ public:
 	}
 
 	// Multi-threading
-	xr_task_group secondary_tasks;
+	xr_task_group secondary_tasks, details_task;
 
 	ICF void remove_from_seq_parallel(const xr_delegate<void()>& delegate)
 	{

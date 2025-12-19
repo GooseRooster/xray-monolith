@@ -268,12 +268,7 @@ public:
 	void Render();
 
 	/// MT stuff
-	volatile u32 m_frame_calc;
 	volatile u32 m_frame_rendered;
-
-	void __stdcall MT_CALC();
-	
-	volatile bool bWait;
 
 	CDetailManager();
 	virtual ~CDetailManager();

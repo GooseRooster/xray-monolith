@@ -786,6 +786,7 @@ void CGamePersistent::OnEvent(EVENT E, u64 P1, u64 P2)
 {
 	if (E == eQuickLoad)
 	{
+		PROF_EVENT("eQuickLoad");
 		if (Device.Paused())
 			Device.Pause(FALSE, TRUE, TRUE, "eQuickLoad");
 

@@ -120,6 +120,7 @@ CInifile::CInifile(IReader* F, LPCSTR path
 #endif
 )
 {
+	PROF_EVENT("CInifile::CInifile IReader");
 	m_file_name[0] = 0;
 	m_flags.zero();
 	m_flags.set(eSaveAtEnd, FALSE);
@@ -143,6 +144,7 @@ CInifile::CInifile(LPCSTR szFileName,
 )
 
 {
+	PROF_EVENT("CInifile::CInifile FileName");
 	if (szFileName && strstr(szFileName, "system"))
 		Msg("-----loading %s", szFileName);
 

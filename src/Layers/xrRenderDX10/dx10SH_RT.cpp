@@ -34,6 +34,7 @@ void CRT::create(LPCSTR Name, u32 w, u32 h, D3DFORMAT f, u32 SampleCount, bool u
 void CRT::create(LPCSTR Name, u32 w, u32 h, D3DFORMAT f, u32 SampleCount)
 #endif
 {
+	PROF_EVENT("CRT::create");
 	if (pSurface) return;
 
 	R_ASSERT(HW.pDevice && Name && Name[0] && w && h);

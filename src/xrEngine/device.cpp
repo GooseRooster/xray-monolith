@@ -285,8 +285,7 @@ void CRenderDevice::on_idle()
 		return;
 	}
 
-	PROF_THREAD("X-Ray Primary Thread");
-	PROF_FRAME("X-Ray Primary Thread");
+	PROF_FRAME("Main Thread");
 
 #ifdef DEDICATED_SERVER
     u32 FrameStartTime = TimerGlobal.GetElapsed_ms();
@@ -300,9 +299,12 @@ void CRenderDevice::on_idle()
 
 	if (g_loading_events.size())
 	{
-		PROF_EVENT("Pop loading event");
-		if (g_loading_events.front()())
-			g_loading_events.pop_front();
+		{
+			PROF_EVENT("Loading...");
+			if (g_loading_events.front()())
+				g_loading_events.pop_front();
+		}
+		PROF_EVENT("LoadDraw");
 		pApp->LoadDraw();
 		return;
 	}

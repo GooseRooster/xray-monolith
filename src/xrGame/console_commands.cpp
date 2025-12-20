@@ -305,6 +305,7 @@ extern XRCORE_API full_memory_stats_callback_type g_full_memory_stats_callback;
 
 static void full_memory_stats()
 {
+	PROF_EVENT("full_memory_stats");
 	Msg("* [x-ray]: Full Memory Stats");
 	Memory.mem_compact();
 	size_t _process_heap = ::Memory.mem_usage();

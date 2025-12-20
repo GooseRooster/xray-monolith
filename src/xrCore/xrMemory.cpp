@@ -145,6 +145,7 @@ void xrMemory::_destroy()
 
 void xrMemory::mem_compact()
 {
+	PROF_EVENT("mem_compact");
 #ifdef DEBUG_MEMORY_MANAGER
 	RegFlushKey(HKEY_CLASSES_ROOT);
 	RegFlushKey(HKEY_CURRENT_USER);

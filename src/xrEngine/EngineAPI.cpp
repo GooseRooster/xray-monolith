@@ -214,6 +214,7 @@ void __cdecl xrFactory_Destroy(DLL_Pure* O);
 
 void CEngineAPI::Initialize(void)
 {
+	PROF_EVENT("CEngineAPI::Initialize");
 	//////////////////////////////////////////////////////////////////////////
 	// render
 	LPCSTR r1_name = "xrRender_R1.dll";
@@ -310,6 +311,7 @@ bool /*_declspec(dllexport)*/ SupportsDX10Rendering();
 
 void CEngineAPI::CreateRendererList()
 {
+	PROF_EVENT("CreateRendererList");
 #ifdef DEDICATED_SERVER
 
     vid_quality_token = xr_alloc<xr_token>(2);

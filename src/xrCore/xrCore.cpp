@@ -39,6 +39,7 @@ extern std::string timeInDMYHMSMMM();
 
 void xrCore::_initialize(LPCSTR _ApplicationName, xrLogger::LogCallback cb, BOOL init_fs, LPCSTR fs_fname)
 {
+	PROF_EVENT("xrCore::_initialize");
 	xr_strcpy(ApplicationName, _ApplicationName);
 	if (0 == init_counter)
 	{

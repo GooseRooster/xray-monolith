@@ -219,6 +219,7 @@ CLevel::CLevel() :
 , DemoCS(MUTEX_PROFILE_ID(DemoCS))
 #endif
 {
+	PROF_EVENT("CLevel::CLevel");
 	g_bDebugEvents = Core.ParamsData.test(ECoreParams::debug_ge);
 	game_events = xr_new<NET_Queue_Event>();
 
@@ -271,6 +272,7 @@ extern CAI_Space* g_ai_space;
 
 CLevel::~CLevel()
 {
+	PROF_EVENT("CLevel::~CLevel");
 	//crash_saving::save_impl = nullptr; // CLevel not available, disable crash save
 	xr_delete(g_player_hud);
 	delete_data(m_script_attachments);

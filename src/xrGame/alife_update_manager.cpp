@@ -277,6 +277,7 @@ void CALifeUpdateManager::new_game(LPCSTR save_name)
 
 void CALifeUpdateManager::load(LPCSTR game_name, bool no_assert, bool new_only)
 {
+	PROF_EVENT("Load Alife Simulator");
 	//	g_pGamePersistent->LoadTitle		("st_loading_alife_simulator");
 	g_pGamePersistent->LoadTitle();
 

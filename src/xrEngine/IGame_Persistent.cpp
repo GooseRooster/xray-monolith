@@ -181,66 +181,77 @@ void IGame_Persistent::Prefetch()
 	float p_time = 1000.f * Device.GetTimerGlobal()->GetElapsed_sec();
 	size_t mem_0 = Memory.mem_usage();
 
-	Log("Loading objects...");
-	ObjectPool.prefetch();
-	Log("Loading models...");
-	Render->models_Prefetch();
-	Log("Loading textures...");
+	PROF_EVENT("Prefetch");
+	{
+		// prefetch game objects & models
+		PROF_EVENT("Loading objects");
+		Log("Loading objects...");
+		ObjectPool.prefetch();
+	}
+	{
+		PROF_EVENT("Prefetch Loading models");
+		Log("Loading models...");
+		Render->models_Prefetch();
+	}
+	{
+		PROF_EVENT("Loading textures");
+		Log("Loading textures...");
 	
-	const auto loadFileFolder = [&](LPCSTR _folder)
-	{
-		string_path folder;
-		strconcat(sizeof(folder), folder, _folder, "\\*.dds");
-
-		FS_FileSet fset;
-		FS.file_list(fset, "$game_textures$", FS_ListFiles, folder);
-
-		for (FS_FileSet::iterator it = fset.begin(); it != fset.end(); it++)
-			Device.m_pRender->ResourcesPrefetchCreateTexture(it->name.c_str());
-	};
-
-	if (m_textures_prefetch_config->section_exist("prefetch_folders"))
-	{
-		CInifile::Sect const& sect_f = m_textures_prefetch_config->r_section("prefetch_folders");
-		for (CInifile::SectCIt I = sect_f.Data.begin(); I != sect_f.Data.end(); I++)
+		const auto loadFileFolder = [&](LPCSTR _folder)
 		{
-			if (I->second.size() && !xr_strcmp(*I->second, "*"))
+			string_path folder;
+			strconcat(sizeof(folder), folder, _folder, "\\*.dds");
+
+			FS_FileSet fset;
+			FS.file_list(fset, "$game_textures$", FS_ListFiles, folder);
+
+			for (FS_FileSet::iterator it = fset.begin(); it != fset.end(); it++)
+				Device.m_pRender->ResourcesPrefetchCreateTexture(it->name.c_str());
+		};
+
+		if (m_textures_prefetch_config->section_exist("prefetch_folders"))
+		{
+			CInifile::Sect const& sect_f = m_textures_prefetch_config->r_section("prefetch_folders");
+			for (CInifile::SectCIt I = sect_f.Data.begin(); I != sect_f.Data.end(); I++)
 			{
-				string_path folder;
-				FS.update_path(folder, "$game_textures$", *I->first);
-				xr_strcat(folder, sizeof(folder), "\\");
-
-				xr_vector<LPSTR> *subfolders = FS.file_list_open(folder, FS_ListFolders);
-
-				if (subfolders == nullptr)
+				if (I->second.size() && !xr_strcmp(*I->second, "*"))
 				{
+					string_path folder;
+					FS.update_path(folder, "$game_textures$", *I->first);
+					xr_strcat(folder, sizeof(folder), "\\");
+
+					xr_vector<LPSTR> *subfolders = FS.file_list_open(folder, FS_ListFolders);
+
+					if (subfolders == nullptr)
+					{
+						FS.file_list_close(subfolders);
+						continue;
+					}
+
+					for (LPSTR subfolder : *subfolders)
+					{
+						string_path path;
+						strconcat(sizeof(path), path, folder, subfolder);
+
+						loadFileFolder(path);
+					}
+
 					FS.file_list_close(subfolders);
-					continue;
 				}
 
-				for (LPSTR subfolder : *subfolders)
-				{
-					string_path path;
-					strconcat(sizeof(path), path, folder, subfolder);
-
-					loadFileFolder(path);
-				}
-
-				FS.file_list_close(subfolders);
+				loadFileFolder(*I->first);
 			}
-
-			loadFileFolder(*I->first);
 		}
-	}
 
-	if (m_textures_prefetch_config->section_exist("prefetch_textures"))
-	{
-		CInifile::Sect const& sect = m_textures_prefetch_config->r_section("prefetch_textures");
-		for (CInifile::SectCIt I = sect.Data.begin(); I != sect.Data.end(); I++)
-			Device.m_pRender->ResourcesPrefetchCreateTexture(I->first.c_str());
-	}
+		if (m_textures_prefetch_config->section_exist("prefetch_textures"))
+		{
+			CInifile::Sect const& sect = m_textures_prefetch_config->r_section("prefetch_textures");
+			for (CInifile::SectCIt I = sect.Data.begin(); I != sect.Data.end(); I++)
+				Device.m_pRender->ResourcesPrefetchCreateTexture(I->first.c_str());
+		}
 
-	Device.m_pRender->ResourcesDeferredUpload();
+		Device.m_pRender->ResourcesDeferredUpload();
+	}
 
 	Msg("* [x-ray]: Prefetched Data");
 	p_time = 1000.f * Device.GetTimerGlobal()->GetElapsed_sec() - p_time;

@@ -244,7 +244,6 @@ int ik_shift_object = 1;
 
 void CIKLimbsController::Calculate()
 {
-	PROF_EVENT("IK_CALCULATE");
 	update_blend(m_legs_blend);
 
 	Fmatrix& obj = m_object->XFORM();
@@ -357,7 +356,6 @@ void CIKLimbsController::PlayLegs(CBlend* b)
 
 void CIKLimbsController::Update()
 {
-	PROF_EVENT("IK_UPDATE");
 #ifdef DEBUG
 	if( ph_dbg_draw_mask1.test( phDbgIKOff ) )
 		return;

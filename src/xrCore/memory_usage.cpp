@@ -27,6 +27,7 @@ XRCORE_API void vminfo(size_t* _free, size_t* reserved, size_t* committed)
 
 XRCORE_API void log_vminfo()
 {
+	PROF_EVENT("log_vminfo");
 	size_t w_free, w_reserved, w_committed;
 	vminfo(&w_free, &w_reserved, &w_committed);
 	Msg(
@@ -39,6 +40,7 @@ XRCORE_API void log_vminfo()
 
 size_t xrMemory::mem_usage()
 {
+	PROF_EVENT("mem_usage");
 	_HEAPINFO hinfo = {};
 	int status;
 	size_t bytesUsed = 0;

@@ -357,6 +357,7 @@ _CRTIMP _PNH __cdecl _set_new_handler(_PNH);
 
 void xrDebug::_initialize(const bool& dedicated)
 {
+	PROF_EVENT("xrDebug::_initialize");
 	handler = 0;
 	_set_new_mode(1); // gen exception if can't allocate memory
 	_set_new_handler(_out_of_memory); // exception-handler for 'out of memory' condition

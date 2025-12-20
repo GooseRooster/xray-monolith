@@ -104,6 +104,7 @@ static char szEngineHash[33] = DEFAULT_MODULE_HASH;
 
 void compute_build_id()
 {
+	PROF_EVENT("compute_build_id");
 	build_date = __DATE__;
 
 	int days;
@@ -165,6 +166,7 @@ ENGINE_API string_path g_sLaunchWorkingFolder;
 // startup point
 void InitEngine()
 {
+	PROF_EVENT("InitEngine");
 	DevicePtr = &Device;
 
 	Engine.Initialize();
@@ -194,6 +196,7 @@ extern float g_fTimeFactor;
 
 PROTECT_API void InitSettings()
 {
+	PROF_EVENT("InitSettings");
 	string_path fname;
 	FS.update_path(fname, "$game_config$", "system.ltx");
 #ifdef DEBUG
@@ -256,6 +259,7 @@ PROTECT_API void InitConsole()
 
 PROTECT_API void InitInput()
 {
+	PROF_EVENT("InitInput");
 	BOOL bCaptureInput = FALSE;
 
 	pInput = xr_new<CInput>(bCaptureInput);
@@ -1335,6 +1339,7 @@ void CApplication::OnEvent(EVENT E, u64 P1, u64 P2)
 	}
 	else if (E == eStart)
 	{
+		PROF_EVENT("CApplication::OnEvent: eStart");
 		LPSTR op_server = LPSTR(P1);
 		LPSTR op_client = LPSTR(P2);
 		Level_Current = u32(-1);

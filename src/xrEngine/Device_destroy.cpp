@@ -65,6 +65,7 @@ extern void GetMonitorResolution(u32& horizontal, u32& vertical);
 
 void CRenderDevice::Reset(bool precache)
 {
+	PROF_EVENT("CRenderDevice::Reset");
 	if (use_reshade)
 		unregister_reshade();
 

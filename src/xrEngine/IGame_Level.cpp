@@ -21,6 +21,7 @@ extern BOOL g_bLoaded;
 
 IGame_Level::IGame_Level()
 {
+	PROF_EVENT("IGame_Level::IGame_Level");
 	m_pCameras = xr_new<CCameraManager>(true);
 	g_pGameLevel = this;
 	pLevel = NULL;
@@ -83,6 +84,7 @@ static void __stdcall build_callback(Fvector* V, int Vcnt, CDB::TRI* T, int Tcnt
 
 bool IGame_Level::Load(u32 dwNum)
 {
+	PROF_EVENT("IGame_Level::Load");
 	//SECUROM_MARKER_PERFORMANCE_ON(10)
 
 	// Initialize level data

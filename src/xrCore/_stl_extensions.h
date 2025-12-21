@@ -32,9 +32,6 @@ using std::swap;
 #define xr_multimap std::multimap
 #define xr_string std::string
 
-template<typename Type, size_t Size>
-using xr_array = std::array<Type, Size>;
-
 template <class T>
 class xr_vector : public std::vector < T >
 {
@@ -156,6 +153,9 @@ namespace std
 	inline xalloc<_Tp2> __stl_alloc_create(xalloc<_Tp1>&, const _Tp2*) { return xalloc<_Tp2>(); }
 };
 
+// array
+template<typename Type, size_t Size>
+using xr_array = std::array<Type, Size>;
 
 // vector
 template <typename T, typename allocator = xalloc<T>>

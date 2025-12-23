@@ -261,7 +261,6 @@ void export_classes	(lua_State *L)
 	CMissile::script_register(L);
 	CWeaponAmmo::script_register(L);
 	CWeaponSSRS::script_register(L);
-	CWeaponStatMgun::script_register(L);
 	CAntirad::script_register(L);
 	CInventoryItem::script_register(L);
 	gamespy_gp_profile::script_register(L);
@@ -277,5 +276,14 @@ void export_classes	(lua_State *L)
 	CUIListBox::script_register(L);
 	//CUIMainIngameWnd::script_register(L);
 	//CUIPdaWnd::script_register(L);
+
+#ifdef PROJECTOR_NEW
+	CProjector::script_register(L);
+#endif
+
+#ifdef STATIONARYMGUN_NEW
+	CWeaponStatMgun::script_register(L);
+#endif
+
 #endif
 }

@@ -566,7 +566,6 @@ void CRenderDevice::Run()
 	seqAppEnd.Process(rp_AppEnd);
 
 	secondary_tasks.wait();
-	details_task.wait();
 	ParticleWorkerCallback = nullptr;
 }
 

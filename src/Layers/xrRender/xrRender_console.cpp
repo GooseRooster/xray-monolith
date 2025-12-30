@@ -563,7 +563,6 @@ class CCC_detail_radius : public CCC_Integer
 public:
 	void apply()
 	{
-		Device.details_task.wait();
 		dm_current_size = iFloor((float)ps_r__detail_radius / 4) * 2;
 		dm_current_cache1_line = dm_current_size * 2 / 4; // assuming cache1_count = 4
 		dm_current_cache_line = dm_current_size + 1 + dm_current_size;

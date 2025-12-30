@@ -241,10 +241,21 @@ void CDetailManager::Load()
 	swing_desc[1].rot1 = pSettings->r_float("details", "swing_fast_rot1");
 	swing_desc[1].rot2 = pSettings->r_float("details", "swing_fast_rot2");
 	swing_desc[1].speed = pSettings->r_float("details", "swing_fast_speed");
+
+	if (ps_r2_ls_flags.test(R2FLAG_EXP_MT_CALC))
+	{
+		// MT-details (@front)
+		Device.seqParallelRender.push_back(xr_make_delegate(this, &CDetailManager::MT_CALC));
+	}
 }
 #endif
 void CDetailManager::Unload()
 {
+	auto I = std::find(Device.seqParallelRender.begin(), Device.seqParallelRender.end(), xr_make_delegate(this, &CDetailManager::MT_CALC));
+
+	if (I != Device.seqParallelRender.end())
+		Device.seqParallelRender.erase(I);
+
 	if (UseVS()) hw_Unload();
 	else soft_Unload();
 
@@ -428,44 +439,15 @@ void CDetailManager::Render()
 	PROF_EVENT("Render details");
 
 #ifndef _EDITOR
-	if (0 == RImplementation.Details) return; // possibly deleted
 	if (0 == dtFS) return;
 	if (!psDeviceFlags.is(rsDetails)) return;
-	if (!hw_BatchSize)	return;
 #endif
 
-	Device.details_task.wait();
-
-	static DWORD this_thread_id = 0;
-	this_thread_id = GetCurrentThreadId();
-
-	Device.details_task.run
-	(
-		[this]()
-		{
-#ifndef _EDITOR
-			if (0 == RImplementation.Details) return; // possibly deleted
-			if (0 == dtFS) return;
-			if (!psDeviceFlags.is(rsDetails)) return;
-#endif
-
-			if (this_thread_id != GetCurrentThreadId())
-			{
-				PROF_THREAD("Details async")
-			}
-
-			Fvector EYE = RDEVICE.vCameraPosition_saved;
-
-			int s_x = iFloor(EYE.x / dm_slot_size + .5f);
-			int s_z = iFloor(EYE.z / dm_slot_size + .5f);
-
-			RDEVICE.Statistic->RenderDUMP_DT_Cache.Begin();
-			cache_Update(s_x, s_z, EYE, dm_max_decompress);
-			RDEVICE.Statistic->RenderDUMP_DT_Cache.End();
-
-			UpdateVisibleM();
-		}
-	);
+	while (bWait)
+	{
+		PROF_EVENT("Wait details");
+		Sleep(0);
+	}
 
 	RDEVICE.Statistic->RenderDUMP_DT_Render.Begin();
 	g_pGamePersistent->m_pGShaderConstants->m_blender_mode.w = 1.0f; //--#SM+#-- Флaa нaчaлa ?aндa?a o?aвu [begin of grass render]
@@ -487,6 +469,35 @@ void CDetailManager::Render()
 	
 	RDEVICE.Statistic->RenderDUMP_DT_Render.End();
 	m_frame_rendered = RDEVICE.dwFrame;
+}
+
+void __stdcall CDetailManager::MT_CALC()
+{
+	PROF_EVENT("MT_CALC details");
+
+#ifndef _EDITOR
+	if (0 == RImplementation.Details) return; // possibly deleted
+	if (0 == dtFS) return;
+	if (!psDeviceFlags.is(rsDetails)) return;
+#endif
+
+	bWait = true;
+
+	if (m_frame_calc != RDEVICE.dwFrame && (m_frame_rendered + 1) == RDEVICE.dwFrame)
+	{
+		Fvector EYE = RDEVICE.vCameraPosition_saved;
+
+		int s_x = iFloor(EYE.x / dm_slot_size + .5f);
+		int s_z = iFloor(EYE.z / dm_slot_size + .5f);
+
+		RDEVICE.Statistic->RenderDUMP_DT_Cache.Begin();
+		cache_Update(s_x, s_z, EYE, dm_max_decompress);
+		RDEVICE.Statistic->RenderDUMP_DT_Cache.End();
+
+		UpdateVisibleM();
+		m_frame_calc = RDEVICE.dwFrame;
+	}
+	bWait = false;
 }
 
 void CDetailManager::details_clear()

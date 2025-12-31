@@ -42,6 +42,7 @@ public:
 	u32 m_dwTextColor[4];
 	bool m_bUseTextColor[4]; // note: 0 index will be ignored
 
+	virtual CUIWindow* ui_cast_window() { return this; }
 
 	enum EFrameMode
 	{

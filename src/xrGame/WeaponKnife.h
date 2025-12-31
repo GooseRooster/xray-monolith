@@ -82,6 +82,8 @@ public:
 
 	virtual bool GetBriefInfo(II_BriefInfo& info);
 
+	virtual CWeaponKnife* cast_weapon_knife() { return this; }
+
 #ifdef DEBUG
 	virtual void		OnRender						();
 #endif

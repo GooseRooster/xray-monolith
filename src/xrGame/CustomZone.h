@@ -83,7 +83,9 @@ public:
 	//абсолютный размер
 	float Power(float dist, float nearest_shape_radius);
 
-	virtual CCustomZone* cast_custom_zone() { return this; }
+	virtual CCustomZone* cast_custom_zone() {return this;}
+	virtual CSpaceRestrictor* cast_restrictor() {return this;}
+	virtual CGameObject* cast_game_object() { return this; }
 
 	//различные состояния в которых может находиться зона
 	typedef enum

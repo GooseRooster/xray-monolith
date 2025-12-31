@@ -130,6 +130,7 @@ private:
 	//casts
 public:
 	virtual CHolderCustom* cast_holder_custom() { return this; }
+	virtual CGameObject* cast_game_object() { return this; }
 
 	//general
 public:

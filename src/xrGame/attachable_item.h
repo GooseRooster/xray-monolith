@@ -10,6 +10,7 @@
 
 class CPhysicsShellHolder;
 class CInventoryItem;
+class CTorch;
 
 class CAttachableItem
 {
@@ -29,6 +30,8 @@ public:
 	virtual ~CAttachableItem();
 	virtual DLL_Pure* _construct();
 	virtual CAttachableItem* cast_attachable_item() { return this; }
+	virtual CInventoryItem* cast_inventory_item() { return nullptr; }
+	virtual CTorch* cast_torch() { return nullptr; }
 	virtual void reload(LPCSTR section);
 	virtual void OnH_A_Chield();
 	virtual void OnH_A_Independent();

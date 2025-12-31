@@ -94,6 +94,10 @@ public:
 	virtual void ColorAnimationSetTextureColor(u32 color, bool only_alpha);
 	virtual void ColorAnimationSetTextColor(u32 color, bool only_alpha);
 
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIStatic* ui_cast_static() { return this; }
+	virtual ITextureOwner* ui_cast_texture_owner() { return this; }
+	virtual CUILightAnimColorConroller* ui_cast_light_anim_color_controller() { return this; }
 
 protected:
 	CUILines* m_pTextControl;
@@ -152,6 +156,9 @@ public:
 	}
 
 	virtual void ColorAnimationSetTextColor(u32 color, bool only_alpha);
+
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUILightAnimColorConroller* ui_cast_light_anim_color_controller() { return this; }
 
 	CUILines& TextItemControl() { return m_lines; }
 };

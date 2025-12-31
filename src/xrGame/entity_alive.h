@@ -14,6 +14,9 @@ class CCharacterPhysicsSupport;
 class CMaterialManager;
 class CVisualMemoryManager;
 class CBlend;
+class CActor;
+class CAI_Stalker;
+class CInventoryOwner;
 
 class CEntityAlive : public CEntity
 {
@@ -22,6 +25,11 @@ private:
 	u32 m_used_time;
 public:
 	virtual CEntityAlive* cast_entity_alive() { return this; }
+	virtual CActor* cast_actor() { return nullptr; }
+	virtual CAI_Stalker* cast_stalker() { return nullptr; }
+	virtual CEntity* cast_entity() { return this; }
+	virtual CInventoryOwner* cast_inventory_owner() { return nullptr; }
+	virtual CGameObject* cast_game_object() { return this; }
 public:
 
 	bool m_bMobility;

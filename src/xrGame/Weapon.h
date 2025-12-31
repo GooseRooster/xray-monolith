@@ -21,6 +21,12 @@ class ENGINE_API CMotionDef;
 class CSE_ALifeItemWeapon;
 class CSE_ALifeItemWeaponAmmo;
 class CWeaponMagazined;
+class CWeaponMagazinedWGrenade;
+class CWeaponBinoculars;
+class CWeaponKnife;
+class CWeaponBM16;
+class CWeaponRPG7;
+class CWeaponRG6;
 class CParticlesObject;
 class CUIWindow;
 class CBinocularsVision;
@@ -70,10 +76,13 @@ public:
 		return this;
 	}
 
-	virtual CWeaponMagazined* cast_weapon_magazined()
-	{
-		return 0;
-	}
+	virtual CWeaponBinoculars* cast_weapon_binoculars() { return nullptr; }
+	virtual CWeaponKnife* cast_weapon_knife() { return nullptr; }
+	virtual CWeaponMagazined* cast_weapon_magazined() { return nullptr; }
+	virtual CWeaponMagazinedWGrenade* cast_weapon_magazined_w_grenade() { return nullptr; }
+	virtual CWeaponBM16* cast_weapon_bm16() { return nullptr; }
+	virtual CWeaponRPG7* cast_weapon_rpg7() { return nullptr; }
+	virtual CWeaponRG6* cast_weapon_rg6() { return nullptr; }
 
 	//serialization
 	virtual void save(NET_Packet& output_packet);

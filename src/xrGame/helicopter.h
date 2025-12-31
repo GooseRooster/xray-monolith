@@ -326,6 +326,7 @@ public:
 
 	virtual CGameObject* cast_game_object() { return this; }
 	virtual CExplosive* cast_explosive() { return this; }
+	virtual CHelicopter* cast_helicopter() { return this; }
 	virtual CPHSkeleton* PHSkeleton() { return this; }
 
 public:

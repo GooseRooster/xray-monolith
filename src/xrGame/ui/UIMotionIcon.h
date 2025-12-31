@@ -44,4 +44,6 @@ public:
 	void SetLuminosity(float Pos);
 	void SetActorVisibility(u16 who_id, float value);
 	void ResetVisibility();
+
+	virtual CUIWindow* ui_cast_window() { return this; }
 };

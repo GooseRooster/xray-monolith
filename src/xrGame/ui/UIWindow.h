@@ -5,6 +5,19 @@ class UIHint;
 class CScriptXmlInit;
 class CUIWindow;
 
+class CUIStatic;
+class CUICellItem;
+class CUIListBoxItem;
+class CUIListItem;
+class CUIListWnd;
+class ITextureOwner;
+class CUILightAnimColorConroller;
+class CUITreeViewItem;
+class CUIScrollView;
+class CUIFixedScrollBar;
+class CUISelectable;
+class CUIListItemServer;
+
 struct _12b
 {
 	DWORD _[3];
@@ -114,6 +127,20 @@ class CUIWindow : public CUISimpleWindow
 public:
 	CUIWindow();
 	virtual ~CUIWindow();
+
+	virtual CUIWindow* ui_cast_window() { return this; }
+	virtual CUIStatic* ui_cast_static() { return nullptr; }
+	virtual CUICellItem* ui_cast_cell_item() { return nullptr; }
+	virtual CUIListBoxItem* ui_cast_list_box_item() { return nullptr; }
+	virtual CUIListItem* ui_cast_list_item() { return nullptr; }
+	virtual CUIListWnd* ui_cast_list() { return nullptr; }
+	virtual ITextureOwner* ui_cast_texture_owner() { return nullptr; }
+	virtual CUILightAnimColorConroller* ui_cast_light_anim_color_controller() { return nullptr; }
+	virtual CUITreeViewItem* ui_cast_tree_view_item() { return nullptr; }
+	virtual CUIScrollView* ui_cast_scroll_view() { return nullptr; }
+	virtual CUIFixedScrollBar* ui_cast_fixed_scroll_bar() { return nullptr; }
+	virtual CUISelectable* ui_cast_selectable() { return nullptr; }
+	virtual CUIListItemServer* ui_cast_list_item_server() { return nullptr; }
 
 
 	////////////////////////////////////

@@ -654,7 +654,7 @@ void CRenderDevice::Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason)
 
 		if (bTimer && (!g_pGamePersistent || g_pGamePersistent->CanBePaused()))
 		{
-			g_pauseMngr().Pause(true);
+			pauseMngr::Instance().Pause(true);
 #ifdef DEBUG
             if (!xr_strcmp(reason, "li_pause_key_no_clip"))
                 TimerGlobal.Pause(FALSE);
@@ -671,10 +671,10 @@ void CRenderDevice::Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason)
 	}
 	else
 	{
-		if (bTimer && g_pauseMngr().Paused())
+		if (bTimer && pauseMngr::Instance().Paused())
 		{
 			fTimeDelta = EPS_S + EPS_S;
-			g_pauseMngr().Pause(false);
+			pauseMngr::Instance().Pause(false);
 		}
 
 		if (bSound)
@@ -689,7 +689,7 @@ void CRenderDevice::Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason)
 			else
 			{
 #ifdef DEBUG
-                Log("Sound->pause_emitters underflow");
+				Log("Sound->pause_emitters underflow");
 #endif
 			}
 		}
@@ -700,7 +700,7 @@ void CRenderDevice::Pause(BOOL bOn, BOOL bTimer, BOOL bSound, LPCSTR reason)
 
 bool CRenderDevice::Paused()
 {
-	return g_pauseMngr().Paused();
+	return pauseMngr::Instance().Paused();
 }
 
 void CRenderDevice::OnWM_Activate(WPARAM wParam, LPARAM lParam)

@@ -669,7 +669,7 @@ extern BOOL print_bone_warnings;
 Fmatrix script_attachment::bone_transform(u16 bone_id)
 {
 	if (bone_id == BI_NONE || bone_id >= m_kinematics->LL_BoneCount()) {
-		if (Core.ParamsData.test(ECoreParams::dbg) && print_bone_warnings) {
+		if (Core.isDebug() && print_bone_warnings) {
 			Msg("![bone_position] Incorrect bone_id provided for %s (%s), fallback to root bone", GetName(), GetModelScript());
 			ai().script_engine().print_stack();
 		}

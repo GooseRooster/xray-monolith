@@ -566,7 +566,7 @@ void CDemoRecord::IR_OnKeyboardPress(int dik)
 		//#ifndef MASTER_GOLD
 		if (dik == DIK_RETURN)
 		{
-			if (Core.ParamsData.test(ECoreParams::dbg))
+			if (Core.isDebug())
 			{
 				if (g_pGameLevel->CurrentEntity())
 				{

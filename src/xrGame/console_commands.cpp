@@ -2629,7 +2629,7 @@ void CCC_RegisterCommands()
 	/* AVO: changing restriction to -dbg key instead of DEBUG */
 	//#ifndef MASTER_GOLD
 #ifdef MASTER_GOLD
-	if (0 != Core.ParamsData.test(ECoreParams::dbg))
+	if (0 != Core.isDebug())
 	{
 		CMD1(CCC_JumpToLevel, "jump_to_level");
 		CMD3(CCC_Mask, "g_god", &psActorFlags, AF_GODMODE);

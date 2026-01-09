@@ -63,57 +63,12 @@ MODEL::~MODEL()
 	verts_count = 0;
 }
 
-struct BTHREAD_params
-{
-	MODEL* M;
-	Fvector* V;
-	int Vcnt;
-	TRI* T;
-	int Tcnt;
-	build_callback* BC;
-	void* BCP;
-};
-
-void MODEL::build_thread(void* params)
-{
-	PROF_EVENT();
-
-	_initialize_cpu_thread();
-	FPU::m64r();
-	BTHREAD_params P = *((BTHREAD_params*)params);
-	P.M->cs.Enter();
-	P.M->build_internal(P.V, P.Vcnt, P.T, P.Tcnt, P.BC, P.BCP);
-	P.M->status = S_READY;
-	P.M->cs.Leave();
-	//Msg						("* xrCDB: cform build completed, memory usage: %d K",P.M->memory()/1024);
-}
-
 void MODEL::build(Fvector* V, int Vcnt, TRI* T, int Tcnt, build_callback* bc, void* bcp)
 {
 	R_ASSERT(S_INIT == status);
 	R_ASSERT((Vcnt>=4)&&(Tcnt>=2));
 
-	_initialize_cpu_thread();
-#ifdef _EDITOR
-	build_internal				(V,Vcnt,T,Tcnt,bc,bcp);
-#else
-	if (!Core.ParamsData.test(ECoreParams::mt_cdb))
-	{
-		build_internal(V, Vcnt, T, Tcnt, bc, bcp);
-		status = S_READY;
-	}
-	else
-	{
-		BTHREAD_params P = {this, V, Vcnt, T, Tcnt, bc, bcp};
-		thread_spawn(build_thread, "CDB-construction", 0, &P);
-		while (S_INIT == status)
-		{
-			if (status != S_INIT)
-				break;
-			Sleep(5);
-		}
-	}
-#endif
+	build_internal(V, Vcnt, T, Tcnt, bc, bcp);
 }
 
 void MODEL::build_internal(Fvector* V, int Vcnt, TRI* T, int Tcnt, build_callback* bc, void* bcp)
@@ -121,6 +76,8 @@ void MODEL::build_internal(Fvector* V, int Vcnt, TRI* T, int Tcnt, build_callbac
 	PROF_EVENT();
 
 	// verts
+	status = S_BUILD;
+	xrCriticalSectionGuard guard(&cs);
 	verts_count = Vcnt;
 	verts = CALLOC(Fvector, verts_count);
 	CopyMemory(verts, V, verts_count*sizeof(Fvector));
@@ -132,9 +89,6 @@ void MODEL::build_internal(Fvector* V, int Vcnt, TRI* T, int Tcnt, build_callbac
 
 	// callback
 	if (bc) bc(verts, Vcnt, tris, Tcnt, bcp);
-
-	// Release data pointers
-	status = S_BUILD;
 
 	// Allocate temporary "OPCODE" tris + convert tris to 'pointer' form
 	u32* temp_tris = CALLOC(u32, tris_count*3);
@@ -174,7 +128,8 @@ void MODEL::build_internal(Fvector* V, int Vcnt, TRI* T, int Tcnt, build_callbac
 
 	// Free temporary tris
 	CFREE(temp_tris);
-	return;
+
+	status = S_READY;
 }
 
 u32 MODEL::memory()

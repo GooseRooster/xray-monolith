@@ -50,7 +50,7 @@ public:
 	void Load(CDB::build_callback build_callback);
 	void Load(LPCSTR path, LPCSTR fname, CDB::build_callback build_callback);
 	void Load(IReader* R, CDB::build_callback build_callback);
-	void Create(Fvector* verts, CDB::TRI* tris, const hdrCFORM& H, CDB::build_callback build_callback);
+	void Create(Fvector* verts, CDB::TRI* tris, const hdrCFORM& H, CDB::build_callback build_callback, bool init_bounds = true);
 	// Occluded/No
 	BOOL RayTest(const Fvector& start, const Fvector& dir, float range, collide::rq_target tgt,
 	             collide::ray_cache* cache, CObject* ignore_object);

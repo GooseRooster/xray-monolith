@@ -98,27 +98,40 @@ void CObjectSpace::Load(LPCSTR path, LPCSTR fname, CDB::build_callback build_cal
 }
 
 void CObjectSpace::Load(IReader* F, CDB::build_callback build_callback)
-
-
 {
+	static IReader* pReader = nullptr;
+	pReader = F;
+
 	hdrCFORM H;
-	F->r(&H, sizeof(hdrCFORM));
-	Fvector* verts = (Fvector*)F->pointer();
-	CDB::TRI* tris = (CDB::TRI*)(verts + H.vertcount);
-	Create(verts, tris, H, build_callback);
-	FS.r_close(F);
-}
-
-void CObjectSpace::Create(Fvector* verts, CDB::TRI* tris, const hdrCFORM& H, CDB::build_callback build_callback)
-{
-	R_ASSERT(CFORM_CURRENT_VERSION==H.version);
-	Static.build(verts, H.vertcount, tris, H.facecount, build_callback);
+	pReader->r(&H, sizeof(hdrCFORM));
+	R_ASSERT(CFORM_CURRENT_VERSION == H.version);
 	m_BoundingVolume.set(H.aabb);
+
 	g_SpatialSpace->initialize(m_BoundingVolume);
 	g_SpatialSpacePhysic->initialize(m_BoundingVolume);
 	g_SpatialSpaceLights->initialize(m_BoundingVolume);
-	//Sound->set_geometry_occ				( &Static );
-	//Sound->set_handler					( _sound_event );
+	static xr_task_group async_cform_load;
+	async_cform_load.run([=]()
+	{
+		Fvector* verts = (Fvector*)F->pointer();
+		CDB::TRI* tris = (CDB::TRI*)(verts + H.vertcount);
+		Create(verts, tris, H, build_callback, false);
+		FS.r_close(pReader);
+	});	
+}
+
+void CObjectSpace::Create(Fvector* verts, CDB::TRI* tris, const hdrCFORM& H, CDB::build_callback build_callback, bool init_bounds)
+{
+	Static.build(verts, H.vertcount, tris, H.facecount, build_callback);
+
+	if (init_bounds)
+	{
+		m_BoundingVolume.set(H.aabb);
+
+		g_SpatialSpace->initialize(m_BoundingVolume);
+		g_SpatialSpacePhysic->initialize(m_BoundingVolume);
+		g_SpatialSpaceLights->initialize(m_BoundingVolume);
+	}
 }
 
 //----------------------------------------------------------------------

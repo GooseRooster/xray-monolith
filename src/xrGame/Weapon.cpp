@@ -216,8 +216,8 @@ void CWeapon::UpdateXForm()
 	V->CalculateBones_Invalidate();
 	// V->CalculateBones(TRUE);
 
-	Fmatrix& mL = V->LL_GetTransform(u16(boneL));
-	Fmatrix& mR = V->LL_GetTransform(u16(boneR));
+	Fmatrix& mL = V->LL_GetTransform_safed(u16(boneL));
+	Fmatrix& mR = V->LL_GetTransform_safed(u16(boneR));
 	// Calculate
 	Fmatrix mRes;
 	Fvector R, D, N;
@@ -245,37 +245,29 @@ void CWeapon::UpdateXForm()
 
 void CWeapon::UpdateFireDependencies_internal()
 {
-	if (Device.dwFrame != dwFP_Frame)
+	if (GetHUDmode())
 	{
-		dwFP_Frame = Device.dwFrame;
+		HudItemData()->setup_firedeps(m_current_firedeps);
+		VERIFY(_valid(m_current_firedeps.m_FireParticlesXForm));
+	}
+	{
+		// 3rd person or no parent
+		Fmatrix& parent = XFORM();
+		Fvector& fp = vLoadedFirePoint;
+		Fvector& fp2 = vLoadedFirePoint2;
+		Fvector& sp = vLoadedShellPoint;
+		Fvector& fps = vLoadedFirePointSilencer;
 
-		UpdateXForm();
+		parent.transform_tiny(m_current_firedeps.vLastFP, fp);
+		parent.transform_tiny(m_current_firedeps.vLastFP2, fp2);
+		parent.transform_tiny(m_current_firedeps.vLastSP, sp);
+		parent.transform_tiny(m_current_firedeps.vLastFPSilencer, fps);
 
-		if (GetHUDmode())
-		{
-			HudItemData()->setup_firedeps(m_current_firedeps);
-			VERIFY(_valid(m_current_firedeps.m_FireParticlesXForm));
-		}
-		else
-		{
-			// 3rd person or no parent
-			Fmatrix& parent = XFORM();
-			Fvector& fp = vLoadedFirePoint;
-			Fvector& fp2 = vLoadedFirePoint2;
-			Fvector& sp = vLoadedShellPoint;
-			Fvector& fps = vLoadedFirePointSilencer;
+		m_current_firedeps.vLastFD.set(0.f, 0.f, 1.f);
+		parent.transform_dir(m_current_firedeps.vLastFD);
 
-			parent.transform_tiny(m_current_firedeps.vLastFP, fp);
-			parent.transform_tiny(m_current_firedeps.vLastFP2, fp2);
-			parent.transform_tiny(m_current_firedeps.vLastSP, sp);
-			parent.transform_tiny(m_current_firedeps.vLastFPSilencer, fps);
-
-			m_current_firedeps.vLastFD.set(0.f, 0.f, 1.f);
-			parent.transform_dir(m_current_firedeps.vLastFD);
-
-			m_current_firedeps.m_FireParticlesXForm.set(parent);
-			VERIFY(_valid(m_current_firedeps.m_FireParticlesXForm));
-		}
+		m_current_firedeps.m_FireParticlesXForm.set(parent);
+		VERIFY(_valid(m_current_firedeps.m_FireParticlesXForm));
 	}
 }
 
@@ -1399,20 +1391,20 @@ bool CWeapon::need_renderable()
 	return !Device.m_SecondViewport.IsSVPFrame() && !(IsZoomed() && ZoomTexture() && !IsRotatingToZoom());
 }
 
-void CWeapon::renderable_Render()
+void CWeapon::renderable_Render(IDSGraphManager* DM)
 {
-	UpdateXForm();
+	//UpdateXForm();
 
-	//íàðèñîâàòü ïîäñâåòêó
-	RenderLight();
-
-	//åñëè ìû â ðåæèìå ñíàéïåðêè, òî ñàì HUD ðèñîâàòü íå íàäî
+	//если мы в режиме снайперки, то сам HUD рисовать не надо
 	if (IsZoomed() && !IsRotatingToZoom() && ZoomTexture())
 		RenderHud(FALSE);
 	else
 		RenderHud(TRUE);
 
-	inherited::renderable_Render();
+	inherited::renderable_Render(DM);
+
+	//нарисовать подсветку
+	RenderLight();
 }
 
 void CWeapon::signal_HideComplete()
@@ -2129,8 +2121,9 @@ CUIWindow* CWeapon::ZoomTexture()
 	else
 	{
 		scope_2dtexactive = 0; //crookr
-		return NULL;
+		return nullptr;
 	}
+	//return nullptr; //UseScopeTexture() ? m_UIScope : nullptr;
 }
 
 void CWeapon::SwitchState(u32 S)
@@ -3257,7 +3250,7 @@ Fmatrix CWeapon::RayTransform()
 	{
 		// If we're in first-person, use the HUD item transform
 		matrix = hi->m_item_transform;
-		matrix.mulB_43(hi->m_model->LL_GetTransform(measures.m_fire_bone));
+		matrix.mulB_43(hi->m_model->LL_GetTransform_safed(measures.m_fire_bone));
 		matrix.mulB_43(Fmatrix().translate(measures.m_fire_point_offset));
 	}
 	else

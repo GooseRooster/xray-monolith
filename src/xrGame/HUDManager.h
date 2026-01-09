@@ -69,8 +69,8 @@ public:
 	virtual void OnFrameMT();
 	virtual void OnEvent(EVENT E, u64 P1, u64 P2);
 
-	virtual void Render_First();
-	virtual void Render_Last();
+	virtual void Render_First(IDSGraphManager* DM);
+	virtual void Render_Last(IDSGraphManager* DM);
 
 	virtual void RenderUI();
 

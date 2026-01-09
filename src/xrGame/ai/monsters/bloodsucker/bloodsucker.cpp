@@ -882,7 +882,7 @@ void CAI_Bloodsucker::manual_deactivate()
 
 
 extern int ps_r2_heatvision;
-void CAI_Bloodsucker::renderable_Render()
+void CAI_Bloodsucker::renderable_Render(IDSGraphManager* DM)
 {
 	//--DSR-- HeatVision_start
 	
@@ -892,7 +892,7 @@ void CAI_Bloodsucker::renderable_Render()
 	//}
 
 	if (m_visibility_state != no_visibility || ps_r2_heatvision > 0)
-		inherited::renderable_Render();
+		inherited::renderable_Render(DM);
 	//--DSR-- HeatVision_end
 }
 

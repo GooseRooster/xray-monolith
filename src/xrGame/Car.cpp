@@ -646,9 +646,9 @@ void CCar::VisualUpdate(float fov)
 	m_lights.Update();
 }
 
-void CCar::renderable_Render()
+void CCar::renderable_Render(IDSGraphManager* DM)
 {
-	inherited::renderable_Render();
+	inherited::renderable_Render(DM);
 	if (m_car_weapon)
 		m_car_weapon->Render_internal();
 }
@@ -669,7 +669,7 @@ void CCar::net_Import(NET_Packet& P)
 	//	P.w_u32 (NumItems);
 }
 
-void CCar::OnHUDDraw(CCustomHUD* /**hud*/)
+void CCar::OnHUDDraw(CCustomHUD* hud, IDSGraphManager* DM)
 {
 #ifdef DEBUG
 	Fvector velocity;

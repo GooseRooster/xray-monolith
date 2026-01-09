@@ -342,7 +342,10 @@ bool has_info(const CALifeSimulator* self, const ALife::_OBJECT_ID& id, LPCSTR i
 	if (!known_info)
 		return (false);
 
-	if (std::find_if(known_info->begin(), known_info->end(), CFindByIDPred(info_id)) == known_info->end())
+	static shared_str has_info;
+	has_info = info_id;
+
+	if (std::find_if(known_info->begin(), known_info->end(), CFindByIDPred(has_info)) == known_info->end())
 		return (false);
 
 	return (true);
@@ -361,7 +364,10 @@ void AlifeGiveInfo(const CALifeSimulator *alife, const ALife::_OBJECT_ID &id, LP
 	if (!known_info)
 		return;
 
-	if (std::find_if(known_info->begin(), known_info->end(), CFindByIDPred(info_id)) == known_info->end())
+	static shared_str AlifeGiveInfo;
+	AlifeGiveInfo = info_id;
+
+	if (std::find_if(known_info->begin(), known_info->end(), CFindByIDPred(AlifeGiveInfo)) == known_info->end())
 	{
 		known_info->push_back(info_id);
 	}
@@ -374,7 +380,11 @@ void AlifeRemoveInfo(const CALifeSimulator *alife, const ALife::_OBJECT_ID &id, 
 	KNOWN_INFO_VECTOR	*known_info = alife->registry().get<CInfoPortionRegistry>().object(id, true);
 	if (!known_info)
 		return;
-	known_info->erase(std::find_if(known_info->begin(), known_info->end(), CFindByIDPred(info_id)),known_info->end());
+
+	static shared_str AlifeRemoveInfo;
+	AlifeRemoveInfo = info_id;
+
+	known_info->erase(std::find_if(known_info->begin(), known_info->end(), CFindByIDPred(AlifeRemoveInfo)),known_info->end());
 }
 
 //Alundaio: teleport object

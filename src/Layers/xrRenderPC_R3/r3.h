@@ -1,6 +1,7 @@
 ﻿#pragma once
 
-#include "../xrRender/r__dsgraph_structure.h"
+#include "../xrRender/r__dsgraph_manager.h"
+#include "../xrRender/r__sector.h"
 #include "../xrRender/r__occlusion.h"
 
 #include "../xrRender/PSLibrary.h"
@@ -25,17 +26,9 @@
 class dxRender_Visual;
 
 // definition
-class CRender : public R_dsgraph_structure
+class CRender : public IRender_interface, public pureFrame
 {
 public:
-	enum
-	{
-		PHASE_NORMAL = 0,
-		// E[0]
-		PHASE_SMAP = 1,
-		// E[1]
-	};
-
 	enum
 	{
 		MSAA_ATEST_NONE = 0x0,
@@ -44,14 +37,6 @@ public:
 		//	Lo bit - ATOC mode
 		MSAA_ATEST_DX10_1_NATIVE = 0x2,
 		MSAA_ATEST_DX10_1_ATOC = 0x3,
-	};
-
-	enum
-	{
-		MMSM_OFF = 0,
-		MMSM_ON,
-		MMSM_AUTO,
-		MMSM_AUTODETECT
 	};
 
 public:
@@ -152,7 +137,6 @@ public:
 	CRenderTarget* Target; // Render-target
 
 	CLight_DB Lights;
-	xr_vector<light*> Lights_LastFrame;
 	SMAP_Allocator LP_smap_pool;
 	light_Package LP_normal;
 	light_Package LP_pending;
@@ -167,6 +151,18 @@ public:
 	bool m_bFirstFrameAfterReset; // Determines weather the frame is the first after resetting device.
 	xr_vector<sun::cascade> m_sun_cascades;
 
+	CFrustum rainwet_cull_frustum;
+	Fvector3 rainwet_cull_COP;
+	Fmatrix rainwet_cull_xform;
+	
+	CDSGraphManager GMRainWet = CDSGraphManager(u32(0), u32(STYPE_RENDERABLE), { true,false,false,false,true,false,false });
+	CDSGraphManager GMBase = CDSGraphManager(u32(CDSGraphManager::VQ_HOM + CDSGraphManager::VQ_SSA + CDSGraphManager::VQ_FADE),
+		u32(STYPE_RENDERABLE + STYPE_PARTICLE + STYPE_LIGHTSOURCE),
+		{ true, true, true, true, false, false, false });
+
+	xr_task_group												main_task_static, main_task_dynamic, sun_cascades_task, raimwet_task;
+
+	xr_set<light*>												v_all_lights;
 	xr_list<light*>												v_all_lights_dque;
 
 private:
@@ -179,14 +175,8 @@ private:
 	void LoadSWIs(CStreamReader* fs);
 	void Load3DFluid();
 
-	BOOL add_Dynamic(dxRender_Visual* pVisual, u32 planes); // normal processing
-	void add_Static(dxRender_Visual* pVisual, u32 planes);
-	void add_leafs_Dynamic(dxRender_Visual* pVisual); // if detected node's full visibility
-	void add_leafs_Static(dxRender_Visual* pVisual); // if detected node's full visibility
-
 public:
 	IRender_Sector* rimp_detectSector(Fvector& P, Fvector& D);
-	void render_main(bool deffered, bool zfill = false);
 	void render_forward();
 	void render_smap_direct(Fmatrix& mCombined);
 	void render_indirect(light* L);
@@ -210,8 +200,8 @@ public:
 	IRenderVisual* model_CreatePE(LPCSTR name);
 	IRender_Sector* detectSector(const Fvector& P, Fvector& D);
 	IRender_Sector* detectLastSector(const Fvector& P);
-	xr_vector<IRender_Sector*> detectSectors_sphere (CSector* sector, const Fvector& b_center, const Fvector& b_dim);
-	xr_vector<IRender_Sector*> detectSectors_frustum (CSector* sector, CFrustum* _frustum);
+	void detectSectors_sphere(CSector* sector, FixedSet<IRender_Sector*>& m_sectors, const Fvector& b_center, const Fvector& b_dim);
+	void detectSectors_frustum(CSector* sector, FixedSet<IRender_Sector*>& m_sectors, CFrustum* _frustum);
 	int translateSector(IRender_Sector* pSector);
 
 	// HW-occlusion culling
@@ -301,10 +291,7 @@ public:
 
 	// Main 
 	virtual void flush();
-	virtual void set_Object(IRenderable* O);
 	virtual void add_Occluder(Fbox2& bb_screenspace); // mask screen region as oclluded
-	virtual void add_Visual(IRenderVisual* V); // add visual leaf (no culling performed at all)
-	virtual void add_Geometry(IRenderVisual* V); // add visual(s)	(all culling performed)
 
 	// wallmarks
 	// demonized: add user defined rotation to wallmark
@@ -416,7 +403,6 @@ protected:
 
 private:
 	FS_FileSet m_file_set;
-	IRender_Sector* detectLastSectorImpl(const Fvector& P, const Fvector& dir);
 };
 
 extern CRender RImplementation;

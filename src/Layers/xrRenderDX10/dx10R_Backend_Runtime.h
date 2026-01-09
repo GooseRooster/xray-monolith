@@ -545,13 +545,13 @@ IC void CBackend::set_Constants(R_constant_table* C)
 
 	//	Setup constant tables
 	{
-		ref_cbuffer aPixelConstants[MaxCBuffers];
-		ref_cbuffer aVertexConstants[MaxCBuffers];
-		ref_cbuffer aGeometryConstants[MaxCBuffers];
+		static ref_cbuffer aPixelConstants[MaxCBuffers];
+		static ref_cbuffer aVertexConstants[MaxCBuffers];
+		static ref_cbuffer aGeometryConstants[MaxCBuffers];
 #ifdef USE_DX11
-		ref_cbuffer	aHullConstants[MaxCBuffers];
-		ref_cbuffer	aDomainConstants[MaxCBuffers];
-		ref_cbuffer	aComputeConstants[MaxCBuffers];
+		static ref_cbuffer aHullConstants[MaxCBuffers];
+		static ref_cbuffer aDomainConstants[MaxCBuffers];
+		static ref_cbuffer aComputeConstants[MaxCBuffers];
 #endif
 
 		for (int i = 0; i < MaxCBuffers; ++i)

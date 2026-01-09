@@ -225,7 +225,7 @@ public:
 	virtual void feel_touch_new(CObject* O);
 	virtual void feel_touch_delete(CObject* O);
 	void on_ownership_reject(CObject* O, bool just_before_destroy);
-	virtual void renderable_Render();
+	virtual void renderable_Render(IDSGraphManager* DM);
 	virtual void Exec_Look(float dt);
 	virtual void Hit(SHit* pHDS);
 	virtual void PHHit(SHit& H);
@@ -239,7 +239,7 @@ public:
 	bool LookAtActorLuaResult = true;
 
 #ifdef DEBUG
-	virtual void						OnHUDDraw							(CCustomHUD* hud);
+	virtual void						OnHUDDraw							(CCustomHUD* hud, IDSGraphManager* DM);
 	virtual void						OnRender							();
 			void						debug_text							();
 			bool						m_dbg_hud_draw						;

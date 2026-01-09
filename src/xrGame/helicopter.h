@@ -306,7 +306,7 @@ public:
 		return (inherited::net_SaveRelevant() && BOOL(PPhysicsShell() != NULL)) || m_exploded;
 	};
 
-	virtual void renderable_Render() { inherited::renderable_Render(); };
+	virtual void renderable_Render(IDSGraphManager* DM) { inherited::renderable_Render(DM); };
 	virtual BOOL renderable_ShadowGenerate() { return FALSE; }
 	virtual BOOL renderable_ShadowReceive() { return TRUE; }
 

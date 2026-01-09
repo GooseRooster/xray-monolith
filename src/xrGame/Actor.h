@@ -115,7 +115,7 @@ public:
 public:
 
 	virtual void Load(LPCSTR section);
-	virtual void RenderCamAttached();
+	virtual void RenderCamAttached(IDSGraphManager* DM);
 
 	virtual void shedule_Update(u32 T);
 	virtual void UpdateCL();
@@ -123,7 +123,7 @@ public:
 	virtual void OnEvent(NET_Packet& P, u16 type);
 
 	// Render
-	virtual void renderable_Render();
+	virtual void renderable_Render(IDSGraphManager* DM);
 	virtual BOOL renderable_ShadowGenerate();
 	virtual bool AllowActorShadow();
 	virtual void feel_sound_new(CObject* who, int type, CSound_UserDataPtr user_data, const Fvector& Position,
@@ -332,7 +332,7 @@ public:
 	void g_SetAnimation(u32 mstate_rl);
 	void g_SetSprintAnimation(u32 mstate_rl, MotionID& head, MotionID& torso, MotionID& legs);
 public:
-	virtual void OnHUDDraw(CCustomHUD* hud);
+	virtual void OnHUDDraw(CCustomHUD* hud, IDSGraphManager* DM);
 	BOOL HUDview() const;
 
 	//visiblity 

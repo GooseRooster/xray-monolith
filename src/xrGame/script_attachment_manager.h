@@ -100,9 +100,9 @@ public:
 	virtual void spatial_move();
 	virtual IRenderable* dcast_Renderable() { return this; }
 
-	virtual void renderable_Render();
+	virtual void renderable_Render(IDSGraphManager* DM);
 
-	void Render(IKinematics* model, Fmatrix* mat);
+	void Render(IKinematics* model, Fmatrix* mat, IDSGraphManager* DM);
 	void Update();
 	void RenderUI();
 

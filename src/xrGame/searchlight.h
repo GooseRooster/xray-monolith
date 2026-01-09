@@ -62,7 +62,7 @@ public:
 #endif
 	virtual void shedule_Update(u32 dt); // Called by sheduler
 	virtual void UpdateCL(); // Called each frame, so no need for dt
-	virtual void renderable_Render();
+	virtual void renderable_Render(IDSGraphManager* DM);
 
 	virtual BOOL UsedAI_Locations();
 

@@ -208,7 +208,8 @@ void CKinematics::Load(const char* N, IReader* data, u32 dwFlags)
 	bone_map_N = xr_new<accel>();
 	bone_map_P = xr_new<accel>();
 	bones = xr_new<vecBones>();
-	bone_instances = NULL;
+	bone_instances = nullptr;
+	bones_size = u16(0);
 
 	// Load bones
 #pragma todo("container is created in stack!")
@@ -329,6 +330,8 @@ void CKinematics::Load(const char* N, IReader* data, u32 dwFlags)
 	wm_frame = u32(-1);
 
 	LL_Validate();
+
+	bones_size = bones->size();
 }
 
 //--DSR-- SilencerOverheat_start
@@ -421,10 +424,11 @@ void CKinematics::Copy(dxRender_Visual* P)
 {
 	inherited::Copy(P);
 
-	CKinematics* pFrom = fast_dynamic_cast<CKinematics*>(P);
+	CKinematics* pFrom = (CKinematics*)P->dcast_PKinematics();
 	VERIFY(pFrom);
 	pUserData = pFrom->pUserData;
 	bones = pFrom->bones;
+	bones_size = pFrom->bones_size;
 	iRoot = pFrom->iRoot;
 	bone_map_N = pFrom->bone_map_N;
 	bone_map_P = pFrom->bone_map_P;
@@ -568,7 +572,7 @@ void CKinematics::Visibility_Update()
 	// check visible
 	for (u32 c_it = 0; c_it < children.size(); c_it++)
 	{
-		CSkeletonX* _c = fast_dynamic_cast<CSkeletonX*>(children[c_it]);
+		CSkeletonX* _c = smart_cast<CSkeletonX*>(children[c_it]);
 		VERIFY(_c);
 		if (!_c->has_visible_bones())
 		{
@@ -583,7 +587,7 @@ void CKinematics::Visibility_Update()
 	// check invisible
 	for (u32 _it = 0; _it < children_invisible.size(); _it++)
 	{
-		CSkeletonX* _c = fast_dynamic_cast<CSkeletonX*>(children_invisible[_it]);
+		CSkeletonX* _c = smart_cast<CSkeletonX*>(children_invisible[_it]);
 		VERIFY(_c) ;
 		if (_c->has_visible_bones())
 		{

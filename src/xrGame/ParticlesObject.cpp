@@ -239,20 +239,12 @@ float CParticlesObject::shedule_Scale()
 	return Device.vCameraPosition.distance_to(Position()) / 200.f;
 }
 
-void CParticlesObject::renderable_Render()
+void CParticlesObject::renderable_Render(IDSGraphManager* DM)
 {
 	VERIFY(renderable.visual);
-	u32 dt = Device.dwTimeGlobal - dwLastTime;
-	if (dt)
-	{
-		IParticleCustom* V = renderable.visual ? renderable.visual->dcast_ParticleCustom() : NULL;
-		VERIFY(V);
-		V->OnFrame(dt);
-		dwLastTime = Device.dwTimeGlobal;
-	}
 
-	::Render->set_Transform(&renderable.xform);
-	::Render->add_Visual(renderable.visual);
+	DM->add_Dynamic(renderable.visual, &renderable.xform);
+	renderable.visual->getVisData().hom_frame = Device.dwFrame;
 }
 
 bool CParticlesObject::IsAutoRemove()

@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 #include "../xrRender/light.h"
+#include "../xrRender/QueryHelper.h"
 #include "../../xrEngine/cl_intersect.h"
 
 const u32 delay_small_min = 1;
@@ -16,14 +17,26 @@ void light::vis_prepare()
 	//	. test time comes :)
 	//		. camera inside light volume	= visible,	shedule for 'small' interval
 	//		. perform testing				= ???,		pending
+	if (!flags.bActive)
+	{
+		vis.visible = false;
+		vis.pending = false;
+		return;
+	}
+	if (!flags.bOccq || flags.bHudMode)
+	{
+		vis.visible = true;
+		vis.pending = false;
+		return;
+	}
 
 	u32 frame = Device.dwFrame;
 	if (frame < vis.frame2test) return;
 
 	float safe_area = VIEWPORT_NEAR;
 	{
-		float a0 = deg2rad(Device.fFOV * Device.fASPECT / 2.f);
-		float a1 = deg2rad(Device.fFOV / 2.f);
+		float a0 = deg2rad(Device.fFOV * Device.fASPECT * 0.5f);
+		float a1 = deg2rad(Device.fFOV * 0.5f);
 		float x0 = VIEWPORT_NEAR / _cos(a0);
 		float x1 = VIEWPORT_NEAR / _cos(a1);
 		float c = _sqrt(x0 * x0 + x1 * x1);
@@ -51,7 +64,7 @@ void light::vis_prepare()
 	// testing
 	vis.pending = true;
 	RCache.set_xform_world(m_xform);
-	vis.query_order = RImplementation.occq_begin(vis.query_id);
+	CHK_DX(BeginQuery(vis.Q));
 	//	Hack: Igor. Light is visible if it's frutum is visible. (Only for volumetric)
 	//	Hope it won't slow down too much since there's not too much volumetric lights
 	//	TODO: sort for performance improvement if this technique hurts
@@ -60,7 +73,7 @@ void light::vis_prepare()
 	else
 		RCache.set_Stencil(TRUE, D3DCMP_LESSEQUAL, 0x01, 0xff, 0x00);
 	RImplementation.Target->draw_volume(this);
-	RImplementation.occq_end(vis.query_id);
+	CHK_DX(EndQuery(vis.Q));
 }
 
 void light::vis_update()
@@ -73,17 +86,24 @@ void light::vis_update()
 
 	if (!vis.pending) return;
 
-	u32 frame = Device.dwFrame;
-	R_occlusion::occq_result fragments = RImplementation.occq_get(vis.query_id);
+	u32	frame = Device.dwFrame;
+	CTimer T;
+	T.Start();
+	R_occlusion::occq_result fragments = 0;
+	HRESULT hr;
+	while (hr = GetData(vis.Q, &fragments, sizeof(fragments), 0x1 /*D3D11_ASYNC_GETDATA_DONOTFLUSH*/) == S_FALSE)
+	{
+		if (hr == D3DERR_DEVICELOST || T.GetElapsed_ms_f() > 0.5f)
+		{
+			fragments = R_occlusion::occq_result(-1);
+			break;
+		}
+	}
 
 	vis.visible = (fragments > cullfragments);
 	vis.pending = false;
 	if (vis.visible)
-	{
 		vis.frame2test = frame + ::Random.randI(delay_large_min, delay_large_max);
-	}
 	else
-	{
 		vis.frame2test = frame + 1;
-	}
 }

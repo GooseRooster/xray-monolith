@@ -327,8 +327,7 @@ void CRenderTarget::phase_combine()
 	// Distortion filter
 	BOOL bDistort = RImplementation.o.distortion_enabled; // This can be modified
 	{
-		if ((0 == RImplementation.mapDistort.size()) && !_menu_pp)
-			bDistort = FALSE;
+		if ((0 == RImplementation.GMBase.RGraph.mapStaticSorted.Distort.size() && 0 == RImplementation.GMBase.RGraph.mapDynamicSorted.Distort.size() && 0 == RImplementation.GMBase.RGraph.mapHUDSorted.Distort.size()) && !_menu_pp)		bDistort = FALSE;
 		if (bDistort)
 		{
 			PIX_EVENT(render_distort_objects);
@@ -348,7 +347,7 @@ void CRenderTarget::phase_combine()
 			RCache.set_Stencil(FALSE);
 			RCache.set_ColorWriteEnable();
 			//CHK_DX(HW.pDevice->Clear	( 0L, NULL, D3DCLEAR_TARGET, color_rgba(127,127,0,127), 1.0f, 0L));
-			RImplementation.r_dsgraph_render_distort();
+			RImplementation.GMBase.r_dsgraph_render_distort();
 			if (g_pGamePersistent) g_pGamePersistent->OnRenderPPUI_PP(); // PP-UI
 		}
 	}

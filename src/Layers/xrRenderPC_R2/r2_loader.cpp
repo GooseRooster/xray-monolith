@@ -101,11 +101,6 @@ void CRender::level_Load(IReader* fs)
 	// End
 	pApp->LoadEnd();
 
-	// sanity-clear
-	lstLODs.clear();
-	lstLODgroups.clear();
-	mapLOD.clear();
-
 	// signal loaded
 	b_loaded = TRUE;
 }
@@ -114,6 +109,10 @@ void CRender::level_Unload()
 {
 	if (0 == g_pGameLevel) return;
 	if (!b_loaded) return;
+
+	GMBase.clear();
+	for (sun::cascade& cascade : m_sun_cascades)
+		cascade.GMCascade.clear();
 
 	u32 I;
 

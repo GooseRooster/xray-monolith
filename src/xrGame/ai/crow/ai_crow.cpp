@@ -348,10 +348,10 @@ void CAI_Crow::UpdateCL()
 	}
 }
 
-void CAI_Crow::renderable_Render()
+void CAI_Crow::renderable_Render(IDSGraphManager* DM)
 {
 	UpdateWorkload(Device.fTimeDelta);
-	inherited::renderable_Render();
+	inherited::renderable_Render(DM);
 	o_workload_rframe = Device.dwFrame;
 }
 

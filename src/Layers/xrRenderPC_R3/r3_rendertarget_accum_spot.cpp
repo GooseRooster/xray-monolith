@@ -282,7 +282,6 @@ void CRenderTarget::accum_spot(light* L)
 void CRenderTarget::accum_volumetric(light* L)
 {
 	//if (L->flags.type != IRender_Light::SPOT) return;
-	if (!L->flags.bVolumetric) return;
 
 	phase_vol_accumulator();
 

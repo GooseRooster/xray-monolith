@@ -200,7 +200,7 @@ public:
 	virtual void PlayAnimIdleSprint();
 
 	virtual void UpdateCL();
-	virtual void renderable_Render();
+	virtual void renderable_Render(IDSGraphManager* DM);
 
 
 	virtual void UpdateHudAdditional(Fmatrix& trans);
@@ -282,7 +282,7 @@ public:
 
 	IC u32 animation_slot() { return m_animation_slot; }
 
-	virtual void on_renderable_Render() = 0;
+	virtual void on_renderable_Render(IDSGraphManager* DM) = 0;
 
 	virtual void debug_draw_firedeps()
 	{
@@ -359,7 +359,7 @@ public:
 	CAnonHudItem();
 	virtual ~CAnonHudItem();
 	virtual void UpdateXForm();
-	virtual void on_renderable_Render();
+	virtual void on_renderable_Render(IDSGraphManager* DM);
 	virtual bool TryPlayAnimIdle() { return false; }
 	virtual void UpdateHudAdditional(Fmatrix& trans) { }
 	DECLARE_SCRIPT_REGISTER_FUNCTION

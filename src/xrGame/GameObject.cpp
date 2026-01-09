@@ -693,7 +693,7 @@ void CGameObject::validate_ai_locations(bool decrement_reference)
 
 void CGameObject::spatial_move()
 {
-	if (H_Parent())
+	if (H_Parent() && !getVisible() && !getEnabled())
 		setup_parent_ai_locations();
 	else if (Visual())
 		validate_ai_locations();
@@ -738,16 +738,15 @@ void			CGameObject::dbg_DrawSkeleton	()
 }
 #endif
 
-void CGameObject::renderable_Render()
+void CGameObject::renderable_Render(IDSGraphManager* DM)
 {
-	inherited::renderable_Render();
-	::Render->set_Transform(&XFORM());
-	::Render->add_Visual(Visual());
+	inherited::renderable_Render(DM);
+	DM->add_Dynamic(Visual(), &XFORM());
 	Visual()->getVisData().hom_frame = Device.dwFrame;
-	RenderAttachments();
+	RenderAttachments(DM);
 }
 
-void CGameObject::RenderAttachments()
+void CGameObject::RenderAttachments(IDSGraphManager* DM)
 {
 	if (m_script_attachments.size())
 	{
@@ -756,7 +755,7 @@ void CGameObject::RenderAttachments()
 			script_attachment* att = pair.second;
 			if (att->GetType() == eSA_World)
 			{
-				att->Render(Visual()->dcast_PKinematics(), &XFORM());
+				att->Render(Visual()->dcast_PKinematics(), &XFORM(), DM);
 
 				if (::Render->get_generation() == ::Render->GENERATION_R1)
 					g_pGamePersistent->AttachmentUIsToRender.push_back(att);

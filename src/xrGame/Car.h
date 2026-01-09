@@ -610,7 +610,7 @@ public:
 	virtual void UpdateEx(float fov); //called by owner
 
 	virtual void shedule_Update(u32 dt);
-	virtual void renderable_Render();
+	virtual void renderable_Render(IDSGraphManager* DM);
 	virtual bool bfAssignMovement(CScriptEntityAction* tpEntityAction);
 	virtual bool bfAssignObject(CScriptEntityAction* tpEntityAction);
 
@@ -661,7 +661,7 @@ public:
 	};
 	virtual u16 Initiator();
 	// HUD
-	virtual void OnHUDDraw(CCustomHUD* hud);
+	virtual void OnHUDDraw(CCustomHUD* hud, IDSGraphManager* DM);
 
 	CCameraBase* Camera() { return active_camera; }
 	void SetExplodeTime(u32 et);

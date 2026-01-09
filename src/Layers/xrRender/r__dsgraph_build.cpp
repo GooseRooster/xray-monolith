@@ -33,17 +33,15 @@ ICF float CalcSSA(float& distSQ, Fvector& C, float R)
 	return R / distSQ;
 }
 
-void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fvector& Center)
+void CDSGraphManager::r_dsgraph_insert_dynamic(dxRender_Visual *pVisual, Fmatrix* xform)
 {
-	CRender& RI = RImplementation;
+	if (m_visuals_dynamic.find(pVisual))
+		return;
+	else
+		m_visuals_dynamic.insert(pVisual);
 
-	if (pVisual->vis.marker == RI.marker) return;
-	pVisual->vis.marker = RI.marker;
-
-#if RENDER==R_R1
-	if (RI.o.vis_intersect && (pVisual->vis.accept_frame != Device.dwFrame)) return;
-	pVisual->vis.accept_frame = Device.dwFrame;
-#endif
+	Fvector Center;
+	xform->transform_tiny(Center, pVisual->vis.sphere.P);
 
 	float distSQ;
 	float SSA = CalcSSA(distSQ, Center, pVisual);
@@ -53,17 +51,29 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
 	// a) Allow to optimize RT order
 	// b) Should be rendered to special distort buffer in another pass
 	VERIFY(pVisual->shader._get());
+
 	ShaderElement* sh_d = &*pVisual->shader->E[4];
-	if (RImplementation.o.distortion && sh_d && sh_d->flags.bDistort && pmask[sh_d->flags.iPriority / 2])
+	if (RImplementation.o.distortion && sh_d && sh_d->flags.bDistort && i_mask[sh_d->flags.iPriority/2])
 	{
-		mapSorted_T& test = RI.val_bHUD ? mapHUDDistort : mapDistort;
-		test.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, sh_d });
+		if (i_mask[CDSGraphManager::fl_hud])
+			RGraph.mapHUDSorted.Distort.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh_d, i_mask[CDSGraphManager::fl_hud] });
+		else
+			RGraph.mapDynamicSorted.Distort.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh_d, i_mask[CDSGraphManager::fl_hud] });
 	}
+
+	/*if (sh_d && sh_d->flags.bScopeMask && i_mask[CDSGraphManager::fl_deffered] && i_mask[CDSGraphManager::fl_hud])
+	{
+		RGraph.mapHUDSorted.ScopeLens.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh_d, i_mask[CDSGraphManager::fl_hud] });
+	}*/
 
 	// Select shader
 	ShaderElement* sh = RImplementation.rimp_select_sh_dynamic(pVisual, distSQ);
-	if (0 == sh) return;
-	if (!pmask[sh->flags.iPriority / 2]) return;
+
+	if (0==sh)
+		return;
+	u32 shader_priority = sh->flags.iPriority/2;
+	if (!i_mask[shader_priority])
+		return;
 
 	// Create common node
 	// NOTE: Invisible elements exist only in R1
@@ -74,7 +84,7 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
 			break;
 
 		case 1: {
-			mapHUD.insertInAnyWay(EPS, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, sh });
+			RGraph.mapHUD.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_hud] });
 
 			// SSS: Deprecated
 			/*if (!sh->passes[0]->ps->hud_disabled)
@@ -90,37 +100,43 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
 		}
 
 		case 2: {
-			mapScopeHUD.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, sh });
+			RGraph.mapScopeHUD.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_hud] });
 			return;
 		}
 
 		case 3: {
-			mapScopeHUDSorted.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, sh });
+			RGraph.mapScopeHUDSorted.Sorted.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_hud] });
 			return;
 		}
 	}
 #endif
-
 	// HUD rendering
-	if (RI.val_bHUD)
+	if (i_mask[CDSGraphManager::fl_hud])
 	{
 		if (sh->flags.bStrictB2F)
 		{
 #if RENDER!=R_R1
 			if (sh->flags.bEmissive)
 			{
-				auto& map = RI.val_bCamAttached ? mapCamAttachedEmissive : mapHUDEmissive;
-				map.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, &*pVisual->shader->E[4] });
+				if (i_mask[CDSGraphManager::fl_cam])
+					RGraph.mapCamAttachedSorted.Emissive.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh_d, i_mask[CDSGraphManager::fl_cam] });
+				else
+					RGraph.mapHUDSorted.Emissive.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh_d, i_mask[CDSGraphManager::fl_hud] });
 			}
 #endif // RENDER!=R_R1
-			auto& map = RI.val_bCamAttached ? mapCamAttachedSorted : mapHUDSorted;
-			map.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, sh });
+			if (i_mask[CDSGraphManager::fl_cam])
+				RGraph.mapCamAttachedSorted.Sorted.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_cam] });
+			else
+				RGraph.mapHUDSorted.Sorted.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_hud] });
 			return;
 		}
 		else
 		{
-			auto& map = RI.val_bCamAttached ? mapCamAttached : mapHUD;
-			map.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, sh });
+			if (i_mask[CDSGraphManager::fl_cam])
+				RGraph.mapCamAttached.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_cam] });
+			else
+				RGraph.mapHUD.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_hud] });
+
 			/*
 #if RENDER==R_R4
 			if (RImplementation.o.ssfx_core && !sh->passes[0]->ps->hud_disabled)
@@ -137,25 +153,30 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
 #if RENDER!=R_R1
 			if (sh->flags.bEmissive)
 			{
-				auto& map = RI.val_bCamAttached ? mapCamAttachedEmissive : mapHUDEmissive;
-				map.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, &*pVisual->shader->E[4] });
+				if (i_mask[CDSGraphManager::fl_cam])
+					RGraph.mapCamAttachedSorted.Emissive.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh_d, i_mask[CDSGraphManager::fl_cam] });
+				else
+					RGraph.mapHUDSorted.Emissive.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh_d, i_mask[CDSGraphManager::fl_hud] });
 			}
+				
 #endif	//	RENDER!=R_R1
+
 			return;
 		}
 	}
 
 	// Shadows registering
 #if RENDER==R_R1
-	_MatrixItem		item = { SSA,RI.val_pObject,pVisual,*RI.val_pTransform };
-	RI.L_Shadows->add_element(item);
+	DSGraphItem item = DSGraphItem{ SSA,val_pObject,pVisual,xform,nullptr,i_mask[CDSGraphManager::fl_hud] };
+	RImplementation.L_Shadows->add_element(item);
 #endif
-	if (RI.val_bInvisible) return;
+	if (i_mask[CDSGraphManager::fl_invisible])
+		return;
 
 	// strict-sorting selection
 	if (sh->flags.bStrictB2F)
 	{
-		mapSorted.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, sh });
+		RGraph.mapDynamicSorted.Sorted.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_hud] });
 		return;
 	}
 
@@ -166,12 +187,14 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
 	// c) Should not cast shadows
 	// d) Should be rendered to accumulation buffer in the second pass
 	if (sh->flags.bEmissive)
+		RGraph.mapDynamicSorted.Emissive.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh_d, i_mask[CDSGraphManager::fl_hud] });
+
+	if (sh->flags.bWmark && i_mask[CDSGraphManager::fl_wmarks])
 	{
-		mapEmissive.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, &*pVisual->shader->E[4] });
-	}
-	if (sh->flags.bWmark && pmask[2])
-	{
-		mapWmark.insertInAnyWay(distSQ, { SSA, RI.val_pObject, pVisual, *RI.val_pTransform, *RI.val_pTransform, sh });
+		if (i_mask[CDSGraphManager::fl_hud])
+			RGraph.mapHUDSorted.Wmark.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_hud] });
+		else
+			RGraph.mapDynamicSorted.Wmark.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, sh, i_mask[CDSGraphManager::fl_hud] });
 		return;
 	}
 #endif
@@ -185,67 +208,59 @@ void R_dsgraph_structure::r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fve
 			continue;
 		}
 
-		//SPass&						pass	= *sh->passes.front	();
-		//mapMatrix_T&				map		= mapMatrix			[sh->flags.iPriority/2];
 		SPass& pass = *sh->passes[iPass];
-		mapMatrix_T& map = mapMatrixPasses[sh->flags.iPriority / 2][iPass];
-
+		mapDSGraphVS& map = RGraph.mapDynamicPasses[shader_priority][iPass];
+		
 
 #ifdef USE_RESOURCE_DEBUGGER
 #if defined(USE_DX10) || defined(USE_DX11)
-		mapMatrixVS::TNode*			Nvs		= map.insert		(pass.vs);
-		mapMatrixGS::TNode*			Ngs		= Nvs->val.insert	(pass.gs);
-		mapMatrixPS::TNode*			Nps		= Ngs->val.insert	(pass.ps);
-#else	//	USE_DX10
-		mapMatrixVS::TNode*			Nvs		= map.insert		(pass.vs);
-		mapMatrixPS::TNode*			Nps		= Nvs->val.insert	(pass.ps);
-#endif	//	USE_DX10
+		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs);
+		mapDSGraphGS::TNode* Ngs = Nvs->val.insert(pass.gs);
+		mapDSGraphPS::TNode* Nps = Ngs->val.insert(pass.ps);
+#else
+		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs);
+		mapDSGraphPS::TNode* Nps = Nvs->val.insert(pass.ps);
+#endif
 #else
 #if defined(USE_DX10) || defined(USE_DX11)
-		mapMatrixVS::TNode* Nvs = map.insert(&*pass.vs);
-		mapMatrixGS::TNode* Ngs = Nvs->val.insert(pass.gs->gs);
-		mapMatrixPS::TNode* Nps = Ngs->val.insert(pass.ps->ps);
-#else	//	USE_DX10
-		mapMatrixVS::TNode* Nvs = map.insert(pass.vs->vs);
-		mapMatrixPS::TNode* Nps = Nvs->val.insert(pass.ps->ps);
-#endif	//	USE_DX10
+		mapDSGraphVS::TNode* Nvs = map.insert(&*pass.vs);
+		mapDSGraphGS::TNode* Ngs = Nvs->val.insert(pass.gs->gs);
+		mapDSGraphPS::TNode* Nps = Ngs->val.insert(pass.ps->ps);
+#else
+		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs->vs);
+		mapDSGraphPS::TNode* Nps = Nvs->val.insert(pass.ps->ps);
+#endif
 #endif
 
 #ifdef USE_DX11
 #	ifdef USE_RESOURCE_DEBUGGER
 		Nps->val.hs = pass.hs;
 		Nps->val.ds = pass.ds;
-		mapMatrixCS::TNode*			Ncs		= Nps->val.mapCS.insert	(pass.constants._get());
+		mapDSGraphCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
 #	else
 		Nps->val.hs = pass.hs->sh;
 		Nps->val.ds = pass.ds->sh;
-		mapMatrixCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
+		mapDSGraphCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
 #	endif
 #else
-		mapMatrixCS::TNode* Ncs = Nps->val.insert(pass.constants._get());
+		mapDSGraphCS::TNode* Ncs = Nps->val.insert(pass.constants._get());
 #endif
-		mapMatrixStates::TNode* Nstate = Ncs->val.insert(pass.state->state);
-		mapMatrixTextures::TNode* Ntex = Nstate->val.insert(pass.T._get());
-
+		mapDSGraphStates::TNode* Nstate	= Ncs->val.insert(pass.state->state);
+		mapDSGraphTextures::TNode* Ntex = Nstate->val.insert(pass.T._get());
 #if RENDER==R_R1
 		Ntex->val.push_back(item);
 #else
-		Ntex->val.push_back({ SSA, RI.val_pObject, pVisual, *RI.val_pTransform });
+		Ntex->val.push_back(DSGraphItem{ SSA, val_pObject, pVisual, xform, nullptr, i_mask[CDSGraphManager::fl_hud] });
 #endif
 	}
 }
 
-void R_dsgraph_structure::r_dsgraph_insert_static(dxRender_Visual* pVisual)
+void CDSGraphManager::r_dsgraph_insert_static(dxRender_Visual *pVisual)
 {
-	CRender& RI = RImplementation;
-
-	if (pVisual->vis.marker == RI.marker) return;
-	pVisual->vis.marker = RI.marker;
-
-#if RENDER==R_R1
-	if (RI.o.vis_intersect && (pVisual->vis.accept_frame != Device.dwFrame)) return;
-	pVisual->vis.accept_frame = Device.dwFrame;
-#endif
+	if (m_visuals_static.find(pVisual))
+		return;
+	else
+		m_visuals_static.insert(pVisual);
 
 	float distSQ;
 	float SSA = CalcSSA(distSQ, pVisual->vis.sphere.P, pVisual);
@@ -256,21 +271,23 @@ void R_dsgraph_structure::r_dsgraph_insert_static(dxRender_Visual* pVisual)
 	// b) Should be rendered to special distort buffer in another pass
 	VERIFY(pVisual->shader._get());
 	ShaderElement* sh_d = &*pVisual->shader->E[4];
-	if (RImplementation.o.distortion && sh_d && sh_d->flags.bDistort && pmask[sh_d->flags.iPriority / 2])
-	{
-		mapDistort.insertInAnyWay(distSQ, { SSA, nullptr, pVisual, Fidentity, Fidentity, &*pVisual->shader->E[4] });
-	}
+	if (RImplementation.o.distortion && sh_d && sh_d->flags.bDistort && i_mask[sh_d->flags.iPriority/2])
+		RGraph.mapStaticSorted.Distort.push_back(DSGraphItem{ SSA, nullptr, pVisual, &Fidentity, sh_d,false });
 
 	// Select shader
 	ShaderElement* sh = RImplementation.rimp_select_sh_static(pVisual, distSQ);
-	if (0 == sh) return;
-	if (!pmask[sh->flags.iPriority / 2]) return;
+
+	if (0 == sh)
+		return;
+	u32 shader_priority = sh->flags.iPriority / 2;
+	if (!i_mask[shader_priority])
+		return;
 
 	// Water rendering
 #if RENDER==R_R4
 	if (sh->flags.isWater && RImplementation.o.ssfx_water)
 	{
-		mapWater.insertInAnyWay(distSQ, { SSA, nullptr, pVisual, Fidentity, Fidentity, sh });
+		RGraph.mapWater.insertInAnyWay(distSQ, { SSA, nullptr, pVisual, Fidentity, Fidentity, sh });
 		return;
 	}
 #endif
@@ -278,7 +295,7 @@ void R_dsgraph_structure::r_dsgraph_insert_static(dxRender_Visual* pVisual)
 	// strict-sorting selection
 	if (sh->flags.bStrictB2F)
 	{
-		mapSorted.insertInAnyWay(distSQ, { SSA, nullptr, pVisual, Fidentity, Fidentity, sh });
+		RGraph.mapStaticSorted.Sorted.push_back(DSGraphItem{ SSA, nullptr, pVisual, &Fidentity, sh,false });
 		return;
 	}
 
@@ -289,540 +306,361 @@ void R_dsgraph_structure::r_dsgraph_insert_static(dxRender_Visual* pVisual)
 	// c) Should not cast shadows
 	// d) Should be rendered to accumulation buffer in the second pass
 	if (sh->flags.bEmissive)
+		RGraph.mapStaticSorted.Emissive.push_back(DSGraphItem{ SSA, nullptr, pVisual, &Fidentity, sh_d,false });
+
+	if (sh->flags.bWmark && i_mask[CDSGraphManager::fl_wmarks])
 	{
-		mapEmissive.insertInAnyWay(distSQ, { SSA, nullptr, pVisual, Fidentity, Fidentity, &*pVisual->shader->E[4] });
-	}
-	if (sh->flags.bWmark && pmask[2])
-	{
-		mapWmark.insertInAnyWay(distSQ, { SSA, nullptr, pVisual, Fidentity, Fidentity, sh });
+		RGraph.mapStaticSorted.Wmark.push_back(DSGraphItem{SSA, nullptr, pVisual, &Fidentity, sh,false });
 		return;
 	}
 #endif
 
-	if (val_feedback && counter_S == val_feedback_breakp) val_feedback->rfeedback_static(pVisual);
-
-	counter_S ++;
-
 	for (u32 iPass = 0; iPass < sh->passes.size(); ++iPass)
 	{
-		//SPass&						pass	= *sh->passes.front	();
-		//mapNormal_T&				map		= mapNormal			[sh->flags.iPriority/2];
-		SPass& pass = *sh->passes[iPass];
-		mapNormal_T& map = mapNormalPasses[sh->flags.iPriority / 2][iPass];
+		// the most common node
+		if (sh->passes[iPass] == nullptr)
+			continue;
 
-		//#ifdef USE_RESOURCE_DEBUGGER
-		//	mapNormalVS::TNode*			Nvs		= map.insert		(pass.vs);
-		//	mapNormalPS::TNode*			Nps		= Nvs->val.insert	(pass.ps);
-		//#else
-		//#if defined(USE_DX10) || defined(USE_DX11)
-		//	mapNormalVS::TNode*			Nvs		= map.insert		(&*pass.vs);
-		//#else	//	USE_DX10
-		//	mapNormalVS::TNode*			Nvs		= map.insert		(pass.vs->vs);
-		//#endif	//	USE_DX10
-		//	mapNormalPS::TNode*			Nps		= Nvs->val.insert	(pass.ps->ps);
-		//#endif
+		SPass& pass	= *sh->passes[iPass];
+		mapDSGraphVS& map = RGraph.mapStaticPasses[shader_priority][iPass];
 
 #ifdef USE_RESOURCE_DEBUGGER
-#	if defined(USE_DX10) || defined(USE_DX11)
-		mapNormalVS::TNode*			Nvs		= map.insert		(pass.vs);
-		mapNormalGS::TNode*			Ngs		= Nvs->val.insert	(pass.gs);
-		mapNormalPS::TNode*			Nps		= Ngs->val.insert	(pass.ps);
-#	else	//	USE_DX10
-		mapNormalVS::TNode*			Nvs		= map.insert		(pass.vs);
-		mapNormalPS::TNode*			Nps		= Nvs->val.insert	(pass.ps);
-#	endif	//	USE_DX10
-#else // USE_RESOURCE_DEBUGGER
-#	if defined(USE_DX10) || defined(USE_DX11)
-		mapNormalVS::TNode* Nvs = map.insert(&*pass.vs);
-		mapNormalGS::TNode* Ngs = Nvs->val.insert(pass.gs->gs);
-		mapNormalPS::TNode* Nps = Ngs->val.insert(pass.ps->ps);
-#	else	//	USE_DX10
-		mapNormalVS::TNode* Nvs = map.insert(pass.vs->vs);
-		mapNormalPS::TNode* Nps = Nvs->val.insert(pass.ps->ps);
-#	endif	//	USE_DX10
-#endif // USE_RESOURCE_DEBUGGER
+#if defined(USE_DX10) || defined(USE_DX11)
+		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs);
+		mapDSGraphGS::TNode* Ngs = Nvs->val.insert(pass.gs);
+		mapDSGraphPS::TNode* Nps = Ngs->val.insert(pass.ps);
+#else
+		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs);
+		mapDSGraphPS::TNode* Nps = Nvs->val.insert(pass.ps);
+#endif
+#else
+#if defined(USE_DX10) || defined(USE_DX11)
+		mapDSGraphVS::TNode* Nvs = map.insert(&*pass.vs);
+		mapDSGraphGS::TNode* Ngs = Nvs->val.insert(pass.gs->gs);
+		mapDSGraphPS::TNode* Nps = Ngs->val.insert(pass.ps->ps);
+#else
+		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs->vs);
+		mapDSGraphPS::TNode* Nps = Nvs->val.insert(pass.ps->ps);
+#endif
+#endif
 
 #ifdef USE_DX11
 #	ifdef USE_RESOURCE_DEBUGGER
 		Nps->val.hs = pass.hs;
 		Nps->val.ds = pass.ds;
-		mapNormalCS::TNode*			Ncs		= Nps->val.mapCS.insert	(pass.constants._get());
+		mapDSGraphCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
 #	else
 		Nps->val.hs = pass.hs->sh;
 		Nps->val.ds = pass.ds->sh;
-		mapNormalCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
+		mapDSGraphCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
 #	endif
 #else
-		mapNormalCS::TNode* Ncs = Nps->val.insert(pass.constants._get());
+		mapDSGraphCS::TNode* Ncs = Nps->val.insert(pass.constants._get());
 #endif
-		mapNormalStates::TNode* Nstate = Ncs->val.insert(pass.state->state);
-		mapNormalTextures::TNode* Ntex = Nstate->val.insert(pass.T._get());
+		mapDSGraphStates::TNode* Nstate	= Ncs->val.insert(pass.state->state);
+		mapDSGraphTextures::TNode* Ntex = Nstate->val.insert(pass.T._get());
 
-		Ntex->val.push_back({ SSA, pVisual });
+		Ntex->val.push_back(DSGraphItem{SSA,nullptr,pVisual,nullptr,nullptr,false});
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-void CRender::add_leafs_Dynamic(dxRender_Visual* pVisual)
+void CDSGraphManager::add_Dynamic(IRenderVisual* piVisual, Fmatrix* xform)
 {
-	PROF_EVENT("add_leafs_Dynamic");
-	if (!pVisual)
-		return;
+	
+	dxRender_Visual* pVisual = (dxRender_Visual*)piVisual;
+	if (!pVisual) return;
 
-	Flags16& flags = pVisual->flags;
+	Flags16& flags = piVisual->flags;
 
-	if (phase != PHASE_NORMAL && !!flags.test(IRenderVisualFlags::eNoShadow))
+	if (!i_mask[CDSGraphManager::fl_normal] && !!flags.test(IRenderVisualFlags::eNoShadow))
 		return;
 
 	// Visual is 100% visible - simply add it
-	xr_vector<IRenderVisual*>::iterator I, E; // it may be useful for 'hierrarhy' visual
-
 	switch (pVisual->Type)
 	{
 	case MT_PARTICLE_GROUP:
+	{
+		// Add all children, doesn't perform any tests
+		PS::CParticleGroup* pG = (PS::CParticleGroup*)pVisual->dcast_ParticleCustom();
+		xrCriticalSectionGuard guard(&pG->onframe_lock);
+		for (PS::CParticleGroup::SItem& I_ : pG->items)
 		{
-			// Add all children, doesn't perform any tests
-			PS::CParticleGroup* pG = (PS::CParticleGroup*)pVisual;
-			xrCriticalSectionGuard guard(&pG->onframe_lock);
-			for (PS::CParticleGroup::SItemVecIt i_it = pG->items.begin(); i_it != pG->items.end(); ++i_it)
-			{
-				PS::CParticleGroup::SItem& I = *i_it;
-				if (I._effect) add_leafs_Dynamic(I._effect);
-				for (xr_vector<dxRender_Visual*>::iterator pit = I._children_related.begin(); pit != I
-				                                                                                     ._children_related.
-				                                                                                     end(); ++pit)
-					add_leafs_Dynamic(*pit);
-				for (xr_vector<dxRender_Visual*>::iterator pit = I._children_free.begin(); pit != I._children_free.end()
-				     ; ++pit)
-					add_leafs_Dynamic(*pit);
-			}
+			add_Dynamic(I_._effect, xform);
+			add_leafs_Dynamic(I_._children_related, xform);
+			add_leafs_Dynamic(I_._children_free, xform);
 		}
-		return;
+	}return;
+
 	case MT_HIERRARHY:
-		{
-			// Add all children, doesn't perform any tests
-			FHierrarhyVisual* pV = (FHierrarhyVisual*)pVisual;
-			I = pV->children.begin();
-			E = pV->children.end();
-			for (; I != E; ++I) add_leafs_Dynamic((dxRender_Visual*)*I);
-		}
-		return;
+	{
+		// Add all children, doesn't perform any tests
+		FHierrarhyVisual* pV = (FHierrarhyVisual*)pVisual;
+		add_leafs_Dynamic(pV->children, xform);
+	}return;
+
 	case MT_SKELETON_ANIM:
 	case MT_SKELETON_RIGID:
+	{
+		// Add all children, doesn't perform any tests
+		CKinematics* pV = (CKinematics*)pVisual;
+		BOOL _use_lod = FALSE;
+		if (pV->m_lod)
 		{
-			// Add all children, doesn't perform any tests
-			CKinematics* pV = (CKinematics*)pVisual;
-			BOOL _use_lod = FALSE;
-			if (pV->m_lod)
-			{
-				Fvector Tpos;
-				float D;
-				val_pTransform->transform_tiny(Tpos, pV->vis.sphere.P);
-				float ssa = CalcSSA(D, Tpos, pV->vis.sphere.R / 2.f); // assume dynamics never consume full sphere
-				if (ssa < r_ssaLOD_A) _use_lod = TRUE;
-			}
-			if (_use_lod)
-			{
-				add_leafs_Dynamic(pV->m_lod);
-			}
-			else
-			{
-#if RENDER==R_R1
-				pV->CalculateBones(TRUE);
-				pV->CalculateWallmarks();
-#endif
-				I = pV->children.begin();
-				E = pV->children.end();
-				for (; I != E; ++I) add_leafs_Dynamic((dxRender_Visual*)*I);
-			}
-		}
-		return;
-	default:
-		{
-			// General type of visual
-			// Calculate distance to it's center
 			Fvector Tpos;
-			val_pTransform->transform_tiny(Tpos, pVisual->vis.sphere.P);
-			r_dsgraph_insert_dynamic(pVisual, Tpos);
+			float D;
+			xform->transform_tiny(Tpos, pV->vis.sphere.P);
+			float ssa = CalcSSA(D, Tpos, pV->vis.sphere.R * 0.5f);	// assume dynamics never consume full sphere
+			if (ssa < r_ssaLOD_A)
+				_use_lod = TRUE;
 		}
-		return;
+		if (_use_lod)
+			add_Dynamic(pV->m_lod, xform);
+		else
+		{
+			//pV->CalculateBones(TRUE);
+			if (i_mask[CDSGraphManager::fl_normal])
+				pV->CalculateWallmarks();
+			add_leafs_Dynamic(pV->children, xform);
+		}
+	}return;
+
+	default:
+	{
+		// General type of visual
+		// Calculate distance to it's center
+		r_dsgraph_insert_dynamic(pVisual, xform);
+	}return;
 	}
 }
 
-void CRender::add_leafs_Static(dxRender_Visual* pVisual)
+void CDSGraphManager::add_Dynamic(dxRender_Visual* pVisual, Fmatrix* xform)
 {
-	PROF_EVENT("add_leafs_Static");
-
-#if RENDER!=R_R1
-	if(RImplementation.phase==CRender::PHASE_NORMAL)
-#endif
-	if (!HOM.visible(pVisual->vis))
-		return;
+	if (!pVisual) return;
 
 	Flags16& flags = pVisual->dcast_RenderVisual()->flags;
 
-	if (phase != PHASE_NORMAL && !!flags.test(IRenderVisualFlags::eNoShadow))
+	if (!i_mask[CDSGraphManager::fl_normal] && !!flags.test(IRenderVisualFlags::eNoShadow))
 		return;
 
 	// Visual is 100% visible - simply add it
-	xr_vector<IRenderVisual*>::iterator I, E; // it may be usefull for 'hierrarhy' visuals
-
 	switch (pVisual->Type)
 	{
 	case MT_PARTICLE_GROUP:
+	{
+		// Add all children, doesn't perform any tests
+		PS::CParticleGroup* pG = (PS::CParticleGroup*)pVisual->dcast_ParticleCustom();
+		xrCriticalSectionGuard guard(&pG->onframe_lock);
+		for (PS::CParticleGroup::SItem& I_ : pG->items)
 		{
-			// Add all children, doesn't perform any tests
-			PS::CParticleGroup* pG = (PS::CParticleGroup*)pVisual;
-			for (PS::CParticleGroup::SItemVecIt i_it = pG->items.begin(); i_it != pG->items.end(); ++i_it)
-			{
-				PS::CParticleGroup::SItem& I = *i_it;
-				if (I._effect) add_leafs_Dynamic(I._effect);
-				for (xr_vector<dxRender_Visual*>::iterator pit = I._children_related.begin(); pit != I
-				                                                                                     ._children_related.
-				                                                                                     end(); ++pit)
-					add_leafs_Dynamic(*pit);
-				for (xr_vector<dxRender_Visual*>::iterator pit = I._children_free.begin(); pit != I._children_free.end()
-				     ; ++pit)
-					add_leafs_Dynamic(*pit);
-			}
+			add_Dynamic(I_._effect, xform);
+			add_leafs_Dynamic(I_._children_related, xform);
+			add_leafs_Dynamic(I_._children_free, xform);
 		}
-		return;
+	}break;
+
 	case MT_HIERRARHY:
-		{
-			// Add all children, doesn't perform any tests
-			FHierrarhyVisual* pV = (FHierrarhyVisual*)pVisual;
-			I = pV->children.begin();
-			E = pV->children.end();
-			for (; I != E; ++I) add_leafs_Static((dxRender_Visual*)*I);
-		}
-		return;
+	{
+		// Add all children, doesn't perform any tests
+		FHierrarhyVisual* pV = (FHierrarhyVisual*)pVisual;
+		add_leafs_Dynamic(pV->children, xform);
+	}break;
+
 	case MT_SKELETON_ANIM:
 	case MT_SKELETON_RIGID:
+	{
+		// Add all children, doesn't perform any tests
+		CKinematics* pV = (CKinematics*)pVisual;
+		BOOL _use_lod = FALSE;
+		if (pV->m_lod)
 		{
-			// Add all children, doesn't perform any tests
-			CKinematics* pV = (CKinematics*)pVisual;
-#if RENDER==R_R1
-			pV->CalculateBones(TRUE);
-#endif
-			I = pV->children.begin();
-			E = pV->children.end();
-			for (; I != E; ++I) add_leafs_Static((dxRender_Visual*)*I);
-		}
-		return;
-	case MT_LOD:
-		{
-			FLOD* pV = (FLOD*)pVisual;
+			Fvector Tpos;
 			float D;
-			float ssa = CalcSSA(D, pV->vis.sphere.P, pV);
-			ssa *= pV->lod_factor;
+			xform->transform_tiny(Tpos, pV->vis.sphere.P);
+			float ssa = CalcSSA(D, Tpos, pV->vis.sphere.R * 0.5f);	// assume dynamics never consume full sphere
 			if (ssa < r_ssaLOD_A)
-			{
-				if (ssa < r_ssaDISCARD) return;
-				mapLOD_Node* N = mapLOD.insertInAnyWay(D);
-				N->val.ssa = ssa;
-				N->val.pVisual = pVisual;
-			}
-#if RENDER!=R_R1
-			if (ssa > r_ssaLOD_B || phase == PHASE_SMAP)
-#else
-			if (ssa > r_ssaLOD_B)
-#endif
-			{
-				// Add all children, doesn't perform any tests
-				I = pV->children.begin();
-				E = pV->children.end();
-				for (; I != E; ++I) add_leafs_Static((dxRender_Visual*)*I);
-			}
+				_use_lod = TRUE;
 		}
-		return;
-	case MT_TREE_PM:
-	case MT_TREE_ST:
+		if (_use_lod)
+			add_Dynamic(pV->m_lod, xform);
+		else
 		{
-			// General type of visual
-			r_dsgraph_insert_static(pVisual);
+			//pV->CalculateBones(TRUE);
+			if (i_mask[CDSGraphManager::fl_normal])
+				pV->CalculateWallmarks();
+			add_leafs_Dynamic(pV->children, xform);
 		}
-		return;
+	}break;
+
 	default:
-		{
-			// General type of visual
-			r_dsgraph_insert_static(pVisual);
-		}
-		return;
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////
-BOOL CRender::add_Dynamic(dxRender_Visual* pVisual, u32 planes)
-{
-	PROF_EVENT("add_Dynamic");
-	Flags16& flags = pVisual->dcast_RenderVisual()->flags;
-
-	if (phase != PHASE_NORMAL && !!flags.test(IRenderVisualFlags::eNoShadow))
-		return FALSE;
-
-	// Check frustum visibility and calculate distance to visual's center
-	Fvector Tpos; // transformed position
-	EFC_Visible VIS;
-
-	val_pTransform->transform_tiny(Tpos, pVisual->vis.sphere.P);
-	VIS = View->testSphere(Tpos, pVisual->vis.sphere.R, planes);
-	if (fcvNone == VIS) return FALSE;
-
-	// If we get here visual is visible or partially visible
-	xr_vector<IRenderVisual*>::iterator I, E; // it may be usefull for 'hierrarhy' visuals
-
-	switch (pVisual->Type)
 	{
-	case MT_PARTICLE_GROUP:
-		{
-			// Add all children, doesn't perform any tests
-			PS::CParticleGroup* pG = (PS::CParticleGroup*)pVisual;
-			for (PS::CParticleGroup::SItemVecIt i_it = pG->items.begin(); i_it != pG->items.end(); i_it++)
-			{
-				PS::CParticleGroup::SItem& I = *i_it;
-				if (fcvPartial == VIS)
-				{
-					if (I._effect) add_Dynamic(I._effect, planes);
-					for (xr_vector<dxRender_Visual*>::iterator pit = I._children_related.begin(); pit != I
-					                                                                                     .
-					                                                                                     _children_related
-					                                                                                     .end(); ++pit)
-						add_Dynamic(*pit, planes);
-					for (xr_vector<dxRender_Visual*>::iterator pit = I._children_free.begin(); pit != I
-					                                                                                  ._children_free.
-					                                                                                  end(); ++pit)
-						add_Dynamic(*pit, planes);
-				}
-				else
-				{
-					if (I._effect) add_leafs_Dynamic(I._effect);
-					for (xr_vector<dxRender_Visual*>::iterator pit = I._children_related.begin(); pit != I
-					                                                                                     .
-					                                                                                     _children_related
-					                                                                                     .end(); ++pit)
-						add_leafs_Dynamic(*pit);
-					for (xr_vector<dxRender_Visual*>::iterator pit = I._children_free.begin(); pit != I
-					                                                                                  ._children_free.
-					                                                                                  end(); ++pit)
-						add_leafs_Dynamic(*pit);
-				}
-			}
-		}
-		break;
-	case MT_HIERRARHY:
-		{
-			// Add all children
-			FHierrarhyVisual* pV = (FHierrarhyVisual*)pVisual;
-			I = pV->children.begin();
-			E = pV->children.end();
-			if (fcvPartial == VIS)
-			{
-				for (; I != E; ++I) add_Dynamic((dxRender_Visual*)*I, planes);
-			}
-			else
-			{
-				for (; I != E; ++I) add_leafs_Dynamic((dxRender_Visual*)*I);
-			}
-		}
-		break;
-	case MT_SKELETON_ANIM:
-	case MT_SKELETON_RIGID:
-		{
-			// Add all children, doesn't perform any tests
-			CKinematics* pV = (CKinematics*)pVisual;
-			BOOL _use_lod = FALSE;
-			if (pV->m_lod)
-			{
-				Fvector Tpos;
-				float D;
-				val_pTransform->transform_tiny(Tpos, pV->vis.sphere.P);
-				float ssa = CalcSSA(D, Tpos, pV->vis.sphere.R / 2.f); // assume dynamics never consume full sphere
-				if (ssa < r_ssaLOD_A) _use_lod = TRUE;
-			}
-			if (_use_lod)
-			{
-				add_leafs_Dynamic(pV->m_lod);
-			}
-			else
-			{
-#if RENDER==R_R1
-				pV->CalculateBones(TRUE);
-				pV->CalculateWallmarks(); //. bug?
-#endif
-				I = pV->children.begin();
-				E = pV->children.end();
-				for (; I != E; ++I) add_leafs_Dynamic((dxRender_Visual*)*I);
-			}
-			/*
-			I = pV->children.begin		();
-			E = pV->children.end		();
-			if (fcvPartial==VIS) {
-				for (; I!=E; I++)	add_Dynamic			(*I,planes);
-			} else {
-				for (; I!=E; I++)	add_leafs_Dynamic	(*I);
-			}
-			*/
-		}
-		break;
-	default:
-		{
-			// General type of visual
-			r_dsgraph_insert_dynamic(pVisual, Tpos);
-		}
-		break;
+		// General type of visual
+		// Calculate distance to it's center
+		r_dsgraph_insert_dynamic(pVisual, xform);
+	}break;
 	}
-	return TRUE;
 }
 
-void CRender::add_Static(dxRender_Visual* pVisual, u32 planes)
+void CDSGraphManager::add_leafs_Dynamic(xr_vector<dxRender_Visual*>& children, Fmatrix* xform)
 {
-	PROF_EVENT("add_Static");
-	Flags16& flags = pVisual->dcast_RenderVisual()->flags;
+	for (dxRender_Visual* pVisual : children)
+	{
+		add_Dynamic(pVisual, xform);
+	}
+}
 
-	if (phase != PHASE_NORMAL && !!flags.test(IRenderVisualFlags::eNoShadow))
+void CDSGraphManager::add_leafs_Dynamic(xr_vector<IRenderVisual*>& children, Fmatrix* xform)
+{
+	for (IRenderVisual* pVisual : children)
+	{
+		add_Dynamic(pVisual, xform);
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void CDSGraphManager::add_Static(IRenderVisual* piVisual, CFrustum& frustum, u32 planes)
+{
+	dxRender_Visual* pVisual = (dxRender_Visual*)piVisual;
+	if (!pVisual) return;
+
+	Flags16& flags = piVisual->flags;
+	if (!i_mask[CDSGraphManager::fl_normal] && !!flags.test(IRenderVisualFlags::eNoShadow))
 		return;
 
 	// Check frustum visibility and calculate distance to visual's center
-	EFC_Visible VIS;
 	vis_data& vis = pVisual->vis;
-	VIS = View->testSAABB(vis.sphere.P, vis.sphere.R, vis.box.data(), planes);
-	if (VIS == fcvNone)
+	EFC_Visible VIS = frustum.testSAABB(vis.sphere.P, vis.sphere.R, vis.box.data(), planes);
+
+	if (fcvNone == VIS)
 		return;
+
 #if RENDER!=R_R1
-	if(RImplementation.phase==CRender::PHASE_NORMAL)
+	if (i_mask[CDSGraphManager::fl_normal])//phase normal
 #endif
-	if (!HOM.visible(vis))
-		return;
+		if (!RImplementation.HOM.visible(vis))
+			return;
 
 	// If we get here visual is visible or partially visible
-	xr_vector<IRenderVisual*>::iterator I, E; // it may be usefull for 'hierrarhy' visuals
-
 	switch (pVisual->Type)
 	{
-	case MT_PARTICLE_GROUP:
-		{
-			// Add all children, doesn't perform any tests
-			PS::CParticleGroup* pG = (PS::CParticleGroup*)pVisual;
-			for (PS::CParticleGroup::SItem& I : pG->items)
-			{
-				if (fcvPartial == VIS)
-				{
-					if (I._effect) add_Dynamic(I._effect, planes);
-
-					for (dxRender_Visual* childRelated : I._children_related)
-					{
-						add_Dynamic(childRelated, planes);
-					}
-
-					for (dxRender_Visual* childFree : I._children_free)
-					{
-						add_Dynamic(childFree, planes);
-					}
-				}
-				else
-				{
-					if (I._effect) add_leafs_Dynamic(I._effect);
-
-					for (dxRender_Visual* childRelated : I._children_related)
-					{
-						add_leafs_Dynamic(childRelated);
-					}
-
-					for (dxRender_Visual* childFree : I._children_free)
-					{
-						add_leafs_Dynamic(childFree);
-					}
-				}
-			}
-		}
-		break;
 	case MT_HIERRARHY:
+	{
+		// Add all children
+		FHierrarhyVisual* pV = (FHierrarhyVisual*)pVisual;
+		if (fcvPartial == VIS)
 		{
-			// Add all children
-			FHierrarhyVisual* pV = (FHierrarhyVisual*)pVisual;
-			if (VIS == fcvPartial)
-			{
-				for (IRenderVisual* childRenderable : pV->children)
-				{
-					add_Static((dxRender_Visual*)childRenderable, planes);
-				}
-			}
-			else
-			{
-				for (IRenderVisual* childRenderable : pV->children)
-				{
-					add_leafs_Static((dxRender_Visual*)childRenderable);
-				}
-			}
+			for (auto V : pV->children)
+				add_Static(V, frustum, planes);
 		}
-		break;
-	case MT_SKELETON_ANIM:
-	case MT_SKELETON_RIGID:
-		{
-			// Add all children, doesn't perform any tests
-			CKinematics* pV = (CKinematics*)pVisual;
-#if RENDER==R_R1
-			pV->CalculateBones(TRUE);
-#endif	
-			if (VIS == fcvPartial)
-			{
-				for (IRenderVisual* childRenderable : pV->children)
-				{
-					add_Static((dxRender_Visual*)childRenderable, planes);
-				}
-			}
-			else
-			{
-				for (IRenderVisual* childRenderable : pV->children)
-				{
-					add_leafs_Static((dxRender_Visual*)childRenderable);
-				}
-			}
-		}
-		break;
+		else
+			add_leafs_Static(pV->children);
+	}break;
+
 	case MT_LOD:
+	{
+		FLOD* pV = (FLOD*)pVisual;
+		float D;
+		float ssa = CalcSSA(D, pV->vis.sphere.P, pV) * pV->lod_factor;
+
+		if (ssa < r_ssaLOD_A)
 		{
-			FLOD* pV = (FLOD*)pVisual;
-			float D;
-			float ssa = CalcSSA(D, pV->vis.sphere.P, pV);
-			ssa *= pV->lod_factor;
-			if (ssa < r_ssaLOD_A)
-			{
-				if (ssa < r_ssaDISCARD) return;
-				mapLOD_Node* N = mapLOD.insertInAnyWay(D);
-				N->val.ssa = ssa;
-				N->val.pVisual = pVisual;
-			}
-#if RENDER!=R_R1
-			if (ssa > r_ssaLOD_B || phase == PHASE_SMAP)
-#else
-			if (ssa > r_ssaLOD_B)
-#endif
-			{
-				// Add all children, perform tests
-				for (IRenderVisual* childRenderable : pV->children)
-				{
-					add_leafs_Static((dxRender_Visual*)childRenderable);
-				}
-			}
+			if (ssa < r_ssaDISCARD)
+				return;
+
+			RGraph.mapLOD.push_back({ ssa, nullptr, pVisual, nullptr, nullptr });
 		}
-		break;
+
+#if RENDER!=R_R1
+		if (ssa > r_ssaLOD_B || i_mask[CDSGraphManager::fl_shmap])//phase shmap
+#else
+		if (ssa > r_ssaLOD_B)
+#endif
+		{
+			// Add all children, perform tests
+			add_leafs_Static(pV->children);
+		}
+	}break;
+
 	case MT_TREE_ST:
 	case MT_TREE_PM:
-		{
-			// General type of visual
-			r_dsgraph_insert_static(pVisual);
-		}
-		return;
 	default:
+	{
+		// General type of visual
+		r_dsgraph_insert_static(pVisual);
+	}return;
+	}
+}
+
+void CDSGraphManager::add_leaf_Static(dxRender_Visual* pVisual)
+{
+#if RENDER!=R_R1
+	if (i_mask[CDSGraphManager::fl_normal])//phase normal
+#endif
+		if (!RImplementation.HOM.visible(pVisual->vis))
+			return;
+
+	// Visual is 100% visible - simply add it
+	switch (pVisual->Type)
+	{
+	case MT_HIERRARHY:
+	{
+		FHierrarhyVisual* pV = (FHierrarhyVisual*)pVisual;
+		add_leafs_Static(pV->children);
+	}break;
+
+	case MT_LOD:
+	{
+		FLOD* pV = (FLOD*)pVisual;
+		float D;
+		float ssa = CalcSSA(D, pV->vis.sphere.P, pV) * pV->lod_factor;
+
+		if (ssa < r_ssaLOD_A)
 		{
-			// General type of visual
-			r_dsgraph_insert_static(pVisual);
+			if (ssa < r_ssaDISCARD)
+				break;
+
+			RGraph.mapLOD.push_back({ ssa, nullptr, pVisual, nullptr, nullptr });
 		}
-		break;
+
+#if RENDER!=R_R1
+		if (ssa > r_ssaLOD_B || i_mask[CDSGraphManager::fl_shmap])//phase shmap
+#else
+		if (ssa > r_ssaLOD_B)
+#endif
+		{
+			// Add all children, doesn't perform any tests
+			add_leafs_Static(pV->children);
+		}
+	}break;
+
+	case MT_TREE_PM:
+	case MT_TREE_ST:
+	default:
+	{
+		// General type of visual
+		r_dsgraph_insert_static(pVisual);
+	}break;
+	}
+}
+
+void CDSGraphManager::add_leafs_Static(xr_vector<dxRender_Visual*>& children)
+{
+	for (dxRender_Visual* pVisual : children)
+	{
+		add_leaf_Static(pVisual);
+	}
+}
+
+void CDSGraphManager::add_leafs_Static(xr_vector<IRenderVisual*>& children)
+{
+	for (IRenderVisual* pVisual : children)
+	{
+		dxRender_Visual* pV = (dxRender_Visual*)pVisual;
+		if (!pV) continue;
+		add_leaf_Static(pV);
 	}
 }

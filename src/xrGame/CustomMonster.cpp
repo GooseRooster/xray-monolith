@@ -823,7 +823,7 @@ BOOL CCustomMonster::net_Spawn(CSE_Abstract* DC)
 }
 
 #ifdef DEBUG
-void CCustomMonster::OnHUDDraw(CCustomHUD *hud)
+void CCustomMonster::OnHUDDraw(CCustomHUD *hud, IDSGraphManager* DM)
 {
 }
 #endif

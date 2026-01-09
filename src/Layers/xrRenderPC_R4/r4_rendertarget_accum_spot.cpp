@@ -296,7 +296,6 @@ void CRenderTarget::accum_volumetric(light* L)
 	}
 
 	//if (L->flags.type != IRender_Light::SPOT) return;
-	if (!L->flags.bVolumetric) return;
 	PROF_EVENT("CRenderTarget::accum_volumetric");
 	
 	if (!RImplementation.o.ssfx_volumetric)

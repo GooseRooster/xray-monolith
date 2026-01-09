@@ -427,7 +427,7 @@ void CScriptStorage::reinit()
     luajit::open_lib(lua(), LUA_DBLIBNAME, luaopen_debug);
 #else //!DEBUG
 
-    if (Core.ParamsData.test(ECoreParams::dbg))
+    if (Core.isDebug())
         luajit::open_lib(lua(), LUA_DBLIBNAME, luaopen_debug);
 #endif //-DEBUG
 
@@ -486,7 +486,7 @@ int CScriptStorage::vscript_log(ScriptStorage::ELuaMessageType tLuaMessageType, 
 	//AVO: allow LUA debug prints (i.e.: ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError, make_string("CWeapon [%s]: cannot access class member Weapon_IsScopeAttached!", object().cNameSect().c_str()).c_str());)
 #       ifndef DEBUG
 
-	if (!Core.ParamsData.test(ECoreParams::dbg))
+	if (!Core.isDebug())
 		return (0);
 #       endif //!DEBUG
 #       ifndef LUA_DEBUG_PRINT
@@ -760,7 +760,7 @@ bool CScriptStorage::load_buffer(lua_State* L, LPCSTR caBuffer, size_t tSize, LP
 	if (l_iErrorCode)
 	{
 //#ifdef DEBUG
-		if (Core.ParamsData.test(ECoreParams::dbg)) print_output(L,caScriptName,l_iErrorCode);
+		if (Core.isDebug()) print_output(L,caScriptName,l_iErrorCode);
 //#endif //-DEBUG
 		on_error(L);
 		return (false);
@@ -1023,7 +1023,7 @@ bool CScriptStorage::do_file(LPCSTR caScriptName, LPCSTR caNameSpaceName)
 	if (l_iErrorCode)
 	{
 //#ifdef DEBUG
-		if (Core.ParamsData.test(ECoreParams::dbg)) print_output(lua(),caScriptName,l_iErrorCode);
+		if (Core.isDebug()) print_output(lua(),caScriptName,l_iErrorCode);
 //#endif
 		on_error(lua());
 		lua_settop(lua(), start);

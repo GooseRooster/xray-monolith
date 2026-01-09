@@ -138,7 +138,7 @@ bool CSoundRender_Source::LoadWave(LPCSTR pName)
 		} 
 		else
 		{
-			if (Core.ParamsData.test(ECoreParams::dbg))
+			if (Core.isDebug())
 			{
 				Log("! Invalid ogg-comment version, file: ", pname.c_str());
 			}
@@ -146,7 +146,7 @@ bool CSoundRender_Source::LoadWave(LPCSTR pName)
 	}
 	else
 	{
-		if (Core.ParamsData.test(ECoreParams::dbg))
+		if (Core.isDebug())
 		{
 			Log("! Missing ogg-comment, file: ", pname.c_str());
 		}

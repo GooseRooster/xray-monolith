@@ -351,6 +351,9 @@ void CArtefact::MoveTo(Fvector const& position)
 
 void CArtefact::UpdateXForm()
 {
+	if (Device.dwFrame == dwXF_Frame) return;
+	dwXF_Frame = Device.dwFrame;
+
 	if (0==H_Parent())	return;
 
 	// Get access to entity and its visual

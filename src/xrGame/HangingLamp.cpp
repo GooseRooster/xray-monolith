@@ -256,7 +256,7 @@ void CHangingLamp::UpdateCL()
 			Fmatrix xf;
 			if (light_bone != BI_NONE)
 			{
-				Fmatrix M = smart_cast<IKinematics*>(Visual())->LL_GetTransform_safed(light_bone);
+				Fmatrix& M = smart_cast<IKinematics*>(Visual())->LL_GetTransform_safed(light_bone);
 				xf.mul(XFORM(), M);
 				VERIFY(!fis_zero(DET(xf)));
 			}
@@ -279,7 +279,7 @@ void CHangingLamp::UpdateCL()
 				{
 					if (ambient_bone != BI_NONE)
 					{
-						Fmatrix M = smart_cast<IKinematics*>(Visual())->LL_GetTransform_safed(ambient_bone);
+						Fmatrix& M = smart_cast<IKinematics*>(Visual())->LL_GetTransform_safed(ambient_bone);
 						xf.mul(XFORM(), M);
 						VERIFY(!fis_zero(DET(xf)));
 					}

@@ -211,7 +211,7 @@ public:
 		fl_max,
 	};
 	IRenderable* val_pObject = nullptr;
-	bool i_mask[fl_max]{};//deffered,forward,wmarks,normal,shmap,val_invisible,val_hud
+	bool i_mask[fl_max]{};//deffered,forward,wmarks,normal,shmap,val_invisible,val_hud,val_cam_attached
 
 	virtual void add_Static(IRenderVisual* pVisual, CFrustum& frustum, u32 planes) = 0;
 	virtual void add_Dynamic(IRenderVisual* piVisual, Fmatrix* xform) = 0;

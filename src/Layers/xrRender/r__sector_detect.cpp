@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "FHierrarhyVisual.h"
+#include "r__sector.h"
 
 #if (RENDER==R_R4)
 #include "r4.h"
@@ -44,55 +45,56 @@ IRender_Sector* CRender::detectSector(const Fvector& P)
 	}
 	return S;
 }
+
 thread_local xrXRC sectors_detect_xrc;
-IRender_Sector* CRender::detectLastSectorImpl(const Fvector& P, const Fvector& dir)
-{
-	sectors_detect_xrc.ray_options(CDB::OPT_ONLYNEAREST);
-
-	// Portals model
-	if (rmPortals)
-	{
-		sectors_detect_xrc.ray_query(rmPortals, P, dir, 1000.f);
-		if (sectors_detect_xrc.r_count()) {
-			CDB::RESULT* RP = sectors_detect_xrc.r_begin();
-			CDB::TRI* pTri = rmPortals->get_tris() + RP->id;
-			CPortal* pPortal = (CPortal*)Portals[pTri->dummy];
-			CSector* S = pPortal->getSectorFacing(P);
-			FHierrarhyVisual* pV = (FHierrarhyVisual*)S->root();
-			if (pV)
-			{
-				if (pV->vis.box.contains(P))
-					return S;
-			}
-		}
-	}
-
-	// Geometry model
-	sectors_detect_xrc.ray_query(g_pGameLevel->ObjectSpace.GetStaticModel(), P, dir, 1000.f);
-	if (sectors_detect_xrc.r_count()) {
-		CDB::RESULT* RP = sectors_detect_xrc.r_begin();
-		return getSector(RP->sector);
-	}
-
-	return nullptr;
-};
-
 IRender_Sector* CRender::detectLastSector(const Fvector& P)
 {
 	if (SectorsCount() == 1)
 		return pOutdoorSector;
 
-	IRender_Sector* S = nullptr;
-	Fvector dir;
-	dir.set(0, -1, 0);
+	static auto detectSector = [](const Fvector& P, Fvector& dir) -> IRender_Sector*
+		{
+			sectors_detect_xrc.ray_options(CDB::OPT_ONLYNEAREST);
+			// Portals model
+			if (RImplementation.rmPortals)
+			{
+				sectors_detect_xrc.ray_query(RImplementation.rmPortals, P, dir, 1000.f);
+				if (sectors_detect_xrc.r_count()) {
+					CDB::RESULT* RP = sectors_detect_xrc.r_begin();
+					CDB::TRI* pTri = RImplementation.rmPortals->get_tris() + RP->id;
+					CPortal* pPortal = (CPortal*)RImplementation.Portals[pTri->dummy];
+					CSector* S = pPortal->getSectorFacing(P);
+					FHierrarhyVisual* pV = (FHierrarhyVisual*)S->root();
+					if (pV)
+					{
+						if (pV->vis.box.contains(P))
+							return S;
+					}
+				}
+			}
 
-	S = detectLastSectorImpl(P, dir);
-	if (!S)
+			// Geometry model
+			sectors_detect_xrc.ray_query(g_pGameLevel->ObjectSpace.GetStaticModel(), P, dir, 1000.f);
+			if (sectors_detect_xrc.r_count()) {
+				CDB::RESULT* RP = sectors_detect_xrc.r_begin();
+				return RImplementation.getSector(RP->sector);
+			}
+
+			return nullptr;
+		};
+
+	IRender_Sector* S = nullptr;
+	Fvector			dir;
+
+	dir.set(0, -1, 0);
+	S = detectSector(P, dir);
+	if (nullptr == S)
 	{
 		dir.set(0, 1, 0);
-		S = detectLastSectorImpl(P, dir);
+		S = detectSector(P, dir);
 	}
 	return S;
+
 }
 
 IRender_Sector* CRender::detectSector(const Fvector& P, Fvector& dir)
@@ -151,58 +153,56 @@ IRender_Sector* CRender::detectSector(const Fvector& P, Fvector& dir)
 	}
 }
 
-xr_vector<IRender_Sector*> CRender::detectSectors_sphere(CSector* sector, const Fvector& b_center, const Fvector& b_dim)
+void CRender::detectSectors_sphere(CSector* sector, FixedSet<IRender_Sector*>& m_sectors, const Fvector& b_center, const Fvector& b_dim)
 {
-    xr_vector<IRender_Sector*> m_sectors;
-	m_sectors.push_back(sector);
+	m_sectors.clear();
+	m_sectors.insert(sector);
 	if (rmPortals)
 	{
 		sectors_detect_xrc.box_options(CDB::OPT_FULL_TEST);
-        sectors_detect_xrc.box_query(rmPortals,b_center,b_dim);
-        for (int K=0; K< sectors_detect_xrc.r_count(); K++)
-        {
-            CPortal* pPortal = (CPortal*) Portals[rmPortals->get_tris()[sectors_detect_xrc.r_begin()[K].id].dummy];
-            if(!pPortal)
-                continue;
-            CSector *pFront = pPortal->Front();
-            CSector *pBack = pPortal->Back();
-            if(sector != pFront && sector != pBack)
-                continue;
-            auto itfr = std::find(m_sectors.begin(), m_sectors.end(), pFront);
-            if(itfr == m_sectors.end())
-                m_sectors.push_back(pFront);
-            auto itbc = std::find(m_sectors.begin(), m_sectors.end(), pBack);
-            if(itbc == m_sectors.end())
-                m_sectors.push_back(pBack);
-        }
-    }
-    return m_sectors;
+		sectors_detect_xrc.box_query(rmPortals, b_center, b_dim);
+		for (int K = 0; K < sectors_detect_xrc.r_count(); K++)
+		{
+			CPortal* pPortal = (CPortal*)Portals[rmPortals->get_tris()[sectors_detect_xrc.r_begin()[K].id].dummy];
+
+			if (!pPortal)
+				continue;
+
+			CSector* pFront = pPortal->Front();
+			CSector* pBack = pPortal->Back();
+
+			if (pFront)
+				m_sectors.insert(pFront);
+
+			if (pBack)
+				m_sectors.insert(pBack);
+		}
+	}
 }
 
-xr_vector<IRender_Sector*> CRender::detectSectors_frustum(CSector* sector, CFrustum* _frustum)
+void CRender::detectSectors_frustum(CSector* sector, FixedSet<IRender_Sector*>& m_sectors, CFrustum* _frustum)
 {
-    xr_vector<IRender_Sector*> m_sectors;
-	m_sectors.push_back(sector);
+	m_sectors.clear();
+	m_sectors.insert(sector);
 	if (rmPortals)
 	{
 		sectors_detect_xrc.frustum_options(CDB::OPT_FULL_TEST);
-        sectors_detect_xrc.frustum_query(rmPortals,*_frustum);
-        for (int K=0; K< sectors_detect_xrc.r_count(); K++)
-        {
-            CPortal* pPortal = (CPortal*) Portals[rmPortals->get_tris()[sectors_detect_xrc.r_begin()[K].id].dummy];
-            if(!pPortal)
-                continue;
-            CSector *pFront = pPortal->Front();
-            CSector *pBack = pPortal->Back();
-            if(sector != pFront && sector != pBack)
-                continue;
-            auto itfr = std::find(m_sectors.begin(), m_sectors.end(), pFront);
-            if(itfr == m_sectors.end())
-                m_sectors.push_back(pFront);
-            auto itbc = std::find(m_sectors.begin(), m_sectors.end(), pBack);
-            if(itbc == m_sectors.end())
-                m_sectors.push_back(pBack);
-        }
-    }
-    return m_sectors;
+		sectors_detect_xrc.frustum_query(rmPortals, *_frustum);
+		for (int K = 0; K < sectors_detect_xrc.r_count(); K++)
+		{
+			CPortal* pPortal = (CPortal*)Portals[rmPortals->get_tris()[sectors_detect_xrc.r_begin()[K].id].dummy];
+
+			if (!pPortal)
+				continue;
+
+			CSector* pFront = pPortal->Front();
+			CSector* pBack = pPortal->Back();
+
+			if (pFront)
+				m_sectors.insert(pFront);
+
+			if (pBack)
+				m_sectors.insert(pBack);
+		}
+	}
 }

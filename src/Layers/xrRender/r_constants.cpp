@@ -40,12 +40,7 @@ void R_constant_table::_copy(const R_constant_table& Other)
 
 
 // predicates
-IC bool p_search(ref_constant C, LPCSTR S)
-{
-	return xr_strcmp(*C->name, S) < 0;
-}
-
-IC bool p_sort(ref_constant C1, ref_constant C2)
+IC bool p_sort_constants(ref_constant& C1, ref_constant& C2)
 {
 	return xr_strcmp(C1->name, C2->name) < 0;
 }
@@ -54,7 +49,7 @@ ref_constant R_constant_table::get(LPCSTR S)
 {
 	PROF_EVENT("R_constant_table::get LPCSTR");
 	// assumption - sorted by name
-	c_table::iterator I = std::lower_bound(table.begin(), table.end(), S, p_search);
+	c_table::iterator I = std::lower_bound(table.begin(), table.end(), S, [](ref_constant & C, LPCSTR S) { return xr_strcmp(*C->name, S) < 0; });
 	if (I == table.end() || (0 != xr_strcmp(*(*I)->name, S))) return 0;
 	else return *I;
 }
@@ -63,12 +58,10 @@ ref_constant R_constant_table::get(shared_str& S)
 {
 	PROF_EVENT("R_constant_table::get shared_str");
 	// linear search, but only ptr-compare
-	c_table::iterator I = table.begin();
-	c_table::iterator E = table.end();
-	for (; I != E; ++I)
+	for (ref_constant& C : table)
 	{
-		ref_constant C = *I;
-		if (C->name.equal(S)) return C;
+		if (C->name.equal(S))
+			return C;
 	}
 	return 0;
 }
@@ -211,7 +204,7 @@ BOOL R_constant_table::parse(void* _desc, u32 destination)
 			L.cls = r_type;
 		}
 	}
-	std::sort(table.begin(), table.end(), p_sort);
+	std::sort(table.begin(), table.end(), p_sort_constants);
 	return TRUE;
 }
 #endif	//	USE_DX10
@@ -267,7 +260,7 @@ void R_constant_table::merge(R_constant_table* T)
 		std::move(table_tmp.begin(), table_tmp.end(), std::back_inserter(table));
 
 		// Sort
-		std::sort(table.begin(), table.end(), p_sort);
+		std::sort(table.begin(), table.end(), p_sort_constants);
 	}
 
 #if defined(USE_DX10) || defined(USE_DX11)

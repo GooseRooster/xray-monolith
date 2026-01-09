@@ -26,7 +26,7 @@ public:
 	virtual bool shedule_Needed() { return true; };
 	virtual float shedule_Scale();
 	virtual void Update(u32 dt) override;
-	virtual void renderable_Render();
+	virtual void renderable_Render(IDSGraphManager* DM);
 	void PerformAllTheWork();
 
 	Fvector& Position();

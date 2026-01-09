@@ -47,8 +47,7 @@ enum
 #ifdef SPATIAL_CHANGE
 	STYPE_FEELVISIONIGNORE = (1 << 11),
 #endif
-
-	STYPEFLAG_INVALIDSECTOR = (1 << 16)
+	STYPE_GLOW = (1 << 12)
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -104,11 +103,9 @@ public:
 
 		// Cached node center for TBV optimization
 		Fvector node_center = {};
-
+		Fvector last_sector_point = {0.f,0.f,0.f};
 		// Cached node bounds for TBV optimization
-		float node_radius;
-		float ssa_dyn_factor = 0.002f;
-		float ssa_d_cam = 220.f;
+		float node_radius=EPS;
 
 		// Cached parent node for "empty-members" optimization
 		ISpatial_NODE* node_ptr = nullptr;
@@ -125,7 +122,6 @@ private:
 
 public:
 	BOOL spatial_inside		()			;
-	void spatial_updatesector_internal()	;
 
 private:
 	void	Register();
@@ -138,11 +134,7 @@ public:
 	Fvector OwnerSectorPoint();
 	void OwnerReset(ISpatialOwner* ptr) { RawOwner = ptr; };
 
-	ICF void spatial_updatesector()	
-	{
-		if (0 == (spatial.type & STYPEFLAG_INVALIDSECTOR)) return;
-		spatial_updatesector_internal();
-	};
+	void spatial_updatesector();
 
 	CObject*		dcast_CObject		();
 	Feel::Sound*	dcast_FeelSound		();
@@ -285,6 +277,7 @@ public:
 
 XRCDB_API extern ISpatial_DB* g_SpatialSpace;
 XRCDB_API extern ISpatial_DB* g_SpatialSpacePhysic;
+XRCDB_API extern ISpatial_DB* g_SpatialSpaceLights;
 
 #pragma pack(pop)
 

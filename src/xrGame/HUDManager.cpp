@@ -156,32 +156,40 @@ CHUDManager::~CHUDManager()
 //--------------------------------------------------------------------
 void CHUDManager::OnFrame()
 {
-	PROF_EVENT("CHUDManager::OnFrame");
 	if (!psHUD_Flags.is(HUD_DRAW_RT2))
 		return;
 
 	if (!b_online)
 		return;
 
-	if (pUIGame)
-		pUIGame->OnFrame();
-
 	PP.CameraPick();
-	g_player_hud->OnFrame();
 	DoPick(PP);
 }
 
 xrCriticalSection ui_lock;
 void CHUDManager::OnFrameMT()
 {
+	if (!psHUD_Flags.is(HUD_DRAW_RT2))
+		return;
+
+	if (!b_online)
+		return;
+
 	PROF_EVENT("CHUDManager::OnFrameMT");
+
+	g_player_hud->OnFrame();
 
 	if (Device.dwPrecacheFrame == 0)
 		Level().GameTaskManager()->UpdateTasks();
+
+	xrCriticalSectionGuard guard(&ui_lock);
+	if (pUIGame)
+		pUIGame->OnFrame();
 }
 
 //--------------------------------------------------------------------
-void CHUDManager::Render_First()
+//R1 Actor Shadow
+void CHUDManager::Render_First(IDSGraphManager* DM)
 {
 	if (!psHUD_Flags.is(HUD_WEAPON | HUD_WEAPON_RT | HUD_WEAPON_RT2 | HUD_DRAW_RT2))return;
 	if (0 == pUIGame) return;
@@ -192,10 +200,12 @@ void CHUDManager::Render_First()
 	if (A && !A->HUDview()) return;
 
 	// only shadow
-	::Render->set_Invisible(TRUE);
-	::Render->set_Object(O->H_Root());
-	O->renderable_Render();
-	::Render->set_Invisible(FALSE);
+	DM->set_Invisible(true);
+	DM->set_Object(O->H_Root());
+
+	O->renderable_Render(DM);
+
+	DM->set_Invisible();
 }
 
 bool need_render_hud()
@@ -214,19 +224,19 @@ bool need_render_hud()
 	return true;
 }
 
-void CHUDManager::Render_Last()
+void CHUDManager::Render_Last(IDSGraphManager* DM)
 {
 	if (0 == pUIGame) return;
-	if (g_actor) g_actor->RenderCamAttached();
+	if (g_actor) g_actor->RenderCamAttached(DM);
 	if (!psHUD_Flags.is(HUD_WEAPON | HUD_WEAPON_RT | HUD_WEAPON_RT2 | HUD_DRAW_RT2))return;
 	if (!need_render_hud()) return;
 
 	CObject* O = g_pGameLevel->CurrentViewEntity();
 	// hud itself
-	::Render->set_HUD(TRUE);
-	::Render->set_Object(O->H_Root());
-	O->OnHUDDraw(this);
-	::Render->set_HUD(FALSE);
+	DM->set_HUD(true);
+	DM->set_Object(O->H_Root());
+	O->OnHUDDraw(this, DM);
+	DM->set_HUD();
 }
 
 void CHUDManager::Render_R1_Attachment_UI()

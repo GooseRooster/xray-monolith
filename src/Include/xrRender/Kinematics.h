@@ -62,6 +62,7 @@ public:
 	virtual u16 LL_VisibleBoneCount() = 0;
 
 	virtual ICF Fmatrix& _BCL LL_GetTransform(u16 bone_id) = 0;
+	virtual ICF Fmatrix& _BCL LL_GetTransform_safed(u16 bone_id) = 0;
 	virtual ICF const Fmatrix& _BCL LL_GetTransform(u16 bone_id) const = 0;
 
 	virtual ICF Fmatrix& LL_GetTransform_R(u16 bone_id) = 0;

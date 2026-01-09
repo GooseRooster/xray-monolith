@@ -326,12 +326,12 @@ bool CInventoryOwner::IsTrading()
 }
 
 //==============
-void CInventoryOwner::renderable_Render()
+void CInventoryOwner::renderable_Render		(IDSGraphManager* DM)
 {
 	if (inventory().ActiveItem())
-		inventory().ActiveItem()->renderable_Render();
+		inventory().ActiveItem()->renderable_Render(DM);
 
-	CAttachmentOwner::renderable_Render();
+	CAttachmentOwner::renderable_Render(DM);
 }
 
 void CInventoryOwner::OnItemTake(CInventoryItem* inventory_item)

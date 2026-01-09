@@ -127,7 +127,7 @@ void script_attachment::spatial_move()
 	ISpatialOwner::spatial_move();
 }
 
-void script_attachment::renderable_Render()
+void script_attachment::renderable_Render(IDSGraphManager* DM)
 {
 	if (GetType() != eSA_World) return;
 
@@ -154,19 +154,18 @@ void script_attachment::renderable_Render()
 	m_kinematics->CalculateBones_Invalidate();
 	m_kinematics->CalculateBones(TRUE);
 
-	::Render->set_Transform(&renderable.xform);
-	::Render->add_Visual(renderable.visual);
+	DM->add_Dynamic(renderable.visual, &renderable.xform);
 
 	if (m_children.size())
 	{
 		for (auto& pair : m_children)
 		{
-			pair.second->Render(m_kinematics, &renderable.xform);
+			pair.second->Render(m_kinematics, &renderable.xform, DM);
 		}
 	}
 }
 
-void script_attachment::Render(IKinematics* model, Fmatrix* mat)
+void script_attachment::Render(IKinematics* model, Fmatrix* mat, IDSGraphManager* DM)
 {
 	if (!model || (m_bone_callbacks[0] && m_bone_callbacks[0]->m_bone_id != BI_NONE))
 		renderable.xform = *mat;
@@ -196,14 +195,13 @@ void script_attachment::Render(IKinematics* model, Fmatrix* mat)
 		m_kinematics->CalculateBones(TRUE);
 	}
 
-	::Render->set_Transform(&renderable.xform);
-	::Render->add_Visual(renderable.visual);
+	DM->add_Dynamic(renderable.visual, &renderable.xform);
 
 	if (m_children.size())
 	{
 		for (auto& pair : m_children)
 		{
-			pair.second->Render(m_kinematics, &renderable.xform);
+			pair.second->Render(m_kinematics, &renderable.xform, DM);
 		}
 	}
 }

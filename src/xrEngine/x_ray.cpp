@@ -603,6 +603,7 @@ void Startup()
 	g_pGamePersistent = (IGame_Persistent*)NEW_INSTANCE(CLSID_GAME_PERSISTANT);
 	g_SpatialSpace = xr_new<ISpatial_DB>();
 	g_SpatialSpacePhysic = xr_new<ISpatial_DB>();
+	g_SpatialSpaceLights = xr_new<ISpatial_DB>();
 
 	// Destroy LOGO
 	DestroyWindow(logoWindow);

@@ -2073,15 +2073,15 @@ void CActor::shedule_Update(u32 DT)
 	Check_for_AutoPickUp();
 };
 
-void CActor::RenderCamAttached()
+void CActor::RenderCamAttached(IDSGraphManager* DM)
 {
 	if (cam_active == eacFirstEye && ::Render->active_phase() == 0)
 	{
 		if (GetAttachments()->size())
 		{
-			::Render->set_HUD(TRUE);
-			::Render->set_CamAttached(TRUE);
-			::Render->set_Object(this);
+			DM->set_HUD(TRUE);
+			DM->set_CamAttached(TRUE);
+			DM->set_Object(this);
 
 			Fmatrix cam = Fidentity;
 			Cameras().camera_Matrix(cam);
@@ -2091,11 +2091,11 @@ void CActor::RenderCamAttached()
 				script_attachment* att = pair.second;
 
 				if (att->GetType() == eSA_CamAttached)
-					att->Render(nullptr, &cam);
+					att->Render(nullptr, &cam, DM);
 			}
 
-			::Render->set_CamAttached(FALSE);
-			::Render->set_HUD(FALSE);
+			DM->set_CamAttached(FALSE);
+			DM->set_HUD(FALSE);
 		}
 	}
 }
@@ -2115,7 +2115,7 @@ bool CActor::AllowActorShadow()
 }
 
 #include "debug_renderer.h"
-void CActor::renderable_Render()
+void CActor::renderable_Render(IDSGraphManager* DM)
 {
 	VERIFY(_valid(XFORM()));
 	
@@ -2124,22 +2124,22 @@ void CActor::renderable_Render()
 		if (::Render->active_phase() == 0) // can render first person body here
 		{
 			//if (fpBody) 
-			//	inherited::renderable_Render();
+			//	inherited::renderable_Render(DM);
 		}
 		else if (AllowActorShadow()) // render actor shadow
 		{
-			inherited::renderable_Render();
+			inherited::renderable_Render(DM);
 			if ((IsFocused() || (!(IsFocused() && ((!m_holder) ||
 				(m_holder && m_holder->allowWeapon() && m_holder->HUDView()))))))
-				CInventoryOwner::renderable_Render();
+				CInventoryOwner::renderable_Render(DM);
 		}
 	}
 
 // Third Person Body and Weapon/Item
 	else
 	{
-		inherited::renderable_Render();
-		CInventoryOwner::renderable_Render();
+		inherited::renderable_Render(DM);
+		CInventoryOwner::renderable_Render(DM);
 	}
 }
 
@@ -2185,12 +2185,12 @@ extern	BOOL	g_ShowAnimationInfo		;
 #endif // DEBUG
 // HUD
 
-void CActor::OnHUDDraw(CCustomHUD*)
+void CActor::OnHUDDraw(CCustomHUD* Z, IDSGraphManager* DM)
 {
 	R_ASSERT(IsFocused());
 	//demonized: disable hud when FPCam is on
 	if (!((mstate_real & mcLookout) && !IsGameTypeSingle()) && (!m_FPCam || m_FPCam->hudEnabled))
-		g_player_hud->render_hud();
+		g_player_hud->render_hud(DM);
 
 
 #if 0//ndef NDEBUG

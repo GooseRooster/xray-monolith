@@ -63,8 +63,6 @@ void CRender::level_Load(IReader* fs)
 	rmFar();
 	rmNormal();
 
-	marker = 0;
-
 	if (!g_dedicated_server)
 	{
 		// VB,IB,SWI
@@ -109,6 +107,8 @@ void CRender::level_Unload()
 {
 	if (0 == g_pGameLevel) return;
 	if (!b_loaded) return;
+
+	GMBase.clear();
 
 	u32 I;
 

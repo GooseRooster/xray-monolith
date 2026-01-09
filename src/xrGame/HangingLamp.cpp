@@ -248,18 +248,15 @@ void CHangingLamp::UpdateCL()
 	if (m_pPhysicsShell)
 		m_pPhysicsShell->InterpolateGlobalTransform(&XFORM());
 
-	if (Alive() && light_render->get_active())
+	if (Alive())
 	{
-		if (Visual() && Render->ViewBase.testSphere_dirty(SpatialComponent->spatial.sphere.P, SpatialComponent->spatial.sphere.R+light_render->get_homdata().sphere.R))
-			PKinematics(Visual())->CalculateBones();
-
 		if (NeedUpdate)
 		{
 			// update T&R from light (main) bone
 			Fmatrix xf;
 			if (light_bone != BI_NONE)
 			{
-				Fmatrix& M = smart_cast<IKinematics*>(Visual())->LL_GetTransform(light_bone);
+				Fmatrix& M = smart_cast<IKinematics*>(Visual())->LL_GetTransform_safed(light_bone);
 				xf.mul(XFORM(), M);
 				VERIFY(!fis_zero(DET(xf)));
 			}
@@ -267,9 +264,13 @@ void CHangingLamp::UpdateCL()
 			{
 				xf.set(XFORM());
 			}
-			light_render->set_rotation(xf.k, xf.i);
+			if(light_render->get_type()!=IRender_Light::POINT)
+				light_render->set_rotation(xf.k, xf.i);
+
 			light_render->set_position(xf.c);
-			if (glow_render)glow_render->set_position(xf.c);
+
+			if (glow_render)
+				glow_render->set_position(xf.c);
 
 			// update T&R from ambient bone
 			if (light_ambient)
@@ -278,7 +279,7 @@ void CHangingLamp::UpdateCL()
 				{
 					if (ambient_bone != BI_NONE)
 					{
-						Fmatrix& M = smart_cast<IKinematics*>(Visual())->LL_GetTransform(ambient_bone);
+						Fmatrix& M = smart_cast<IKinematics*>(Visual())->LL_GetTransform_safed(ambient_bone);
 						xf.mul(XFORM(), M);
 						VERIFY(!fis_zero(DET(xf)));
 					}

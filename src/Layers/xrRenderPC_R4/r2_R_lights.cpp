@@ -56,73 +56,66 @@ void CRender::render_lights(light_Package& LP)
 	hud_light_apply(saved_pos, LP.v_point);
 	hud_light_apply(saved_pos, LP.v_spot);
 
-	// Refactor order based on ability to pack shadow-maps
-	// 1. calculate area + sort in descending order
-	// const	u16		smap_unassigned		= u16(-1);
-	{
-		PIX_EVENT(vis_update);
-		xr_vector<light*>& source = LP.v_shadowed;
-		for (u32 it = 0; it < source.size(); it++)
-		{
-			light* L = source[it];
-			if (L->flags.bOccq)
-			{
-				L->vis_update();
-				if (!L->vis.visible)
-				{
-					source.erase(source.begin() + it);
-					it--;
-				}
-				else
-				{
-					if (!L->flags.bHudMode)
-						L->optimize_smap_size();
-				}
-			}
-			else
-			{
-				if (!L->flags.bHudMode)
-					L->optimize_smap_size();
-			}
-		}
-	}
-
-	// 2. refactor - infact we could go from the backside and sort in ascending order
-	{
-		PIX_EVENT(PHASE_SORT);
-		xr_vector<light*>& source = LP.v_shadowed;
-		xr_vector<light*> refactored;
-		refactored.reserve(source.size());
-		u32 total = source.size();
-
-		for (u16 smap_ID = 0; refactored.size() != total; smap_ID++)
-		{
-			LP_smap_pool.initialize(RImplementation.o.smapsize);
-			static auto sort_func = [](light* _1, light* _2) { return _1->X.S.size > _2->X.S.size; };
-			std::sort(source.begin(), source.end(), sort_func);
-			for (u32 test = 0; test < source.size(); test++)
-			{
-				light* L = source[test];
-				SMAP_Rect R;
-				if (LP_smap_pool.push(R, L->X.S.size))
-				{
-					// OK
-					L->X.S.posX = R.min.x;
-					L->X.S.posY = R.min.y;
-					L->vis.smap_ID = smap_ID;
-					refactored.push_back(L);
-					source.erase(source.begin() + test);
-					test--;
-				}
-			}
-		}
-
-		// save (lights are popped from back)
-		std::reverse(refactored.begin(), refactored.end());
-		LP.v_shadowed = refactored;
-	}
 	{
 		PIX_EVENT(SHADOWED_LIGHTS);
+		{
+			PIX_EVENT(PHASE_VIS_UPDATE);
+			xr_vector<light*>& source = LP.v_shadowed;
+			source.erase(std::remove_if(source.begin(), source.end(), [](light* L)
+			{
+				if(L->m_parent)
+				{
+					if(L->m_parent->omnipart[0] == L)
+					{
+						L->m_parent->vis_update();
+						for (int f = 0; f < 6; f++)
+						{
+							L->m_parent->omnipart[f]->vis.pending = L->m_parent->vis.pending;
+							L->m_parent->omnipart[f]->vis.visible = L->m_parent->vis.visible;
+						}
+					}
+				}
+				else
+					L->vis_update();
+				if (!L->vis.visible)
+					return true;
+
+				L->optimize_smap_size();
+
+				return false;
+			}), source.end());
+		}
+
+		{
+			PIX_EVENT(PHASE_CALC_POOLS);
+			xr_vector<light*>& source = LP.v_shadowed;
+			static xr_vector<light*> refactored;
+			refactored.clear();
+			u32 total = (u32)source.size();
+
+			for (u16 smap_ID = 0; refactored.size() != total; smap_ID++)
+			{
+				LP_smap_pool.initialize(o.smapsize);
+				std::sort(source.begin(), source.end(), [](light* _1, light* _2) {return _1->X.S.size > _2->X.S.size; });
+				source.erase(std::remove_if(source.begin(), source.end(), [smap_ID](light* L)
+				{
+					SMAP_Rect R;
+					if (RImplementation.LP_smap_pool.push(R, L->X.S.size))
+					{
+						L->X.S.posX = R.min.x;
+						L->X.S.posY = R.min.y;
+						L->vis.smap_ID = smap_ID;
+						refactored.push_back(L);
+						return true;
+					}
+					return false;
+				}), source.end());
+			}
+
+			std::reverse(refactored.begin(), refactored.end());
+			LP.v_shadowed = refactored;
+		}
+
 		//////////////////////////////////////////////////////////////////////////
 		// sort lights by importance???
 		// while (has_any_lights_that_cast_shadows) {
@@ -139,166 +132,103 @@ void CRender::render_lights(light_Package& LP)
 		while (!LP.v_shadowed.empty())
 		{
 			// if (has_spot_shadowed)
-			xr_vector<light*> L_spot_s;
-			stats.s_used++;
-
-			// generate spot shadowmap
-			Target->phase_smap_spot_clear();
-			xr_vector<light*>& source = LP.v_shadowed;
-			light* L = source.back();
-			u16 sid = L->vis.smap_ID;
-			while (!source.empty())
+			static xr_vector<light*> L_spot_s;
 			{
-				L = source.back();
-				if (L->vis.smap_ID != sid) break;
-				source.pop_back();
-				if (L->flags.bOccq && !L->flags.bHudMode)
-					Lights_LastFrame.push_back(L);
+				PIX_EVENT(GENERATE_SHMAPS);
+				// generate spot shadowmap
+				Target->phase_smap_spot_clear();
+				xr_vector<light*>& source = LP.v_shadowed;
+				light* L = source.back();
+				u16			sid = L->vis.smap_ID;
+				while (!source.empty())
+				{
+					if (source.empty())		break;
+					L = source.back();
+					if (L->vis.smap_ID != sid)	break;
+					source.pop_back();
+					// render
+					phase = PHASE_SMAP;
 
-				// render
-				phase = PHASE_SMAP;
-				r_pmask(true, !!RImplementation.o.Tshadows);
-				PIX_EVENT(SHADOWED_LIGHTS_RENDER_SUBSPACE);
-				bool decorative_light = false;
-				if (L->flags.bHudMode)
-				{
-					L_spot_s.push_back(L);
-					decorative_light = true;
-				}
-				else
-				{
-					if ((L->decor_object[0] && !L->decor_object[0]->getDestroy()) ||
-						(L->decor_object[1] && !L->decor_object[1]->getDestroy()) ||
-						(L->decor_object[2] && !L->decor_object[2]->getDestroy()) ||
-						(L->decor_object[3] && !L->decor_object[3]->getDestroy()) ||
-						(L->decor_object[4] && !L->decor_object[4]->getDestroy()) ||
-						(L->decor_object[5] && !L->decor_object[5]->getDestroy()))
+					PIX_EVENT(RENDER_SHADOWS);
+					bool decorative_light = false;
+					if (L->flags.bHudMode)
 					{
-						RImplementation.marker++; // !!! critical here
-						RImplementation.set_Object(0);
-						for (int f = 0; f < 6; f++)
-						{
-							if (L->decor_object[f] && !L->decor_object[f]->getDestroy())
-							{
-								L->decor_object[f]->renderable_Render();
-								decorative_light = true;
-							}
-						}
+						L_spot_s.push_back(L);
+						decorative_light = true;
 					}
 					else
 					{
-						PROF_EVENT("r_dsgraph_render_subspace");
-						r_dsgraph_render_subspace(L->SpatialComponent->spatial.sector, L->X.S.combine, L->position, TRUE, FALSE, L->ignore_object);
+						if ((L->decor_object[0] && !L->decor_object[0]->getDestroy()) || (L->decor_object[1] && !L->decor_object[1]->getDestroy()) || (L->decor_object[2] && !L->decor_object[2]->getDestroy()) || (L->decor_object[3] && !L->decor_object[3]->getDestroy()) || (L->decor_object[4] && !L->decor_object[4]->getDestroy()) || (L->decor_object[5] && !L->decor_object[5]->getDestroy()))
+						{
+							L->GMLight.m_visuals_dynamic.clear();
+							for (int f = 0; f < 6; f++)
+							{
+								if (L->decor_object[f] && !L->decor_object[f]->getDestroy())
+								{
+									L->decor_object[f]->renderable_Render(&L->GMLight);
+									decorative_light = true;
+								}
+							}
+						}
+						else
+						{
+							if (L->m_moving_frames<32u)
+							{
+								L->GMLight.RGraph.clear_static();
+								L->GMLight.traverse((CSector*)L->SpatialComponent->spatial.sector, L->X.S.frustum, L->position, L->X.S.combine);
+								L->GMLight.r_dsgraph_capture_static();
+								L->m_moving_frames++;
+							}
+							L->GMLight.m_visuals_dynamic.clear();
+							L->GMLight.r_dsgraph_capture_dynamic(L->ignore_object);
+						}
 					}
-				}
 
-				if (L->flags.bOccq && !L->flags.bHudMode)
-					L->svis.begin();
-
-				bool bNormal = mapNormalPasses[0][0].size() || mapMatrixPasses[0][0].size();
-				bool bSpecial = mapNormalPasses[1][0].size() || mapMatrixPasses[1][0].size() || mapSorted.size();
-				if (bNormal || bSpecial)
-				{
-					stats.s_merged++;
-					L_spot_s.push_back(L);
-					Target->phase_smap_spot(L);
-					RCache.set_xform_world(Fidentity);
-					RCache.set_xform_view(L->X.S.view);
-					RCache.set_xform_project(L->X.S.project);
-					r_dsgraph_render_graph(0);
-					// demonized: Try to use later
-					// if (ps_r2_ls_flags.test(R2FLAG_LIGHTS_DETAILS) && 
-					// 	psDeviceFlags.is(rsDetails) &&
-					// 	Details->dtFS &&
-					// 	L->flags.bShadow && !decorative_light && L->SpatialComponent->spatial.sphere.P.distance_to_sqr(RDEVICE.vCameraPosition) < _sqr(40.f))
-					// {
-					// 	RCache.set_CullMode		(CULL_NONE);
-					// 	RCache.set_xform_world	(Fidentity);
-					// 	RCache.set_Geometry		(Details->hw_Geom);
-					// 	Details->hw_Render(L);
-					// 	RCache.set_CullMode		(CULL_CCW);
-					// }
-					if (Details)
+					bool bDeffered_Shadows = L->GMLight.RGraph.mapStaticPasses[0][0].size() || L->GMLight.RGraph.mapDynamicPasses[0][0].size();
+					bool bForward_Shadows = L->GMLight.RGraph.mapStaticPasses[1][0].size() || L->GMLight.RGraph.mapDynamicPasses[1][0].size() || L->GMLight.RGraph.mapStaticSorted.Sorted.size() || L->GMLight.RGraph.mapDynamicSorted.Sorted.size();
+					if (bDeffered_Shadows || bForward_Shadows)
 					{
-						if (check_grass_shadow(L, ViewBase))
+						L_spot_s.push_back(L);
+						Target->phase_smap_spot(L);
+						RCache.set_xform_world(Fidentity);
+						RCache.set_xform_view(L->X.S.view);
+						RCache.set_xform_project(L->X.S.project);
+						L->GMLight.r_dsgraph_render_static(0, false);
+						L->GMLight.r_dsgraph_render_dynamic(0, true);
+						if (Details && check_grass_shadow(L, ViewBase) && L->flags.bShadow && !decorative_light)
 						{
 							Details->fade_distance = -1; // Use light position to calc "fade"
 							Details->light_position.set(L->position);
 							Details->Render();
 						}
-					}
-					L->X.S.transluent = FALSE;
-					if (bSpecial)
-					{
-						L->X.S.transluent = TRUE;
-						Target->phase_smap_spot_tsh(L);
-
-						PIX_EVENT(SHADOWED_LIGHTS_RENDER_GRAPH);
-						r_dsgraph_render_graph(1); // normal level, secondary priority
-						PIX_EVENT(SHADOWED_LIGHTS_RENDER_SORTED);
-						r_dsgraph_render_sorted(); // strict-sorted geoms
-					}
-				}
-				else
-				{
-					stats.s_finalclip++;
-				}
-
-				if (L->flags.bOccq && !L->flags.bHudMode)
-					L->svis.end();
-				r_pmask(true, false);
-			}
-			{
-				PIX_EVENT(UNSHADOWED_LIGHTS);
-				//		switch-to-accumulator
-				Target->phase_accumulator();
-				PIX_EVENT(POINT_LIGHTS);
-				//		if (has_point_unshadowed)	-> 	accum point unshadowed
-				if (!LP.v_point.empty())
-				{
-					light* L_ = LP.v_point.back(); LP.v_point.pop_back();
-					if (L_->flags.bOccq && !L_->flags.bHudMode)
-					{
-						L_->vis_update();
-						if (L_->vis.visible) {
-							Target->accum_point(L_);
-							render_indirect(L_);
+					
+						L->X.S.transluent = FALSE;
+						if (bForward_Shadows)
+						{
+							L->X.S.transluent = TRUE;
+							Target->phase_smap_spot_tsh(L);
+					
+							L->GMLight.r_dsgraph_render_static(1, false);
+							L->GMLight.r_dsgraph_render_dynamic(1, true);
+					
+							L->GMLight.r_dsgraph_render_sorted();			// strict-sorted geoms
 						}
 					}
-					else
-						Target->accum_point(L_);
-				}
-				PIX_EVENT(SPOT_LIGHTS);
-				//		if (has_spot_unshadowed)	-> 	accum spot unshadowed
-				if (!LP.v_spot.empty())
-				{
-					light* L_ = LP.v_spot.back(); LP.v_spot.pop_back();
-					if (L_->flags.bOccq && !L_->flags.bHudMode)
+					else if (L->flags.bVolumetric && ps_r2_ls_flags.test(R2FLAG_VOLUMETRIC_LIGHTS))
 					{
-						L_->vis_update();
-						if (L_->vis.visible) {
-							Target->accum_spot(L_);
-							render_indirect(L_);
-						}
+						L_spot_s.push_back(L);
 					}
-					else
-						Target->accum_spot(L_);
 				}
 			}
-
-			PIX_EVENT(SPOT_LIGHTS_ACCUM_VOLUMETRIC);
-
 			//		if (was_spot_shadowed)		->	accum spot shadowed
 			if (!L_spot_s.empty())
 			{
-				PIX_EVENT(ACCUM_SPOT);
-				PIX_EVENT(ACCUM_VOLUMETRIC);
-				for (u32 it = 0; it < L_spot_s.size(); it++)
+				PROF_EVENT("ACCUM_SPOT");
+				for (light* L : L_spot_s)
 				{
-					Target->accum_spot(L_spot_s[it]);
-					render_indirect(L_spot_s[it]);
-
-					if (RImplementation.o.advancedpp && ps_r2_ls_flags.is(R2FLAG_VOLUMETRIC_LIGHTS))
+					Target->accum_spot(L);
+					render_indirect(L);
+					if (L->flags.bVolumetric && RImplementation.o.advancedpp && ps_r2_ls_flags.is(R2FLAG_VOLUMETRIC_LIGHTS))
 					{
 						// Current Resolution
 						float w = float(Device.dwWidth);
@@ -308,7 +238,7 @@ void CRender::render_lights(light_Package& LP)
 						if (RImplementation.o.ssfx_volumetric)
 							Target->set_viewport_size(HW.pContext, w / 8, h / 8);
 
-						Target->accum_volumetric(L_spot_s[it]);
+						Target->accum_volumetric(L);
 
 						// Restore resolution
 						if (RImplementation.o.ssfx_volumetric)
@@ -320,50 +250,42 @@ void CRender::render_lights(light_Package& LP)
 			}
 		}
 	}
+
 	{
-		PIX_EVENT(POINT_LIGHTS_ACCUM);
-		// Point lighting (unshadowed, if left)
-		if (!LP.v_point.empty())
+		PIX_EVENT(UNSHADOWED_LIGHTS);
 		{
-			xr_vector<light*>& Lvec = LP.v_point;
-			for (u32 pid = 0; pid < Lvec.size(); pid++)
+			PIX_EVENT(POINT_LIGHTS_ACCUM_UNSH);
+			// Point lighting (unshadowed, if left)
+			if (!LP.v_point.empty())
 			{
-				if (Lvec[pid]->flags.bOccq && !Lvec[pid]->flags.bHudMode)
+				for (light* L : LP.v_point)
 				{
-					Lvec[pid]->vis_update();
-					if (Lvec[pid]->vis.visible)
-					{
-						render_indirect(Lvec[pid]);
-						Target->accum_point(Lvec[pid]);
-					}
+					L->vis_update();
+					if (!L->vis.visible)
+						continue;
+
+					Target->accum_point(L);
+					render_indirect(L);
 				}
-				else
-					Target->accum_point(Lvec[pid]);
+				LP.v_point.clear();
 			}
-			Lvec.clear();
 		}
-	}
-	{
-		PIX_EVENT(SPOT_LIGHTS_ACCUM);
-		// Spot lighting (unshadowed, if left)
-		if (!LP.v_spot.empty())
 		{
-			xr_vector<light*>& Lvec = LP.v_spot;
-			for (u32 pid = 0; pid < Lvec.size(); pid++)
+			PIX_EVENT(SPOT_LIGHTS_ACCUM_UNSH);
+			// Spot lighting (unshadowed, if left)
+			if (!LP.v_spot.empty())
 			{
-				if (Lvec[pid]->flags.bOccq && !Lvec[pid]->flags.bHudMode)
+				for (light* L : LP.v_spot)
 				{
-					Lvec[pid]->vis_update();
-					if (Lvec[pid]->vis.visible)
-					{
-						render_indirect(Lvec[pid]);
-						Target->accum_spot(Lvec[pid]);
-					}
+					L->vis_update();
+					if (!L->vis.visible)
+						continue;
+
+					Target->accum_spot(L);
+					render_indirect(L);
 				}
-				else
-					Target->accum_spot(Lvec[pid]);
+				LP.v_spot.clear();
 			}
-			Lvec.clear();
 		}
 	}
 

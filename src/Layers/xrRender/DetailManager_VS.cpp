@@ -282,12 +282,15 @@ void CDetailManager::hw_Render_dump(ref_constant x_array, u32 var_id, u32 lod_id
 				{
 					SlotItem& Instance = **_iI;
 
-					if (RImplementation.pOutdoorSector && PortalTraverser.i_marker != RImplementation.pOutdoorSector->r_marker)
+					if (!RImplementation.GMBase.is_sector_visible(RImplementation.pOutdoorSector))
 						continue;
 
 #if RENDER==R_R2
 					if (RImplementation.phase == CRender::PHASE_SMAP && L)
 					{
+						if (!L->GMLight.is_sector_visible(RImplementation.pOutdoorSector))
+							continue;
+
 						if (L->position.distance_to_sqr(Instance.position) >= _sqr(L->range))
 							continue;
 					}

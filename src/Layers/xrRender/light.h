@@ -7,8 +7,8 @@
 
 #if (RENDER==R_R2) || (RENDER==R_R3) || (RENDER==R_R4)
 #	include "light_package.h"
-#	include "light_smapvis.h"
 #	include "light_GI.h"
+#include "../xrRender/r__dsgraph_manager.h"
 #endif //(RENDER==R_R2) || (RENDER==R_R3) || (RENDER==R_R4)
 
 extern Fvector4 ps_ssfx_volumetric;
@@ -40,6 +40,8 @@ public:
 
 	vis_data hom;
 	u32 frame_render;
+	light* m_parent;
+	u8 m_moving_frames;
 
 	int omnipart_num;
 	int sss_id;
@@ -51,13 +53,25 @@ public:
 	float distance;
 	float distance_lpos;
 
-#if RENDER!=R_R1
-	xr_vector<IRender_Sector*> m_sectors;
+#if RENDER!=R_R1 && !XRCPU_PIPE_EXPORTS
+	FixedSet<IRender_Sector*> m_sectors;
 #endif	//	RENDER!=R_R1
 
 	float m_volumetric_quality;
 	float m_volumetric_intensity;
 	float m_volumetric_distance;
+
+#ifndef XRCPU_PIPE_EXPORTS
+#ifndef _EDITOR
+	CDSGraphManager GMLight = CDSGraphManager(u32(0),
+#if RENDER==R_R1
+		u32(STYPE_RENDERABLE),
+#else
+		u32(STYPE_RENDERABLE + STYPE_RENDERABLESHADOW),
+#endif
+		{ true,false,false,false,true,false,false });
+#endif
+#endif
 
 	float virtual_size;
 
@@ -71,8 +85,6 @@ public:
 	xr_vector<light_indirect>	indirect		;
 	u32							indirect_photons;
 
-	smapvis			svis;		// used for 6-cubemap faces
-
 	ref_shader		s_spot;
 	ref_shader		s_point;
 	ref_shader		s_volumetric;
@@ -83,13 +95,12 @@ public:
 	ref_shader		s_volumetric_msaa[8];
 #endif	//	(RENDER==R_R3) || (RENDER==R_R4)
 
-	u32				m_xform_frame;
+	u32				m_xform_frame, m_parent_p_frame, m_parent_u_frame;
 	Fmatrix			m_xform;
 
 	struct _vis		{
 		u32			frame2test;		// frame the test is sheduled to
-		u32			query_id;		// ID of occlusion query
-		u32			query_order;	// order of occlusion query
+		ID3DQuery*	Q;
 		bool		visible;		// visible/invisible
 		bool		pending;		// test is still pending
 		u16			smap_ID;
@@ -117,18 +128,21 @@ public:
 			u32							posX		;
 			u32							posY		;
 			BOOL						transluent	;
+			CFrustum					frustum;
 		}	S;
 	}	X;
 #endif	//	(RENDER==R_R2) || (RENDER==R_R3) || (RENDER==R_R4)
 
 public:
 	virtual void set_type(LT type) { flags.type = type; }
+	virtual LT get_type() { return (LT)flags.type; }
 	virtual void set_active(bool b);
 	virtual bool get_active() { return flags.bActive; }
 
-#if RENDER!=R_R1
+#if RENDER!=R_R1 && !XRCPU_PIPE_EXPORTS
 	void get_sectors();
-	bool has_light_visible_from_sectors();
+	bool has_light_visible_from_sectors(CDSGraphManager& DM);
+	bool has_outdoor_light();
 	xrCriticalSection sectors_lc;
 #endif	//	RENDER!=R_R1
 
@@ -174,7 +188,6 @@ public:
 
 	virtual void spatial_move();
 	virtual Fvector spatial_sector_point();
-	virtual void spatial_updatesector_internal();
 
 	virtual IRender_Light* dcast_Light() { return this; }
 
@@ -184,7 +197,7 @@ public:
 	void			xform_calc				();
 	void			vis_prepare				();
 	void			vis_update				();
-	void			export_					(light_Package& dest);
+	void			export_					();
 	void			set_attenuation_params	(float a0, float a1, float a2, float fo);
 	void			optimize_smap_size		();
 #endif // (RENDER==R_R2) || (RENDER==R_R3) || (RENDER==R_R4)

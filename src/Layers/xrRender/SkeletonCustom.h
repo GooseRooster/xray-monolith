@@ -115,6 +115,8 @@ public:
 public:
 	dxRender_Visual* m_lod;
 
+	xrCriticalSection UCalc_Mutex;
+
 #ifdef OPTIMIZE_CALCULATE_BONES
 	IC bool canBeOptimized()
 	{
@@ -133,6 +135,7 @@ protected:
 	CInifile* pUserData;
 	CBoneInstance* bone_instances; // bone instances
 	vecBones* bones; // all bones	(shared)
+	u16 bones_size;
 	u16 iRoot; // Root bone index
 
 	// Fast search
@@ -143,9 +146,6 @@ protected:
 	u32 UCalc_Time;
 	s32 UCalc_Visibox;
 	bool UCalc_ThisFrame;
-
-	xrCriticalSection UCalc_Mutex;
-	xrCriticalSection UCalc_Mutex2;
 
 	Flags64 visimask;
 	Flags64 hidden_bones;
@@ -241,6 +241,7 @@ public:
 	}
 
 	ICF Fmatrix& _BCL LL_GetTransform(u16 bone_id) { return LL_GetBoneVisible(bone_id) ? LL_GetBoneInstance(bone_id).mTransform : LL_GetBoneInstance(bone_id).mTransformHidden; }
+	ICF Fmatrix& _BCL LL_GetTransform_safed(u16 bone_id) { xrCriticalSectionGuard guard(&UCalc_Mutex); return LL_GetBoneVisible(bone_id) ? LL_GetBoneInstance(bone_id).mTransform : LL_GetBoneInstance(bone_id).mTransformHidden; }
 	ICF const Fmatrix& _BCL LL_GetTransform(u16 bone_id) const { return LL_GetBoneVisible(bone_id) ? LL_GetBoneInstance(bone_id).mTransform : LL_GetBoneInstance(bone_id).mTransformHidden; }
 	ICF Fmatrix& LL_GetTransform_R(u16 bone_id) { return LL_GetBoneInstance(bone_id).mRenderTransform; }
 	// rendering only

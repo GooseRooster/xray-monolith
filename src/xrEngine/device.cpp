@@ -409,6 +409,8 @@ void CRenderDevice::on_idle()
 	// TODO: Try to move this upper
 	secondary_tasks.run(&XRay::Engine::PreRenderThread);
 
+	secondary_tasks.run(&XRay::Engine::CalculateBonesThread);
+
 	secondary_tasks.run(&XRay::Engine::GameThread);
 
 #ifdef ECO_RENDER // ECO_RENDER START

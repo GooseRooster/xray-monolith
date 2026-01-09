@@ -325,11 +325,9 @@ bool attachable_hud_item::need_renderable()
 	return m_parent_hud_item->need_renderable();
 }
 
-void attachable_hud_item::render()
+void attachable_hud_item::render(IDSGraphManager* DM)
 {
-	::Render->set_Transform(&m_item_transform);
-	::Render->add_Visual(m_model->dcast_RenderVisual());
-
+	DM->add_Dynamic(m_model->dcast_RenderVisual(), &m_item_transform);
 	m_parent_hud_item->render_hud_mode();
 
 	if (m_parent_hud_item->has_object() && m_parent_hud_item->object().GetAttachments()->size())
@@ -337,7 +335,7 @@ void attachable_hud_item::render()
 		for (auto& pair : *m_parent_hud_item->object().GetAttachments())
 		{
 			if (pair.second->GetType() == eSA_HUD)
-				pair.second->Render(m_model, &m_item_transform);
+				pair.second->Render(m_model, &m_item_transform, DM);
 		}
 	}
 }
@@ -939,31 +937,28 @@ void player_hud::render_item_ui()
 	}
 }
 
-void player_hud::render_hud()
+void player_hud::render_hud(IDSGraphManager* DM)
 {
 	bool b_r0 = ((m_attached_items[0] && m_attached_items[0]->need_renderable()) || script_anim_part == 0 || script_anim_part == 2);
 	bool b_r1 = ((m_attached_items[1] && m_attached_items[1]->need_renderable()) || script_anim_part == 1 || script_anim_part == 2);
 
 	if (!b_r0 && !b_r1) return;
 
-	::Render->set_Transform(&m_transform);
-	::Render->add_Visual(m_model->dcast_RenderVisual());
-	::Render->set_Transform(&m_transform_2);
-	::Render->add_Visual(m_model_2->dcast_RenderVisual());
+	DM->add_Dynamic(m_model->dcast_RenderVisual(), &m_transform);
+	DM->add_Dynamic(m_model_2->dcast_RenderVisual(), &m_transform_2);
 
 	if (m_attached_items[0])
-		m_attached_items[0]->render();
+		m_attached_items[0]->render(DM);
 
 	if (m_attached_items[1])
-		m_attached_items[1]->render();
+		m_attached_items[1]->render(DM);
 
 	if (m_attached_items[SCOPE_ATTACH_IDX])
-		m_attached_items[SCOPE_ATTACH_IDX]->render();
+		m_attached_items[SCOPE_ATTACH_IDX]->render(DM);
 
 	if (script_anim_item_model)
 	{
-		::Render->set_Transform(&m_item_pos);
-		::Render->add_Visual(script_anim_item_model->dcast_RenderVisual());
+		DM->add_Dynamic(script_anim_item_model->dcast_RenderVisual(), &m_item_pos);
 	}
 
 	if (g_actor->GetAttachments()->size())
@@ -976,11 +971,11 @@ void player_hud::render_hud()
 			{
 				// Left arm
 				if (att->GetParentBone() < 21)
-					att->Render(m_model_2->dcast_PKinematics(), &m_transform_2);
+					att->Render(m_model_2->dcast_PKinematics(), &m_transform_2, DM);
 
 				// Right arm
 				else
-					att->Render(m_model->dcast_PKinematics(), &m_transform);
+					att->Render(m_model->dcast_PKinematics(), &m_transform, DM);
 			}
 		}
 	}

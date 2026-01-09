@@ -459,9 +459,8 @@ void CRender::create()
 	HWOCC.occq_create(occq_size);
 
 	rmNormal();
-	marker = 0;
 
-	::PortalTraverser.initialize();
+	GMBase.initialize();
 	FluidManager.Initialize(70, 70, 70);
 	//	FluidManager.Initialize( 100, 100, 100 );
 	FluidManager.SetScreenSize(Device.dwWidth, Device.dwHeight);
@@ -473,38 +472,18 @@ void CRender::destroy()
 {
 	m_bMakeAsyncSS = false;
 	FluidManager.Destroy();
-	::PortalTraverser.destroy();
+	GMBase.destroy();
 
 	HWOCC.occq_destroy();
 	xr_delete(Models);
 	xr_delete(Target);
 	PSLibrary.OnDestroy();
 	Device.seqFrame.Remove(this);
-	r_dsgraph_destroy();
 	Device.ModelDefferClear = nullptr;
 }
 
 void CRender::reset_begin()
 {
-	// Update incremental shadowmap-visibility solver
-	// BUG-ID: 10646
-	{
-		u32 it = 0;
-		for (it = 0; it < Lights_LastFrame.size(); it++)
-		{
-			if (0 == Lights_LastFrame[it]) continue ;
-			try
-			{
-				Lights_LastFrame[it]->svis.resetoccq();
-			}
-			catch (...)
-			{
-				Msg("! Failed to flush-OCCq on light [%d] %X", it, *(u32*)(&Lights_LastFrame[it]));
-			}
-		}
-		Lights_LastFrame.clear();
-	}
-
 	//AVO: let's reload details while changed details options on vid_restart
 	if (b_loaded && ((dm_current_size != dm_size) || (ps_r__Detail_density != ps_current_detail_density) || (
 		ps_r__Detail_height != ps_current_detail_height)))
@@ -711,17 +690,12 @@ IRender_Target* CRender::getTarget() { return Target; }
 IRender_Light* CRender::light_create() { return Lights.Create(); }
 IRender_Glow* CRender::glow_create() { return xr_new<CGlow>(); }
 
-void CRender::flush() { r_dsgraph_render_graph(0); }
+void CRender::flush() { RImplementation.GMBase.r_dsgraph_render_graph(0); }
 
 BOOL CRender::occ_visible(vis_data& P) { return HOM.visible(P); }
 BOOL CRender::occ_visible(sPoly& P) { return HOM.visible(P); }
 BOOL CRender::occ_visible(Fbox& P) { return HOM.visible(P); }
 
-void CRender::add_Visual(IRenderVisual* V)
-{
-	add_leafs_Dynamic((dxRender_Visual*)V);
-}
-void CRender::add_Geometry(IRenderVisual* V) { add_Static((dxRender_Visual*)V, View->getMask()); }
 
 // demonized: add user defined rotation to wallmark
 void CRender::add_StaticWallmark(ref_shader& S, const Fvector& P, float s, CDB::TRI* T, Fvector* verts, float ttl, bool ignore_opt, bool random_rotation)
@@ -783,10 +757,6 @@ void CRender::add_Occluder(Fbox2& bb_screenspace)
 	HOM.occlude(bb_screenspace);
 }
 
-void CRender::set_Object(IRenderable* O)
-{
-	val_pObject = O;
-}
 
 void CRender::rmNear()
 {

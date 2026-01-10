@@ -349,7 +349,7 @@ public:
 	void _initialize(LPCSTR ApplicationName, xrLogger::LogCallback cb = 0, BOOL init_fs = TRUE, LPCSTR fs_fname = 0);
 	void _destroy();
 	IC bool isDebug() {
-		return ParamsData.test(ECoreParams::dbg) || ParamsData.test(ECoreParams::dbgdev);
+		return ParamsData.test(ECoreParams::dbg) || ParamsData.test(ECoreParams::dbgdev) || ParamsData.test(ECoreParams::dbgact) || ParamsData.test(ECoreParams::dbgbullet);
 	}
 };
 

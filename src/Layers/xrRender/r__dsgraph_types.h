@@ -174,34 +174,40 @@ namespace R_dsgraph
 
 		IC void clear_graph(mapDSGraphPasses* graph, u32 _priority)
 		{
-			PROF_EVENT("r_dsgraph_clear_graph");
-			for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
-			{
-				mapDSGraphVS& vs = graph[_priority][iPass];
-				for (mapDSGraphVS::TNode& Nvs : vs)
+		PROF_EVENT("r_dsgraph_clear_graph");
+		for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
+		{
+			mapDSGraphVS& vs = graph[_priority][iPass];
+			if (!vs.size()) continue;
+			for (mapDSGraphVS::TNode& Nvs : vs)
 				{
-	#if defined(USE_DX10) || defined(USE_DX11)
-					mapDSGraphGS& gs = Nvs.val;
-					for (mapDSGraphGS::TNode& Ngs : gs)
+#if defined(USE_DX10) || defined(USE_DX11)
+				mapDSGraphGS& gs = Nvs.val;
+				if (!gs.size()) continue;
+				for (mapDSGraphGS::TNode& Ngs : gs)
 					{
 						mapDSGraphPS& ps = Ngs.val;
 	#else //USE_DX10
 						mapDSGraphPS& ps = Nvs.val;
-	#endif
-						for (mapDSGraphPS::TNode& Nps : ps)
+#endif
+					if (!ps.size()) continue;
+					for (mapDSGraphPS::TNode& Nps : ps)
 						{
 	#ifdef USE_DX11
 							mapDSGraphCS& cs = Nps.val.mapCS;
 	#else
 							mapDSGraphCS& cs = Nps.val;
-	#endif
-							for (mapDSGraphCS::TNode& Ncs : cs)
+#endif
+					if (!cs.size()) continue;
+					for (mapDSGraphCS::TNode& Ncs : cs)
 							{
-								mapDSGraphStates& states = Ncs.val;
-								for (mapDSGraphStates::TNode& Nstate : states)
+							mapDSGraphStates& states = Ncs.val;
+							if (!states.size()) continue;
+							for (mapDSGraphStates::TNode& Nstate : states)
 								{
-									mapDSGraphTextures& tex = Nstate.val;
-									for (mapDSGraphTextures::TNode& Ntex : tex)
+								mapDSGraphTextures& tex = Nstate.val;
+								if (!tex.size()) continue;
+								for (mapDSGraphTextures::TNode& Ntex : tex)
 									{
 										Ntex.val.clear();
 									}

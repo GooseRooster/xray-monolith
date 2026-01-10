@@ -335,19 +335,7 @@ void CCustomMonster::shedule_Update(u32 DT)
 	// *** general stuff
 	if (g_Alive())
 	{
-		if (g_mt_config.test(mtAiVision))
-#ifndef DEBUG
-			Device.seqParallel.push_back(xr_make_delegate(this, &CCustomMonster::Exec_Visibility));
-#else // DEBUG
-		{
-			if (!psAI_Flags.test(aiStalker) || !!smart_cast<CActor*>(Level().CurrentEntity()))
-				Device.seqParallel.push_back(xr_make_delegate(this,&CCustomMonster::Exec_Visibility));
-			else
-				Exec_Visibility				();
-		}
-#endif // DEBUG
-		else
-			Exec_Visibility();
+		Exec_Visibility();
 		memory().update(dt);
 	}
 	inherited::shedule_Update(DT);
@@ -686,7 +674,13 @@ void CCustomMonster::eye_pp_s2()
 	u32 dwTime = Level().timeServer();
 	u32 dwDT = dwTime - eye_pp_timestamp;
 	eye_pp_timestamp = dwTime;
-	feel_vision_update(this, eye_matrix.c, float(dwDT) / 1000.f, memory().visual().transparency_threshold());
+	static DWORD this_thread_id = 0;
+	this_thread_id = GetCurrentThreadId();
+	Device.secondary_tasks.run([=]()
+	{
+		if (this_thread_id != GetCurrentThreadId()) { PROF_THREAD("X-Ray PPL Thread") }
+		feel_vision_update						(this,eye_matrix.c,float(dwDT)/1000.f,memory().visual().transparency_threshold());
+	});
 	Device.Statistic->AI_Vis_RayTests.End();
 }
 

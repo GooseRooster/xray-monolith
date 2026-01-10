@@ -71,9 +71,8 @@ namespace CDB
 		};
 
 	private:
-		xrCriticalSection cs;
 		Opcode::OPCODE_Model* tree;
-		u32 status; // 0=ready, 1=init, 2=building
+		xr_atomic_bool status; // 0=ready, 1=init, 2=building
 
 		// tris
 		TRI* tris;
@@ -90,12 +89,13 @@ namespace CDB
 		IC const TRI* get_tris() const { return tris; }
 		IC TRI* get_tris() { return tris; }
 		IC int get_tris_count() const { return tris_count; }
+		xr_task_group async_cform_load;
 		IC void syncronize()
 		{
 			if (S_READY != status)
 			{
 				Log ("! WARNING: syncronized CDB::query");
-				xrCriticalSectionGuard guard(&cs);
+				async_cform_load.wait();
 			}
 		}
 

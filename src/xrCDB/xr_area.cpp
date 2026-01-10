@@ -110,14 +110,14 @@ void CObjectSpace::Load(IReader* F, CDB::build_callback build_callback)
 	g_SpatialSpace->initialize(m_BoundingVolume);
 	g_SpatialSpacePhysic->initialize(m_BoundingVolume);
 	g_SpatialSpaceLights->initialize(m_BoundingVolume);
-	static xr_task_group async_cform_load;
-	async_cform_load.run([=]()
+
+	Static.async_cform_load.run([=]()
 	{
 		Fvector* verts = (Fvector*)F->pointer();
 		CDB::TRI* tris = (CDB::TRI*)(verts + H.vertcount);
 		Create(verts, tris, H, build_callback, false);
 		FS.r_close(pReader);
-	});	
+	});
 }
 
 void CObjectSpace::Create(Fvector* verts, CDB::TRI* tris, const hdrCFORM& H, CDB::build_callback build_callback, bool init_bounds)

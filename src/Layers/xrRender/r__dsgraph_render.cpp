@@ -80,19 +80,19 @@ void __fastcall water_node(mapSorted_Node* N)
 
 void CDSGraphManager::r_dsgraph_render_graph_sorted(R_dsgraph::mapDSGraphItems& graph, bool _clear)
 {
-	for (DSGraphItem& item : graph)
+	for (R_dsgraph::mapDSGraphItems::TNode& item : graph)
 	{
-		dxRender_Visual* V = item.pVisual;
+		dxRender_Visual* V = item.key;
 		VERIFY(V && V->shader._get());
-		RCache.set_Element(item.pSE);
-		RCache.set_xform_world(*item.pMatrix);
-		RImplementation.apply_object(item.pObject);
+		RCache.set_Element(item.val.pSE);
+		RCache.set_xform_world(*item.val.pMatrix);
+		RImplementation.apply_object(item.val.pObject);
 		RImplementation.apply_lmaterial();
 		//if (item.b_hud_mode)
 		//{
 		//	//new feature
 		//}
-		V->Render(calcLOD(item.ssa, V->vis.sphere.R));
+		V->Render(calcLOD(item.val.ssa, V->vis.sphere.R));
 	}
 
 	if (_clear)
@@ -155,20 +155,20 @@ void CDSGraphManager::r_dsgraph_render_graph(R_dsgraph::mapDSGraphPasses* graph,
 
 								mapDSGraphItems& items = Ntex.val;
 								if (!items.size()) continue;
-								for (DSGraphItem& Ni : items)
+								for (R_dsgraph::mapDSGraphItems::TNode& Ni : items)
 								{
 									if(!static_geometry)
 									{
-										RCache.set_xform_world(*Ni.pMatrix);
-										RImplementation.apply_object(Ni.pObject);
+										RCache.set_xform_world(*Ni.val.pMatrix);
+										RImplementation.apply_object(Ni.val.pObject);
 										RImplementation.apply_lmaterial();
 									}
 
-									float LOD = calcLOD(Ni.ssa, Ni.pVisual->vis.sphere.R);
+									float LOD = calcLOD(Ni.val.ssa, Ni.key->vis.sphere.R);
 #ifdef USE_DX11
 									RCache.LOD.set_LOD(LOD);
 #endif
-									Ni.pVisual->Render(LOD);
+									Ni.key->Render(LOD);
 								}
 								if (_clear) items.clear();
 							}

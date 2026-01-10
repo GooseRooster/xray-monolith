@@ -61,21 +61,13 @@ extern float r_ssaLOD_A, r_ssaLOD_B;
 void CSector::traverse(CFrustum& F, CDSGraphManager& DM)
 {
 	auto SNODE = DM.m_sector_frustums.insert(this);
-	if (SNODE->val.sector_marker != DM.i_marker)
-	{
-		SNODE->val.sector_marker = DM.i_marker;
-
-		SNODE->val.frustums.clear();
-	}
 
 	Fvector& cam_pos = Device.vCameraPosition_saved;
 	float test_sphere_r = VIEWPORT_NEAR + EPS_L;
 	// Search visible portals and go through them
 	for (CPortal* PORTAL : m_portals)
 	{
-		auto PNODE = SNODE->val.portals.insert(PORTAL);
-		if (PNODE->val == DM.i_marker)
-			continue;
+		SNODE->val.portals.push_back(PORTAL);
 
 		// Early-out sphere
 		if (!F.testSphere_dirty(PORTAL->S.P, PORTAL->S.R))
@@ -133,8 +125,6 @@ void CSector::traverse(CFrustum& F, CDSGraphManager& DM)
 		if ((DM.i_options & CDSGraphManager::VQ_HOM) && !RImplementation.HOM.visible(*P))
 			continue;
 
-		PNODE->val = DM.i_marker;
-
 		if (pSector)
 		{
 			// Create _new_ frustum and recurse
@@ -144,7 +134,7 @@ void CSector::traverse(CFrustum& F, CDSGraphManager& DM)
 		}
 	}
 
-	SNODE->val.frustums.push_back(F);
+	SNODE->val.frustums.push_back(std::move(F));
 }
 
 void CSector::load(IReader& fs)

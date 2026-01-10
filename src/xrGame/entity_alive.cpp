@@ -861,7 +861,8 @@ Fvector CEntityAlive::get_new_local_point_on_mesh(u16& bone_id) const
 
 	if (!kinematics->LL_BoneCount())
 		return inherited::get_new_local_point_on_mesh(bone_id);
-
+	
+	xrCriticalSectionGuard guard(&m_hit_bone_cs);
 	if (!m_hit_bone_surface_areas_actual)
 		fill_hit_bone_surface_areas();
 

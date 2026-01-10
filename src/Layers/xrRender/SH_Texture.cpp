@@ -51,6 +51,10 @@ CTexture::~CTexture()
 
 void CTexture::surface_set(ID3DBaseTexture* surf)
 {
+	while (!flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	if (surf) surf->AddRef();
 
 	_RELEASE(pSurface);
@@ -60,6 +64,10 @@ void CTexture::surface_set(ID3DBaseTexture* surf)
 
 ID3DBaseTexture* CTexture::surface_get()
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	if (pSurface) pSurface->AddRef();
 	return pSurface;
 }
@@ -81,6 +89,10 @@ void CTexture::apply_load(u32 dwStage)
 
 void CTexture::apply_theora(u32 dwStage)
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	if (pTheora->Update(m_play_time != 0xFFFFFFFF ? m_play_time : RDEVICE.dwTimeContinual))
 	{
 		R_ASSERT(D3DRTYPE_TEXTURE == pSurface->GetType());
@@ -106,6 +118,10 @@ void CTexture::apply_theora(u32 dwStage)
 
 void CTexture::apply_avi(u32 dwStage)
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	if (pAVI->NeedUpdate())
 	{
 		R_ASSERT(D3DRTYPE_TEXTURE == pSurface->GetType());
@@ -128,6 +144,10 @@ void CTexture::apply_avi(u32 dwStage)
 
 void CTexture::apply_seq(u32 dwStage)
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	// SEQ
 	u32 frame = RDEVICE.dwTimeContinual / seqMSPF; //RDEVICE.dwTimeGlobal
 	u32 frame_data = seqDATA.size();
@@ -147,6 +167,10 @@ void CTexture::apply_seq(u32 dwStage)
 
 void CTexture::apply_normal(u32 dwStage)
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	CHK_DX(HW.pDevice->SetTexture(dwStage,pSurface));
 };
 
@@ -158,16 +182,27 @@ void CTexture::Preload()
 
 void CTexture::Load()
 {
-	flags.bLoaded = true;
+	PROF_EVENT("CTexture::Load");
+	if (flags.bLoaded) return;
+	flags.bLoaded = false;
 	desc_cache = 0;
-	if (pSurface) return;
+	if (pSurface)
+	{
+		flags.bLoaded = true;
+		return;
+	}
 
 	flags.bUser = false;
 	flags.MemoryUsage = 0;
-	if (0 == stricmp(*cName, "$null")) return;
-	if (0 != strstr(*cName, "$user$"))
+	if (0==_stricmp(*cName,"$null"))
 	{
-		flags.bUser = true;
+		flags.bLoaded = true;
+		return;
+	}
+	if (0!=strstr(*cName,"$user$"))	
+	{
+		flags.bUser	= true;
+		flags.bLoaded = true;
 		return;
 	}
 
@@ -296,10 +331,15 @@ void CTexture::Load()
 		//#endif
 	}
 	PostLoad();
+	flags.bLoaded = true;
 }
 
 void CTexture::Unload()
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 #ifdef DEBUG
 	string_path				msg_buff;
 	xr_sprintf				(msg_buff,sizeof(msg_buff),"* Unloading texture [%s] pSurface RefCount=",cName.c_str());
@@ -333,6 +373,10 @@ void CTexture::Unload()
 
 void CTexture::desc_update()
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	desc_cache = pSurface;
 	if (pSurface && (D3DRTYPE_TEXTURE == pSurface->GetType()))
 	{
@@ -343,20 +387,36 @@ void CTexture::desc_update()
 
 void CTexture::video_Play(BOOL looped, u32 _time)
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	if (pTheora) pTheora->Play(looped, (_time != 0xFFFFFFFF) ? (m_play_time = _time) : RDEVICE.dwTimeContinual);
 }
 
 void CTexture::video_Pause(BOOL state)
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	if (pTheora) pTheora->Pause(state);
 }
 
 void CTexture::video_Stop()
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	if (pTheora) pTheora->Stop();
 }
 
 BOOL CTexture::video_IsPlaying()
 {
+	while ( !flags.bLoaded)
+	{
+		SwitchToThread();
+	}
 	return (pTheora) ? pTheora->IsPlaying() : FALSE;
 }

@@ -141,8 +141,8 @@ void CRenderDevice::End(void)
 
 			Msg("* [x-ray]: Handled Necessary Textures Destruction");
 			Memory.mem_compact();
-			Msg("* MEMORY USAGE: %lld K", Memory.mem_usage() / 1024);
-			Msg("* End of synchronization A[%d] R[%d]", b_is_Active, b_is_Ready);
+			//Msg("* MEMORY USAGE: %lld K", Memory.mem_usage() / 1024);
+			//Msg("* End of synchronization A[%d] R[%d]", b_is_Active, b_is_Ready);
 
 #ifdef FIND_CHUNK_BENCHMARK_ENABLE
             g_find_chunk_counter.flush();
@@ -562,7 +562,7 @@ void CRenderDevice::Run()
 	// Message cycle
 	seqAppStart.Process(rp_AppStart);
 
-	m_pRender->ClearTarget();
+	//m_pRender->ClearTarget();
 	message_loop();
 
 	seqAppEnd.Process(rp_AppEnd);

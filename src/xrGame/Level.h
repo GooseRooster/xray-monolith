@@ -310,6 +310,7 @@ public:
 	CLevel();
 	virtual ~CLevel();
 	// названияе текущего уровня
+	void set_name(const shared_str& level_name){ map_data.m_name = level_name;}
 	virtual shared_str name() const;
 	// this method can be used ONLY from CCC_ChangeGameType
 	// XXX nitrocaster: why c_str?

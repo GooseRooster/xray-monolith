@@ -454,6 +454,7 @@ void CResourceManager::DeleteGeom(const SGeometry* Geom)
 }
 
 //--------------------------------------------------------------------------------------------------------------
+xr_task_group textures_load_tasks;
 CTexture* CResourceManager::_CreateTexture(LPCSTR _Name)
 {
 	// DBG_VerifyTextures	();
@@ -478,7 +479,16 @@ CTexture* CResourceManager::_CreateTexture(LPCSTR _Name)
 		T->dwFlags |= xr_resource_flagged::RF_REGISTERED;
 		m_textures.insert(mk_pair(T->set_name(Name), T));
 		T->Preload();
-		if (RDEVICE.b_is_Ready && !bDeferredLoad) T->Load();
+		if (Device.b_is_Ready)
+		{
+			static DWORD this_thread_id = 0;
+			this_thread_id = GetCurrentThreadId();
+			textures_load_tasks.run([=]()
+			{
+				if (this_thread_id != GetCurrentThreadId()) { PROF_THREAD("X-Ray PPL Thread") }
+				T->Load();
+			});
+		}
 		return T;
 	}
 }

@@ -71,58 +71,56 @@ namespace R_dsgraph
 	{
 		float ssa = 0.0f;
 		IRenderable* pObject = nullptr;
-		dxRender_Visual* pVisual = nullptr;
 		Fmatrix* pMatrix = nullptr;
 		ShaderElement* pSE = nullptr;
 		bool b_hud_mode = false;
 	};
 
-#ifdef USE_RESOURCE_DEBUGGER
-		using vs_type = ref_vs;
-		using ps_type = ref_ps;
-#	if defined(USE_DX10) || defined(USE_DX11)
-		using gs_type = ref_gs;
-#		ifdef USE_DX11
-		using hs_type = ref_hs;
-		using ds_type = ref_ds;
-#		endif
-#	endif	//	USE_DX10
-#else
 #if defined(USE_DX10) || defined(USE_DX11)	//	DX10 needs shader signature to propperly bind deometry to shader
-		using vs_type = SVS*;
-		using gs_type = ID3DGeometryShader*;
+	using vs_type = SVS*;
+	using gs_type = ID3DGeometryShader*;
 #ifdef USE_DX11
-			using hs_type = ID3D11HullShader*;
-			using ds_type = ID3D11DomainShader*;
+	using hs_type = ID3D11HullShader*;
+	using ds_type = ID3D11DomainShader*;
 #endif
 #else	//	USE_DX10
 	using vs_type = ID3DVertexShader*;
 #endif	//	USE_DX10
 	using ps_type = ID3DPixelShader*;
-#endif
 
-	using mapDSGraphItems = xr_vector<DSGraphItem, render_allocator::helper<DSGraphItem>::result>;
-	using mapDSGraphTextures = FixedMAP<STextureList*,mapDSGraphItems,render_allocator>;
-	using mapDSGraphStates = FixedMAP<ID3DState*,mapDSGraphTextures,render_allocator>;
-	using mapDSGraphCS = FixedMAP<R_constant_table*,mapDSGraphStates,render_allocator>;
-#ifdef USE_DX11
-	struct mapDSGraphAdvStages
+	using mapDSGraphItems = FixedMAP<dxRender_Visual*,DSGraphItem, render_allocator>;
+
+	struct RenderPacket
 	{
-		hs_type hs;
-		ds_type ds;
-		mapDSGraphCS mapCS;
-	};
-	using mapDSGraphPS = FixedMAP<ps_type, mapDSGraphAdvStages,render_allocator>;
-#else
-	using mapDSGraphPS = FixedMAP<ps_type, mapDSGraphCS,render_allocator>;
-#endif
+		// Calculated key for sorting
+		u64 sortKey;
+
+		// Visual data
+		struct
+		{
+			dxRender_Visual* pVisual;
+			DSGraphItem item;
+		} item;
+
+		// Pointers to resources (previously keys in FixedMAPs)
 #if defined(USE_DX10) || defined(USE_DX11)
-	using mapDSGraphGS = FixedMAP<gs_type, mapDSGraphPS,render_allocator>;
-	using mapDSGraphVS = FixedMAP<vs_type, mapDSGraphGS,render_allocator>;
-#else //USE_DX10
-	using mapDSGraphVS = FixedMAP<vs_type, mapDSGraphPS,render_allocator>;
+		vs_type pVS;
+		gs_type pGS;
+#else
+		vs_type pVS;
 #endif
-	using mapDSGraphPasses = mapDSGraphVS[SHADER_PASSES_MAX];
+#ifdef USE_DX11
+		hs_type pHS;
+		ds_type pDS;
+#endif
+		ps_type pPS;
+		R_constant_table* pCS;
+		ID3DState* pState;
+		STextureList* pTextures;
+	};
+
+	using RenderQueue = xr_vector<RenderPacket, render_allocator::helper<RenderPacket>::result>;
+	using RenderQueueArray = xr_array<xr_array<RenderQueue, SHADER_PASSES_MAX>, 2>;
 
 	// demonized: fix this to use vectors
 	struct _MatrixItem
@@ -154,11 +152,11 @@ namespace R_dsgraph
 			mapDSGraphItems ScopeLens;
 		};
 
-		mapDSGraphPasses mapStaticPasses[2];	// 2==(priority/2)
 		mapSorted mapStaticSorted;
-
-		mapDSGraphPasses mapDynamicPasses[2]; // 2==(priority/2)
 		mapSorted mapDynamicSorted;
+
+		RenderQueueArray mapStaticPasses;
+		RenderQueueArray mapDynamicPasses;
 
 		mapDSGraphItems mapHUD;
 		mapSorted mapHUDSorted;
@@ -172,60 +170,15 @@ namespace R_dsgraph
 		mapSorted mapScopeHUDSorted;
 		mapSorted mapCamAttachedSorted;
 
-		IC void clear_graph(mapDSGraphPasses* graph, u32 _priority)
+		IC void clear_graph(RenderQueueArray& queue, u32 _priority)
 		{
-		PROF_EVENT("r_dsgraph_clear_graph");
-		for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
-		{
-			mapDSGraphVS& vs = graph[_priority][iPass];
-			if (!vs.size()) continue;
-			for (mapDSGraphVS::TNode& Nvs : vs)
-				{
-#if defined(USE_DX10) || defined(USE_DX11)
-				mapDSGraphGS& gs = Nvs.val;
-				if (!gs.size()) continue;
-				for (mapDSGraphGS::TNode& Ngs : gs)
-					{
-						mapDSGraphPS& ps = Ngs.val;
-	#else //USE_DX10
-						mapDSGraphPS& ps = Nvs.val;
-#endif
-					if (!ps.size()) continue;
-					for (mapDSGraphPS::TNode& Nps : ps)
-						{
-	#ifdef USE_DX11
-							mapDSGraphCS& cs = Nps.val.mapCS;
-	#else
-							mapDSGraphCS& cs = Nps.val;
-#endif
-					if (!cs.size()) continue;
-					for (mapDSGraphCS::TNode& Ncs : cs)
-							{
-							mapDSGraphStates& states = Ncs.val;
-							if (!states.size()) continue;
-							for (mapDSGraphStates::TNode& Nstate : states)
-								{
-								mapDSGraphTextures& tex = Nstate.val;
-								if (!tex.size()) continue;
-								for (mapDSGraphTextures::TNode& Ntex : tex)
-									{
-										Ntex.val.clear();
-									}
-									tex.clear();
-								}
-								states.clear();
-							}
-							cs.clear();
-						}
-						ps.clear();
-	#if defined(USE_DX10) || defined(USE_DX11)
-					}
-					gs.clear();
-	#endif //USE_DX10
-				}
-				vs.clear();
+			PROF_EVENT("r_dsgraph_clear_graph");
+			for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
+			{
+				queue[_priority][iPass].clear();
 			}
 		}
+
 		IC void clear_dynamic()
 		{
 			clear_graph(mapDynamicPasses, 0);

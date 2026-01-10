@@ -137,7 +137,6 @@ void CRender::render_lights(light_Package& LP)
 					{
 						if ((L->decor_object[0] && !L->decor_object[0]->getDestroy()) || (L->decor_object[1] && !L->decor_object[1]->getDestroy()) || (L->decor_object[2] && !L->decor_object[2]->getDestroy()) || (L->decor_object[3] && !L->decor_object[3]->getDestroy()) || (L->decor_object[4] && !L->decor_object[4]->getDestroy()) || (L->decor_object[5] && !L->decor_object[5]->getDestroy()))
 						{
-							L->GMLight.m_visuals_dynamic.clear();
 							for (int f = 0; f < 6; f++)
 							{
 								if (L->decor_object[f] && !L->decor_object[f]->getDestroy())
@@ -156,11 +155,9 @@ void CRender::render_lights(light_Package& LP)
 								L->GMLight.r_dsgraph_capture_static();
 								L->m_moving_frames++;
 							}
-							L->GMLight.m_visuals_dynamic.clear();
 							L->GMLight.r_dsgraph_capture_dynamic(L->ignore_object);
 						}
 					}
-
 					bool bDeffered_Shadows = L->GMLight.RGraph.mapStaticPasses[0][0].size() || L->GMLight.RGraph.mapDynamicPasses[0][0].size();
 					bool bForward_Shadows = L->GMLight.RGraph.mapStaticPasses[1][0].size() || L->GMLight.RGraph.mapDynamicPasses[1][0].size() || L->GMLight.RGraph.mapStaticSorted.Sorted.size() || L->GMLight.RGraph.mapDynamicSorted.Sorted.size();
 					if (bDeffered_Shadows || bForward_Shadows)

@@ -16,7 +16,7 @@ xr_vector<int> lstLODgroups;
 void CDSGraphManager::r_dsgraph_render_lods(bool _setup_zb, bool _clear)
 {
 	PROF_EVENT("LODS: Render");
-	if (RGraph.mapLOD.empty())
+	if (!RGraph.mapLOD.size())
 		return;
 
 	if (!_setup_zb)
@@ -24,7 +24,7 @@ void CDSGraphManager::r_dsgraph_render_lods(bool _setup_zb, bool _clear)
 
 	// *** Fill VB and generate groups
 	u32 shid = _setup_zb ? SE_R1_LMODELS : SE_R1_NORMAL_LQ;
-	FLOD* firstV = (FLOD*)RGraph.mapLOD[0].pVisual;
+	FLOD* firstV = (FLOD*)RGraph.mapLOD[0].key;
 	ref_selement cur_S = firstV->shader->E[shid];
 	float ssaRange = r_ssaLOD_A - r_ssaLOD_B;
 	if (ssaRange < EPS_S) ssaRange = EPS_S;
@@ -48,25 +48,25 @@ void CDSGraphManager::r_dsgraph_render_lods(bool _setup_zb, bool _clear)
 		for (u32 j = 0; j < iBatchSize; ++j, ++i)
 		{
 			// sort out redundancy
-			R_dsgraph::DSGraphItem& P = RGraph.mapLOD[i];
+			R_dsgraph::mapDSGraphItems::TNode& P = RGraph.mapLOD[i];
 
-			if (P.pVisual->shader->E[shid] == cur_S)
+			if (P.key->shader->E[shid] == cur_S)
 				cur_count++;
 			else
 			{
 				lstLODgroups.push_back(cur_count);
-				cur_S = P.pVisual->shader->E[shid];
+				cur_S = P.key->shader->E[shid];
 				cur_count = 1;
 			}
 
 			// calculate alpha
-			float ssaDiff = P.ssa - r_ssaLOD_B;
+			float ssaDiff = P.val.ssa - r_ssaLOD_B;
 			float scale = ssaDiff / ssaRange;
 			int iA = iFloor((1 - scale) * 255.f);
 			u32 uA = u32(clampr(iA, 0, 255));
 
 			// calculate direction and shift
-			FLOD* lodV = (FLOD*)P.pVisual;
+			FLOD* lodV = (FLOD*)P.key;
 			Fvector Ldir, shift;
 			Ldir.sub(lodV->vis.sphere.P, Device.vCameraPosition).normalize();
 			shift.mul(Ldir, -.5f * lodV->vis.sphere.R);
@@ -121,10 +121,10 @@ void CDSGraphManager::r_dsgraph_render_lods(bool _setup_zb, bool _clear)
 
 			for (int& p_count : lstLODgroups)
 			{
-				u32 uiNumPasses = RGraph.mapLOD[current].pVisual->shader->E[shid]->passes.size();
+				u32 uiNumPasses = RGraph.mapLOD[current].key->shader->E[shid]->passes.size();
 				if (uiPass < uiNumPasses)
 				{
-					RCache.set_Element(RGraph.mapLOD[current].pVisual->shader->E[shid], uiPass);
+					RCache.set_Element(RGraph.mapLOD[current].key->shader->E[shid], uiPass);
 					RCache.set_Geometry(firstV->geom);
 					RCache.Render(D3DPT_TRIANGLELIST, vCurOffset, 0, 4 * p_count, 0, 2 * p_count);
 				}

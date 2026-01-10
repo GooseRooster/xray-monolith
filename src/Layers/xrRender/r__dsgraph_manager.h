@@ -17,28 +17,35 @@ public:
 	R_dsgraph::DynamicSceneRgraph RGraph;
 	struct TraverserData
 	{
-		u32 sector_marker;
 		xr_vector<CFrustum> frustums;
-		FixedMAP<CPortal*, u32> portals;
+		xr_vector<CPortal*> portals;
 	};
-	u32										i_marker;		// input
 	u32										i_options;		// input:	culling options
 	u32										i_doptions;
 	Fvector									i_vBase;		// input:	"view" point
 	CFrustum								i_frustum;		// input:	"view" frustum
 	Fmatrix									i_mXFORM;		// input:	4x4 xform
 	CSector* i_start;		// input:	starting point
-	xrCriticalSection						P_CS, T_CS;
+	xrCriticalSection						P_CS;
+	xrSRWLock								S_LC;
 
 	FixedMAP<CSector*, TraverserData>		m_sector_frustums;
-	FixedSet<dxRender_Visual*>				m_visuals_static, m_visuals_dynamic;
 	xr_vector<ISpatialShared>				lstRenderables, lstLights;
 	FixedMAP<CPortal*, float>				f_portals;
 	sPoly S, D;
 	ref_shader								f_shader;
 	ref_geom								f_geom;
 
-	CDSGraphManager(u32 options, u32 doptions, bool(&& mask)[7]) : i_options(options), i_doptions(doptions), i_marker(u32(-1)) { std::copy(mask, mask + 7, i_mask); }
+	CDSGraphManager(u32 options, u32 doptions, bool(&& mask)[7]) : i_options(options), i_doptions(doptions) {
+		std::copy(mask, mask + 7, i_mask);
+		for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
+		{
+			RGraph.mapStaticPasses[0][iPass].reserve(4096);
+			RGraph.mapStaticPasses[1][iPass].reserve(4096);
+			RGraph.mapDynamicPasses[0][iPass].reserve(4096);
+			RGraph.mapDynamicPasses[1][iPass].reserve(4096);
+		}
+	}
 	void initialize();
 	void destroy();
 	void traverse(CSector* start, CFrustum& F, Fvector& vBase, Fmatrix& mXFORM);
@@ -46,12 +53,18 @@ public:
 	{
 		if (sector == i_start) return true;
 
-		if (auto node = m_sector_frustums.find(sector))
-			return i_marker == node->val.sector_marker;
+		{
+			xrSRWLockGuard guard(&S_LC, true);
+			if(m_sector_frustums.size())
+			{
+				if (auto node = m_sector_frustums.find(sector))
+					return !node->val.frustums.empty();
+			}
+		}
 
 		return false;
 	};
-	CDSGraphManager& get_traverser_safed() { xrCriticalSectionGuard guard(&T_CS); return *this; };
+	CDSGraphManager& get_traverser_safed() { xrSRWLockGuard guard(&S_LC, false); return *this; };
 	void fade_portal(CPortal* _p, float ssa);
 	void fade_render();
 
@@ -69,9 +82,8 @@ public:
 	void add_leafs_Dynamic(xr_vector<IRenderVisual*>& children, Fmatrix* xform);
 	void r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fmatrix* xform);
 
-
-	void r_dsgraph_render_graph(R_dsgraph::mapDSGraphPasses* graph, u32 _priority, bool _clear = true, bool static_geometry = true);
-
+	void AddToRenderQueue(R_dsgraph::RenderQueue& queue, R_dsgraph::RenderPacket& packet, SPass& pass);
+	void r_dsgraph_render_graph(R_dsgraph::RenderQueueArray& queue, u32 _priority, bool _clear = true, bool static_geometry = true);
 	IC void r_dsgraph_render_graph(u32 _priority, bool _clear = true)
 	{
 		r_dsgraph_render_static(_priority, _clear);
@@ -114,14 +126,20 @@ public:
 
 	void clear()
 	{
+		xrSRWLockGuard guard(&S_LC, false);
 		RGraph.clear();
-		m_sector_frustums.clear();
-		m_visuals_static.clear();
-		m_visuals_dynamic.clear();
+		if (m_sector_frustums.size())
+		{
+			for (auto& pair : m_sector_frustums)
+			{
+				pair.val.frustums.clear();
+				pair.val.portals.clear();
+			}
+			m_sector_frustums.clear();
+		}
 		lstRenderables.clear();
 		lstLights.clear();
 		f_portals.clear();
-		i_marker = u32(-1);
 	}
 };
 

@@ -57,7 +57,7 @@ IC BOOL feel_vision_test_callback(const collide::ray_defs& rd, CObject* object, 
 
 void Vision::o_new(CObject* O)
 {
-	xrSRWLockGuard guard(&lock_visible, true);
+	xrSRWLockGuard guard(&lock_visible, false);
 	feel_visible.push_back(feel_visible_Item());
 	feel_visible_Item& I = feel_visible.back();
 	I.O = O;

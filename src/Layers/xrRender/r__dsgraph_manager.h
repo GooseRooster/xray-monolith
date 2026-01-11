@@ -40,10 +40,10 @@ public:
 		std::copy(mask, mask + 7, i_mask);
 		for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
 		{
-			RGraph.mapStaticPasses[0][iPass].reserve(4096);
-			RGraph.mapStaticPasses[1][iPass].reserve(4096);
-			RGraph.mapDynamicPasses[0][iPass].reserve(4096);
-			RGraph.mapDynamicPasses[1][iPass].reserve(4096);
+			RGraph.mapStaticPasses[0][iPass].reserve(32);
+			RGraph.mapStaticPasses[1][iPass].reserve(32);
+			RGraph.mapDynamicPasses[0][iPass].reserve(32);
+			RGraph.mapDynamicPasses[1][iPass].reserve(32);
 		}
 	}
 	void initialize();

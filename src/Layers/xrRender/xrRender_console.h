@@ -129,8 +129,8 @@ extern ECORE_API float ps_r2_ssaLOD_B;
 extern ECORE_API BOOL ps_r2_particle_dt;
 
 // R2-specific
-extern ECORE_API Flags64 ps_r2_ls_flags; // r2-only
-extern ECORE_API Flags64 ps_r2_ls_flags_ext;
+extern ECORE_API Flags32 ps_r2_ls_flags; // r2-only
+extern ECORE_API Flags32 ps_r2_ls_flags_ext;
 extern ECORE_API Flags32 ps_r2_anomaly_flags;
 extern ECORE_API float ps_r2_df_parallax_h; // r2-only
 extern ECORE_API float ps_r2_df_parallax_range; // r2-only

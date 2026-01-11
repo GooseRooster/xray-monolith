@@ -169,7 +169,7 @@ float ps_r2_ssaLOD_B = 48.f;
 BOOL ps_r2_particle_dt = FALSE;
 
 // R2-specific
-Flags64 ps_r2_ls_flags = {
+Flags32 ps_r2_ls_flags = {
 	R2FLAG_SUN
 	//| R2FLAG_SUN_IGNORE_PORTALS
 	| R2FLAG_EXP_DONT_TEST_UNSHADOWED
@@ -190,7 +190,7 @@ Flags64 ps_r2_ls_flags = {
 	| R2FLAG_VOLUMETRIC_LIGHTS
 }; // r2-only
 
-Flags64 ps_r2_ls_flags_ext = {
+Flags32 ps_r2_ls_flags_ext = {
 	/*R2FLAGEXT_SSAO_OPT_DATA |*/ R2FLAGEXT_SSAO_HALF_DATA
 	| R2FLAGEXT_ENABLE_TESSELLATION
 };
@@ -1142,7 +1142,7 @@ void xrRender_initconsole()
 
 	// R1-specific
 	CMD4(CCC_Integer, "r1_glows_per_frame", &ps_r1_GlowsPerFrame, 2, 32);
-	CMD3(CCC_Mask64, "r1_detail_textures", &ps_r2_ls_flags, R1FLAG_DETAIL_TEXTURES);
+	CMD3(CCC_Mask, "r1_detail_textures", &ps_r2_ls_flags, R1FLAG_DETAIL_TEXTURES);
 
 	CMD4(CCC_Float, "r1_fog_luminance", &ps_r1_fog_luminance, 0.2f, 5.f);
 
@@ -1158,7 +1158,7 @@ void xrRender_initconsole()
 
 	// R2-specific
 	CMD2(CCC_R2GM, "r2em", &ps_r2_gmaterial);
-	CMD3(CCC_Mask64, "r2_tonemap", &ps_r2_ls_flags, R2FLAG_TONEMAP);
+	CMD3(CCC_Mask, "r2_tonemap", &ps_r2_ls_flags, R2FLAG_TONEMAP);
 	CMD4(CCC_Float, "r2_tonemap_middlegray", &ps_r2_tonemap_middlegray, 0.0f, 2.0f);
 	CMD4(CCC_Float, "r2_tonemap_adaptation", &ps_r2_tonemap_adaptation, 0.01f, 10.0f);
 	CMD4(CCC_Float, "r2_tonemap_lowlum", &ps_r2_tonemap_low_lum, 0.0001f, 1.0f);
@@ -1168,15 +1168,15 @@ void xrRender_initconsole()
 	CMD4(CCC_Float, "r2_ls_bloom_kernel_b", &ps_r2_ls_bloom_kernel_b, 0.01f, 1.f);
 	CMD4(CCC_Float, "r2_ls_bloom_threshold", &ps_r2_ls_bloom_threshold, 0.f, 1.f);
 	CMD4(CCC_Float, "r2_ls_bloom_speed", &ps_r2_ls_bloom_speed, 0.f, 100.f);
-	CMD3(CCC_Mask64, "r2_ls_bloom_fast", &ps_r2_ls_flags, R2FLAG_FASTBLOOM);
+	CMD3(CCC_Mask, "r2_ls_bloom_fast", &ps_r2_ls_flags, R2FLAG_FASTBLOOM);
 	CMD4(CCC_Float, "r2_ls_dsm_kernel", &ps_r2_ls_dsm_kernel, .1f, 3.f);
 	CMD4(CCC_Float, "r2_ls_psm_kernel", &ps_r2_ls_psm_kernel, .1f, 3.f);
 	CMD4(CCC_Float, "r2_ls_ssm_kernel", &ps_r2_ls_ssm_kernel, .1f, 3.f);
 	CMD4(CCC_Float, "r2_ls_squality", &ps_r2_ls_squality, .5f, 3.f);
 
-	CMD3(CCC_Mask64, "r2_zfill", &ps_r2_ls_flags, R2FLAG_ZFILL);
+	CMD3(CCC_Mask, "r2_zfill", &ps_r2_ls_flags, R2FLAG_ZFILL);
 	CMD4(CCC_Float, "r2_zfill_depth", &ps_r2_zfill, .001f, .5f);
-	CMD3(CCC_Mask64, "r2_allow_r1_lights", &ps_r2_ls_flags, R2FLAG_R1LIGHTS);
+	CMD3(CCC_Mask, "r2_allow_r1_lights", &ps_r2_ls_flags, R2FLAG_R1LIGHTS);
 
 	CMD3(CCC_Mask, "r__actor_shadow", &ps_actor_shadow_flags, RFLAG_ACTOR_SHADOW); //Swartz: actor shadow
 
@@ -1187,22 +1187,22 @@ void xrRender_initconsole()
 
 	CMD3(CCC_Token, "r_screenshot_mode", &ps_r_screenshot_token, screenshot_mode_token);
 
-	CMD3(CCC_Mask64, "r2_mt", &ps_r2_ls_flags, R2FLAG_EXP_MT_CALC);
+	CMD3(CCC_Mask, "r2_mt", &ps_r2_ls_flags, R2FLAG_EXP_MT_CALC);
 
 #ifdef DEBUG
-	CMD3(CCC_Mask64,		"r2_use_nvdbt",			&ps_r2_ls_flags,			R2FLAG_USE_NVDBT);
+	CMD3(CCC_Mask,		"r2_use_nvdbt",			&ps_r2_ls_flags,			R2FLAG_USE_NVDBT);
 #endif // DEBUG
 
-	CMD3(CCC_Mask64, "r2_sun", &ps_r2_ls_flags, R2FLAG_SUN);
-	CMD3(CCC_Mask64, "r2_sun_details", &ps_r2_ls_flags, R2FLAG_SUN_DETAILS);
-	CMD3(CCC_Mask64, "r2_lights_details", &ps_r2_ls_flags, R2FLAG_LIGHTS_DETAILS);
-	CMD3(CCC_Mask64, "r2_sun_focus", &ps_r2_ls_flags, R2FLAG_SUN_FOCUS);
-	//	CMD3(CCC_Mask64,		"r2_sun_static",		&ps_r2_ls_flags,			R2FLAG_SUN_STATIC);
-	//	CMD3(CCC_Mask64,		"r2_exp_splitscene",	&ps_r2_ls_flags,			R2FLAG_EXP_SPLIT_SCENE);
-	//	CMD3(CCC_Mask64,		"r2_exp_donttest_uns",	&ps_r2_ls_flags,			R2FLAG_EXP_DONT_TEST_UNSHADOWED);
-	CMD3(CCC_Mask64, "r2_exp_donttest_shad", &ps_r2_ls_flags, R2FLAG_EXP_DONT_TEST_SHADOWED);
+	CMD3(CCC_Mask, "r2_sun", &ps_r2_ls_flags, R2FLAG_SUN);
+	CMD3(CCC_Mask, "r2_sun_details", &ps_r2_ls_flags, R2FLAG_SUN_DETAILS);
+	CMD3(CCC_Mask, "r2_lights_details", &ps_r2_ls_flags, R2FLAG_LIGHTS_DETAILS);
+	CMD3(CCC_Mask, "r2_sun_focus", &ps_r2_ls_flags, R2FLAG_SUN_FOCUS);
+	//	CMD3(CCC_Mask,		"r2_sun_static",		&ps_r2_ls_flags,			R2FLAG_SUN_STATIC);
+	//	CMD3(CCC_Mask,		"r2_exp_splitscene",	&ps_r2_ls_flags,			R2FLAG_EXP_SPLIT_SCENE);
+	//	CMD3(CCC_Mask,		"r2_exp_donttest_uns",	&ps_r2_ls_flags,			R2FLAG_EXP_DONT_TEST_UNSHADOWED);
+	CMD3(CCC_Mask, "r2_exp_donttest_shad", &ps_r2_ls_flags, R2FLAG_EXP_DONT_TEST_SHADOWED);
 
-	CMD3(CCC_Mask64, "r2_sun_tsm", &ps_r2_ls_flags, R2FLAG_SUN_TSM);
+	CMD3(CCC_Mask, "r2_sun_tsm", &ps_r2_ls_flags, R2FLAG_SUN_TSM);
 	CMD4(CCC_Float, "r2_sun_tsm_proj", &ps_r2_sun_tsm_projection, .001f, 0.8f);
 	CMD4(CCC_Float, "r2_sun_tsm_bias", &ps_r2_sun_tsm_bias, -0.5, +0.5);
 	CMD4(CCC_Float, "r2_sun_near", &ps_r2_sun_near, 1.f, /*50.f*/150.f); //AVO: extended from 50 to 150
@@ -1218,7 +1218,7 @@ void xrRender_initconsole()
 	CMD4(CCC_Float, "r2_sun_lumscale_hemi", &ps_r2_sun_lumscale_hemi, 0.0, +3.0);
 	CMD4(CCC_Float, "r2_sun_lumscale_amb", &ps_r2_sun_lumscale_amb, 0.0, +3.0);
 
-	CMD3(CCC_Mask64, "r2_aa", &ps_r2_ls_flags, R2FLAG_AA);
+	CMD3(CCC_Mask, "r2_aa", &ps_r2_ls_flags, R2FLAG_AA);
 	CMD4(CCC_Float, "r2_aa_kernel", &ps_r2_aa_kernel, 0.3f, 0.7f);
 	CMD4(CCC_Float, "r2_mblur", &ps_r2_mblur, 0.0f, 1.0f);
 
@@ -1307,14 +1307,14 @@ void xrRender_initconsole()
 	CMD4(CCC_Integer, "r__3Dfakescope", &scope_3D_fake_enabled, 0, 1); // Redotix99: for 3D Shader Based Scopes
 
 	CMD4(CCC_Integer, "r__heatvision", &ps_r2_heatvision, 0, 1); //--DSR-- HeatVision
-	CMD3(CCC_Mask64, "r2_terrain_z_prepass", &ps_r2_ls_flags, R2FLAG_TERRAIN_PREPASS); //Terrain Z Prepass @Zagolski
+	CMD3(CCC_Mask, "r2_terrain_z_prepass", &ps_r2_ls_flags, R2FLAG_TERRAIN_PREPASS); //Terrain Z Prepass @Zagolski
 	
 	//////////other
 	CMD3(CCC_Mask, "r2_water_reflections", &ps_r2_anomaly_flags, R2_AN_FLAG_WATER_REFLECTIONS);
 	CMD3(CCC_Mask, "r2_mblur_enabled", &ps_r2_anomaly_flags, R2_AN_FLAG_MBLUR);
 	CMD3(CCC_Mask, "r__lens_flares", &ps_r2_anomaly_flags, R2_AN_FLAG_FLARES);
 	CMD3(CCC_Token, "r2_smaa", &ps_smaa_quality, smaa_quality_token);
-	CMD3(CCC_Mask64,		"r2_gi",				&ps_r2_ls_flags,			R2FLAG_GI);
+	CMD3(CCC_Mask,		"r2_gi",				&ps_r2_ls_flags,			R2FLAG_GI);
 	CMD4(CCC_Float,		"r2_gi_clip",			&ps_r2_GI_clip,				EPS,	0.1f	);
 	CMD4(CCC_Integer,	"r2_gi_depth",			&ps_r2_GI_depth,			1,		5		);
 	CMD4(CCC_Integer,	"r2_gi_photons",		&ps_r2_GI_photons,			8,		256		);
@@ -1470,12 +1470,12 @@ void xrRender_initconsole()
 	CMD4(CCC_Float,		"r2_dhemi_light_scale",	&ps_r2_dhemi_light_scale,	0,		100.f	);
 	CMD4(CCC_Float,		"r2_dhemi_light_flow",	&ps_r2_dhemi_light_flow,	0,		1.f	);
 	CMD4(CCC_Float,		"r2_dhemi_smooth",		&ps_r2_lt_smooth,			0.f,	10.f	);
-	CMD3(CCC_Mask64,		"rs_hom_depth_draw",	&ps_r2_ls_flags_ext,		R_FLAGEXT_HOM_DEPTH_DRAW);
-	CMD3(CCC_Mask64,		"r2_shadow_cascede_zcul",&ps_r2_ls_flags_ext,		R2FLAGEXT_SUN_ZCULLING);
+	CMD3(CCC_Mask,		"rs_hom_depth_draw",	&ps_r2_ls_flags_ext,		R_FLAGEXT_HOM_DEPTH_DRAW);
+	CMD3(CCC_Mask,		"r2_shadow_cascede_zcul",&ps_r2_ls_flags_ext,		R2FLAGEXT_SUN_ZCULLING);
 
 #endif // DEBUG
 
-	CMD3(CCC_Mask64,		"r2_shadow_cascede_old", &ps_r2_ls_flags_ext,		R2FLAGEXT_SUN_OLD);
+	CMD3(CCC_Mask,		"r2_shadow_cascede_old", &ps_r2_ls_flags_ext,		R2FLAGEXT_SUN_OLD);
 	
 	CMD4(CCC_Float, "r2_ls_depth_scale", &ps_r2_ls_depth_scale, 0.5, 1.5);
 	CMD4(CCC_Float, "r2_ls_depth_bias", &ps_r2_ls_depth_bias, -0.5, +0.5);
@@ -1505,43 +1505,43 @@ void xrRender_initconsole()
 	CMD4(CCC_Float, "r2_dof_sky", &ps_r2_dof_sky, -10000.f, 10000.f);
 
 	ps_r2_ls_flags.set(R2FLAG_DOF, FALSE);
-	CMD3(CCC_Mask64, "r2_dof_enable", &ps_r2_ls_flags, R2FLAG_DOF);
+	CMD3(CCC_Mask, "r2_dof_enable", &ps_r2_ls_flags, R2FLAG_DOF);
 
 	//	float		ps_r2_dof_near			= 0.f;					// 0.f
 	//	float		ps_r2_dof_focus			= 1.4f;					// 1.4f
 
-	CMD3(CCC_Mask64, "r2_volumetric_lights", &ps_r2_ls_flags, R2FLAG_VOLUMETRIC_LIGHTS);
-	//	CMD3(CCC_Mask64,		"r2_sun_shafts",				&ps_r2_ls_flags,			R2FLAG_SUN_SHAFTS);
+	CMD3(CCC_Mask, "r2_volumetric_lights", &ps_r2_ls_flags, R2FLAG_VOLUMETRIC_LIGHTS);
+	//	CMD3(CCC_Mask,		"r2_sun_shafts",				&ps_r2_ls_flags,			R2FLAG_SUN_SHAFTS);
 	CMD3(CCC_Token, "r2_sunshafts_quality", &ps_r_sun_shafts, qsun_shafts_token);
 	CMD3(CCC_SSAO_Mode, "r2_ssao_mode", &ps_r_ssao_mode, qssao_mode_token);
 	CMD3(CCC_Token, "r2_ssao", &ps_r_ssao, qssao_token);
-	CMD3(CCC_Mask64, "r2_ssao_blur", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_BLUR); //Need restart
-	CMD3(CCC_Mask64, "r2_ssao_opt_data", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_OPT_DATA); //Need restart
-	CMD3(CCC_Mask64, "r2_ssao_half_data", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HALF_DATA); //Need restart
-	CMD3(CCC_Mask64, "r2_ssao_hbao", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HBAO); //Need restart
-	CMD3(CCC_Mask64, "r2_ssao_hdao", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HDAO); //Need restart
-	CMD3(CCC_Mask64, "r4_enable_tessellation", &ps_r2_ls_flags_ext, R2FLAGEXT_ENABLE_TESSELLATION); //Need restart
-	CMD3(CCC_Mask64, "r4_wireframe", &ps_r2_ls_flags_ext, R2FLAGEXT_WIREFRAME); //Need restart
-	CMD3(CCC_Mask64, "r2_steep_parallax", &ps_r2_ls_flags, R2FLAG_STEEP_PARALLAX);
-	CMD3(CCC_Mask64, "r2_detail_bump", &ps_r2_ls_flags, R2FLAG_DETAIL_BUMP);
+	CMD3(CCC_Mask, "r2_ssao_blur", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_BLUR); //Need restart
+	CMD3(CCC_Mask, "r2_ssao_opt_data", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_OPT_DATA); //Need restart
+	CMD3(CCC_Mask, "r2_ssao_half_data", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HALF_DATA); //Need restart
+	CMD3(CCC_Mask, "r2_ssao_hbao", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HBAO); //Need restart
+	CMD3(CCC_Mask, "r2_ssao_hdao", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HDAO); //Need restart
+	CMD3(CCC_Mask, "r4_enable_tessellation", &ps_r2_ls_flags_ext, R2FLAGEXT_ENABLE_TESSELLATION); //Need restart
+	CMD3(CCC_Mask, "r4_wireframe", &ps_r2_ls_flags_ext, R2FLAGEXT_WIREFRAME); //Need restart
+	CMD3(CCC_Mask, "r2_steep_parallax", &ps_r2_ls_flags, R2FLAG_STEEP_PARALLAX);
+	CMD3(CCC_Mask, "r2_detail_bump", &ps_r2_ls_flags, R2FLAG_DETAIL_BUMP);
 
 	CMD3(CCC_Token, "r2_sun_quality", &ps_r_sun_quality, qsun_quality_token);
 
 	//	Igor: need restart
-	CMD3(CCC_Mask64, "r2_soft_water", &ps_r2_ls_flags, R2FLAG_SOFT_WATER);
-	CMD3(CCC_Mask64, "r2_soft_particles", &ps_r2_ls_flags, R2FLAG_SOFT_PARTICLES);
+	CMD3(CCC_Mask, "r2_soft_water", &ps_r2_ls_flags, R2FLAG_SOFT_WATER);
+	CMD3(CCC_Mask, "r2_soft_particles", &ps_r2_ls_flags, R2FLAG_SOFT_PARTICLES);
 
-	//CMD3(CCC_Mask64,		"r3_msaa",						&ps_r2_ls_flags,			R3FLAG_MSAA);
+	//CMD3(CCC_Mask,		"r3_msaa",						&ps_r2_ls_flags,			R3FLAG_MSAA);
 	CMD3(CCC_Token, "r3_msaa", &ps_r3_msaa, qmsaa_token);
-	//CMD3(CCC_Mask64,		"r3_msaa_hybrid",				&ps_r2_ls_flags,			R3FLAG_MSAA_HYBRID);
-	//CMD3(CCC_Mask64,		"r3_msaa_opt",					&ps_r2_ls_flags,			R3FLAG_MSAA_OPT);
+	//CMD3(CCC_Mask,		"r3_msaa_hybrid",				&ps_r2_ls_flags,			R3FLAG_MSAA_HYBRID);
+	//CMD3(CCC_Mask,		"r3_msaa_opt",					&ps_r2_ls_flags,			R3FLAG_MSAA_OPT);
 
-	CMD3(CCC_Mask64, "r3_use_dx10_1", &ps_r2_ls_flags, (u32)R3FLAG_USE_DX10_1);
-	//CMD3(CCC_Mask64,		"r3_msaa_alphatest",			&ps_r2_ls_flags,			(u32)R3FLAG_MSAA_ALPHATEST);
+	CMD3(CCC_Mask, "r3_use_dx10_1", &ps_r2_ls_flags, (u32)R3FLAG_USE_DX10_1);
+	//CMD3(CCC_Mask,		"r3_msaa_alphatest",			&ps_r2_ls_flags,			(u32)R3FLAG_MSAA_ALPHATEST);
 	CMD3(CCC_Token, "r3_msaa_alphatest", &ps_r3_msaa_atest, qmsaa__atest_token);
 	CMD3(CCC_Token, "r3_minmax_sm", &ps_r3_minmax_sm, qminmax_sm_token);
 
-	CMD3(CCC_Mask64, "r__fast_details_update" ,&ps_r2_ls_flags, R2FLAG_FAST_DETAILS_UPDATE);
+	CMD3(CCC_Mask, "r__fast_details_update" ,&ps_r2_ls_flags, R2FLAG_FAST_DETAILS_UPDATE);
 
 #ifdef DETAIL_RADIUS
 	CMD4(CCC_detail_radius, "r__detail_radius", &ps_r__detail_radius, 0, 250);
@@ -1558,17 +1558,17 @@ void xrRender_initconsole()
 #endif	//	DEBUG
 #endif	//	(RENDER == R_R3) || (RENDER == R_R4)
 
-	CMD3(CCC_Mask64, "r3_dynamic_wet_surfaces", &ps_r2_ls_flags, R3FLAG_DYN_WET_SURF);
+	CMD3(CCC_Mask, "r3_dynamic_wet_surfaces", &ps_r2_ls_flags, R3FLAG_DYN_WET_SURF);
 	CMD4(CCC_Float, "r3_dynamic_wet_surfaces_near", &ps_r3_dyn_wet_surf_near, 10, 70);
 	CMD4(CCC_Float, "r3_dynamic_wet_surfaces_far", &ps_r3_dyn_wet_surf_far, 30, 100);
 	CMD4(CCC_Integer, "r3_dynamic_wet_surfaces_sm_res", &ps_r3_dyn_wet_surf_sm_res, 64, 2048);
 
-	CMD3(CCC_Mask64, "r3_volumetric_smoke", &ps_r2_ls_flags, R3FLAG_VOLUMETRIC_SMOKE);
+	CMD3(CCC_Mask, "r3_volumetric_smoke", &ps_r2_ls_flags, R3FLAG_VOLUMETRIC_SMOKE);
 	CMD1(CCC_memory_stats, "render_memory_stats");
 
 	CMD4(CCC_Vector4, "vignette_control", &ps_vignette_control, Fvector4().set(0.0f, 0.0f, 0.0f, 0.0f), Fvector4().set(1.0f, 1.0f, 1.0f, 1.0f));
 
-	//	CMD3(CCC_Mask64,		"r2_sun_ignore_portals",		&ps_r2_ls_flags,			R2FLAG_SUN_IGNORE_PORTALS);
+	//	CMD3(CCC_Mask,		"r2_sun_ignore_portals",		&ps_r2_ls_flags,			R2FLAG_SUN_IGNORE_PORTALS);
     CMD4(CCC_Integer, "r_particles_real_dt", &ps_r2_particle_dt, 0, 1);
 }
 #endif

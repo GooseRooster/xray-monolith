@@ -253,6 +253,16 @@ namespace R_dsgraph
 			mapHUDSorted.Emissive.clear();
 			mapHUDSorted.Sorted.clear();
 			mapHUDSorted.Distort.clear();
+			mapScopeHUD.clear();
+			mapCamAttached.clear();
+			mapScopeHUDSorted.Wmark.clear();
+			mapScopeHUDSorted.Emissive.clear();
+			mapScopeHUDSorted.Sorted.clear();
+			mapScopeHUDSorted.Distort.clear();
+			mapCamAttachedSorted.Wmark.clear();
+			mapCamAttachedSorted.Emissive.clear();
+			mapCamAttachedSorted.Sorted.clear();
+			mapCamAttachedSorted.Distort.clear();
 		}
 
 		IC void clear_lods()
@@ -266,6 +276,7 @@ namespace R_dsgraph
 			clear_static();
 			clear_hud();
 			clear_lods();
+			mapWater.clear();
 		}
 	};
 };

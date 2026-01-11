@@ -158,7 +158,6 @@ void CRender::render_lights(light_Package& LP)
 							L->GMLight.r_dsgraph_capture_dynamic(L->ignore_object);
 						}
 					}
-
 					bool bDeffered_Shadows = L->GMLight.RGraph.mapStaticPasses[0][0].size() || L->GMLight.RGraph.mapDynamicPasses[0][0].size();
 					bool bForward_Shadows = L->GMLight.RGraph.mapStaticPasses[1][0].size() || L->GMLight.RGraph.mapDynamicPasses[1][0].size() || L->GMLight.RGraph.mapStaticSorted.Sorted.size() || L->GMLight.RGraph.mapDynamicSorted.Sorted.size();
 					if (bDeffered_Shadows || bForward_Shadows)

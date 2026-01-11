@@ -205,49 +205,17 @@ void CDSGraphManager::r_dsgraph_insert_dynamic(dxRender_Visual *pVisual, Fmatrix
 		}
 
 		SPass& pass = *sh->passes[iPass];
-		mapDSGraphVS& map = RGraph.mapDynamicPasses[shader_priority][iPass];
-		
 
-#ifdef USE_RESOURCE_DEBUGGER
-#if defined(USE_DX10) || defined(USE_DX11)
-		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs);
-		mapDSGraphGS::TNode* Ngs = Nvs->val.insert(pass.gs);
-		mapDSGraphPS::TNode* Nps = Ngs->val.insert(pass.ps);
-#else
-		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs);
-		mapDSGraphPS::TNode* Nps = Nvs->val.insert(pass.ps);
-#endif
-#else
-#if defined(USE_DX10) || defined(USE_DX11)
-		mapDSGraphVS::TNode* Nvs = map.insert(&*pass.vs);
-		mapDSGraphGS::TNode* Ngs = Nvs->val.insert(pass.gs->gs);
-		mapDSGraphPS::TNode* Nps = Ngs->val.insert(pass.ps->ps);
-#else
-		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs->vs);
-		mapDSGraphPS::TNode* Nps = Nvs->val.insert(pass.ps->ps);
-#endif
-#endif
+		// Step 1: Create render packet
+		RenderPacket packet;
 
-#ifdef USE_DX11
-#	ifdef USE_RESOURCE_DEBUGGER
-		Nps->val.hs = pass.hs;
-		Nps->val.ds = pass.ds;
-		mapDSGraphCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
-#	else
-		Nps->val.hs = pass.hs->sh;
-		Nps->val.ds = pass.ds->sh;
-		mapDSGraphCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
-#	endif
-#else
-		mapDSGraphCS::TNode* Ncs = Nps->val.insert(pass.constants._get());
-#endif
-		mapDSGraphStates::TNode* Nstate	= Ncs->val.insert(pass.state->state);
-		mapDSGraphTextures::TNode* Ntex = Nstate->val.insert(pass.T._get());
 #if RENDER==R_R1
-		Ntex->val.insert(pVisual, item);
+		packet.item = { pVisual, item };
 #else
-		Ntex->val.insert(pVisual, DSGraphItem{ SSA, val_pObject, xform, nullptr, i_mask[CDSGraphManager::fl_hud] });
+		packet.item = { pVisual, DSGraphItem{ SSA, val_pObject, xform, nullptr, i_mask[CDSGraphManager::fl_hud] } };
 #endif
+
+		AddToRenderQueue(RGraph.mapDynamicPasses[shader_priority][iPass], packet, pass);
 	}
 }
 
@@ -313,46 +281,57 @@ void CDSGraphManager::r_dsgraph_insert_static(dxRender_Visual *pVisual)
 			continue;
 
 		SPass& pass	= *sh->passes[iPass];
-		mapDSGraphVS& map = RGraph.mapStaticPasses[shader_priority][iPass];
 
-#ifdef USE_RESOURCE_DEBUGGER
+		// Step 1: Create render packet
+		RenderPacket packet;
+		packet.item = { pVisual, DSGraphItem{ SSA, nullptr, nullptr, nullptr, false } };
+		AddToRenderQueue(RGraph.mapStaticPasses[shader_priority][iPass], packet, pass);
+	}
+}
+
+void CDSGraphManager::AddToRenderQueue(R_dsgraph::RenderQueue& queue, R_dsgraph::RenderPacket& packet, SPass& pass)
+{
+	// Step 2: extract pointers (Previously map keys)
 #if defined(USE_DX10) || defined(USE_DX11)
-		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs);
-		mapDSGraphGS::TNode* Ngs = Nvs->val.insert(pass.gs);
-		mapDSGraphPS::TNode* Nps = Ngs->val.insert(pass.ps);
+	packet.pVS = &*pass.vs;
+	packet.pGS = pass.gs->gs;
+	packet.pPS = pass.ps->ps;
 #else
-		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs);
-		mapDSGraphPS::TNode* Nps = Nvs->val.insert(pass.ps);
-#endif
-#else
-#if defined(USE_DX10) || defined(USE_DX11)
-		mapDSGraphVS::TNode* Nvs = map.insert(&*pass.vs);
-		mapDSGraphGS::TNode* Ngs = Nvs->val.insert(pass.gs->gs);
-		mapDSGraphPS::TNode* Nps = Ngs->val.insert(pass.ps->ps);
-#else
-		mapDSGraphVS::TNode* Nvs = map.insert(pass.vs->vs);
-		mapDSGraphPS::TNode* Nps = Nvs->val.insert(pass.ps->ps);
-#endif
+	packet.pVS = pass.vs->vs;
+	packet.pPS = pass.ps->ps;
 #endif
 
 #ifdef USE_DX11
-#	ifdef USE_RESOURCE_DEBUGGER
-		Nps->val.hs = pass.hs;
-		Nps->val.ds = pass.ds;
-		mapDSGraphCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
-#	else
-		Nps->val.hs = pass.hs->sh;
-		Nps->val.ds = pass.ds->sh;
-		mapDSGraphCS::TNode* Ncs = Nps->val.mapCS.insert(pass.constants._get());
-#	endif
-#else
-		mapDSGraphCS::TNode* Ncs = Nps->val.insert(pass.constants._get());
+	packet.pHS = pass.hs->sh;
+	packet.pDS = pass.ds->sh;
 #endif
-		mapDSGraphStates::TNode* Nstate	= Ncs->val.insert(pass.state->state);
-		mapDSGraphTextures::TNode* Ntex = Nstate->val.insert(pass.T._get());
 
-		Ntex->val.insert(pVisual, DSGraphItem{SSA,nullptr,nullptr,nullptr,false});
-	}
+	packet.pCS = pass.constants._get();
+	packet.pState = pass.state->state;
+	packet.pTextures = pass.T._get();
+
+	// Step 3: Make sort key with bit packing
+	u64 key = 0;
+#if defined(USE_DX10) || defined(USE_DX11)
+	key |= ((u64)packet.pVS >> 4 & 0xFF) << 56;
+	key |= ((u64)packet.pGS >> 4 & 0xFF) << 48;
+	key |= ((u64)packet.pPS >> 4 & 0xFF) << 40;
+#else
+	key |= ((u64)packet.pVS >> 4 & 0xFF) << 56;
+	key |= ((u64)packet.pPS >> 4 & 0xFF) << 40;
+#endif
+
+#ifdef USE_DX11
+	key |= ((u64)packet.pHS >> 4 & 0xFF) << 32;
+	key |= ((u64)packet.pDS >> 4 & 0xFF) << 24;
+#endif
+
+	key |= ((u64)packet.pCS >> 4 & 0xFF) << 16;
+	key |= ((u64)packet.pState >> 4 & 0xFF) << 8;
+	key |= ((u64)packet.pTextures >> 4 & 0xFF);
+
+	packet.sortKey = key;
+	queue.push_back(packet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

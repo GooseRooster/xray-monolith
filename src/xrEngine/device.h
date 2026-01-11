@@ -24,7 +24,7 @@
 #define DEVICE_RESET_PRECACHE_FRAME_COUNT 10
 
 // demonized: toggle bone optimization
-#define OPTIMIZE_CALCULATE_BONES
+//#define OPTIMIZE_CALCULATE_BONES
 
 #include "../Include/xrRender/FactoryPtr.h"
 #include "../Include/xrRender/RenderDeviceRender.h"

@@ -110,11 +110,11 @@ void XRay::Engine::GameThread()
 		g_pGameLevel->SoundEvent_Dispatch();
 	}
 
-	if (!Device.Paused())
+	/*if (!Device.Paused())
 	{
 		PROF_EVENT("Sheduler");
 		::Engine.Sheduler.Update();
-	}
+	}*/
 
 	{
 		PROF_EVENT("seqParallel");

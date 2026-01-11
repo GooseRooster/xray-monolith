@@ -101,109 +101,90 @@ void CDSGraphManager::r_dsgraph_render_graph_sorted(R_dsgraph::mapDSGraphItems& 
 	RCache.set_xform_world(Fidentity);
 }
 
-void CDSGraphManager::r_dsgraph_render_graph(RenderQueueArray& queues, u32 _priority, bool _clear, bool static_geometry)
+void CDSGraphManager::r_dsgraph_render_graph(R_dsgraph::mapDSGraphPasses* graph, u32 _priority, bool _clear, bool static_geometry)
 {
 	RCache.set_xform_world(Fidentity);
 
 	for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
 	{
-		auto& queue = queues[_priority][iPass];
-		if (queue.empty())
-			continue;
-
-		// 1. Sort by generated sort key to replicate previous fixed map behaviour
-		std::sort(queue.begin(), queue.end(), [](const RenderPacket& a, const RenderPacket& b)
+		mapDSGraphVS& vs = graph[_priority][iPass];
+		if (!vs.size()) continue;
+		for (mapDSGraphVS::TNode& Nvs : vs)
 		{
-			return a.sortKey < b.sortKey;
-		});
+			RCache.set_VS(Nvs.key);
 
-		// 2. Render
 #if defined(USE_DX10) || defined(USE_DX11)
-		vs_type pVS = nullptr;
-		gs_type pGS = nullptr;
+			mapDSGraphGS& gs = Nvs.val;
+			if (!gs.size()) continue;
+			for (mapDSGraphGS::TNode& Ngs : gs)
+			{
+				RCache.set_GS(Ngs.key);
+
+				mapDSGraphPS& ps = Ngs.val;
+#else //USE_DX11
+				mapDSGraphPS& ps = Nvs.val;
+#endif
+				if (!ps.size()) continue;
+				for (mapDSGraphPS::TNode& Nps : ps)
+				{
+					RCache.set_PS(Nps.key);
+#ifdef USE_DX11
+					mapDSGraphCS& cs = Nps.val.mapCS;
+					RCache.set_HS(Nps.val.hs);
+					RCache.set_DS(Nps.val.ds);
 #else
-		vs_type pVS = nullptr;
+					mapDSGraphCS& cs = Nps.val;
 #endif
+					if (!cs.size()) continue;
+					for (mapDSGraphCS::TNode& Ncs : cs)
+					{
+						RCache.set_Constants(Ncs.key);
+
+						mapDSGraphStates& states = Ncs.val;
+						if (!states.size()) continue;
+						for (mapDSGraphStates::TNode& Nstate : states)
+						{
+							RCache.set_States(Nstate.key);
+
+							mapDSGraphTextures& tex = Nstate.val;
+							if (!tex.size()) continue;
+							for (mapDSGraphTextures::TNode& Ntex : tex)
+							{
+								RCache.set_Textures(Ntex.key);
+								RImplementation.apply_lmaterial();
+
+								mapDSGraphItems& items = Ntex.val;
+								if (!items.size()) continue;
+								for (R_dsgraph::mapDSGraphItems::TNode& Ni : items)
+								{
+									if(!static_geometry)
+									{
+										RCache.set_xform_world(*Ni.val.pMatrix);
+										RImplementation.apply_object(Ni.val.pObject);
+										RImplementation.apply_lmaterial();
+									}
+
+									float LOD = calcLOD(Ni.val.ssa, Ni.key->vis.sphere.R);
 #ifdef USE_DX11
-		hs_type pHS = nullptr;
-		ds_type pDS = nullptr;
+									RCache.LOD.set_LOD(LOD);
 #endif
-		ps_type pPS = nullptr;
-		R_constant_table* pCS = nullptr;
-		ID3DState* pState = nullptr;
-		STextureList* pTextures = nullptr;
-
-		for (auto& packet : queue)
-		{
-			if (packet.pVS != pVS)
-			{
-				pVS = packet.pVS;
-				RCache.set_VS(pVS);
-			}
-
+									Ni.key->Render(LOD);
+								}
+								if (_clear) items.clear();
+							}
+							if (_clear) tex.clear();
+						}
+						if (_clear) states.clear();
+					}
+					if (_clear) cs.clear();
+				}
+				if (_clear) ps.clear();
 #if defined(USE_DX10) || defined(USE_DX11)
-			if (packet.pGS != pGS)
-			{
-				pGS = packet.pGS;
-				RCache.set_GS(pGS);
 			}
-#endif
-
-			if (packet.pPS != pPS)
-			{
-				pPS = packet.pPS;
-				RCache.set_PS(pPS);
-			}
-
-#ifdef USE_DX11
-			if (packet.pHS != pHS)
-			{
-				pHS = packet.pHS;
-				RCache.set_HS(pHS);
-			}
-			if (packet.pDS != pDS)
-			{
-				pDS = packet.pDS;
-				RCache.set_DS(pDS);
-			}
-#endif
-
-			if (packet.pCS != pCS)
-			{
-				pCS = packet.pCS;
-				RCache.set_Constants(pCS);
-			}
-
-			if (packet.pState != pState)
-			{
-				pState = packet.pState;
-				RCache.set_States(pState);
-			}
-
-			if (packet.pTextures != pTextures)
-			{
-				pTextures = packet.pTextures;
-				RCache.set_Textures(pTextures);
-				RImplementation.apply_lmaterial();
-			}
-
-			auto& item = packet.item;
-			if (!static_geometry)
-			{
-				RCache.set_xform_world(*item.item.pMatrix);
-				RImplementation.apply_object(item.item.pObject);
-				RImplementation.apply_lmaterial();
-			}
-
-			float LOD = calcLOD(item.item.ssa, item.pVisual->vis.sphere.R);
-#ifdef USE_DX11
-			RCache.LOD.set_LOD(LOD);
-#endif
-			item.pVisual->Render(LOD);
+			if (_clear) gs.clear();
+#endif //USE_DX11
 		}
-
-		if (_clear)
-			queue.clear();
+		if (_clear) vs.clear();
 	}
 }
 

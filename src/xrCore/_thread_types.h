@@ -16,8 +16,8 @@ using xr_task_group = concurrency::task_group;
 template <typename T, typename U>
 using xr_concurrent_unordered_map = concurrency::concurrent_unordered_map<T, U>;
 
-template <typename T>
-using xr_concurrent_vector = concurrency::concurrent_vector<T>;
+template <typename T, typename allocator = xalloc<T>>
+using xr_concurrent_vector = concurrency::concurrent_vector<T, allocator>;
 
 template<typename BlockRangeType, typename Body>
 inline void xr_parallel_for(BlockRangeType Begin, BlockRangeType End, Body Functor)

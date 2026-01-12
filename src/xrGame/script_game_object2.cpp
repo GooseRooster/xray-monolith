@@ -81,7 +81,7 @@ bool CScriptGameObject::active_zone_contact(u16 id)
 
 CScriptGameObject* CScriptGameObject::best_weapon()
 {
-	CObjectHandler* object_handler = smart_cast<CAI_Stalker*>(&object());
+	CObjectHandler* object_handler = smart_cast<CObjectHandler*>(&object());
 	if (!object_handler)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
@@ -104,7 +104,7 @@ CScriptGameObject* CScriptGameObject::best_weapon()
 
 void CScriptGameObject::set_item(MonsterSpace::EObjectAction object_action)
 {
-	CObjectHandler* object_handler = smart_cast<CAI_Stalker*>(&object());
+	CObjectHandler* object_handler = smart_cast<CObjectHandler*>(&object());
 	if (!object_handler)
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
 		                                make_string("CObjectHandler [%s]: cannot access class member set_item!", object().cNameSect().c_str()).c_str());
@@ -114,7 +114,7 @@ void CScriptGameObject::set_item(MonsterSpace::EObjectAction object_action)
 
 void CScriptGameObject::set_item(MonsterSpace::EObjectAction object_action, CScriptGameObject* lua_game_object)
 {
-	CObjectHandler* object_handler = smart_cast<CAI_Stalker*>(&object());
+	CObjectHandler* object_handler = smart_cast<CObjectHandler*>(&object());
 	if (!object_handler)
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
 		                                make_string("CObjectHandler [%s]: cannot access class member set_item!", object().cNameSect().c_str()).c_str());
@@ -125,7 +125,7 @@ void CScriptGameObject::set_item(MonsterSpace::EObjectAction object_action, CScr
 void CScriptGameObject::set_item(MonsterSpace::EObjectAction object_action, CScriptGameObject* lua_game_object,
                                  u32 queue_size)
 {
-	CObjectHandler* object_handler = smart_cast<CAI_Stalker*>(&object());
+	CObjectHandler* object_handler = smart_cast<CObjectHandler*>(&object());
 	if (!object_handler)
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
 		                                make_string("CObjectHandler [%s]: cannot access class member set_item!", object().cNameSect().c_str()).c_str());
@@ -137,7 +137,7 @@ void CScriptGameObject::set_item(MonsterSpace::EObjectAction object_action, CScr
 void CScriptGameObject::set_item(MonsterSpace::EObjectAction object_action, CScriptGameObject* lua_game_object,
                                  u32 queue_size, u32 queue_interval)
 {
-	CObjectHandler* object_handler = smart_cast<CAI_Stalker*>(&object());
+	CObjectHandler* object_handler = smart_cast<CObjectHandler*>(&object());
 	if (!object_handler)
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
 		                                make_string("CObjectHandler [%s]: cannot access class member set_item!", object().cNameSect().c_str()).c_str());

@@ -82,6 +82,8 @@ class CBackpack;
 class CClimableObject;
 class CPhysicObject;
 class CTeamBaseZone;
+class CPhantom;
+class CAI_Trader;
 
 template <typename _return_type>
 class CScriptCallbackEx;
@@ -165,6 +167,8 @@ public:
 	virtual CClimableObject* cast_climable_object() { return nullptr; }
 	virtual CPhysicObject* cast_physics_object() { return nullptr; }
 	virtual CTeamBaseZone* cast_team_base_zone() { return nullptr; }
+	virtual CPhantom* cast_phantom() { return nullptr; }
+	virtual CAI_Trader* cast_trader() { return nullptr; }
 
 public:
 	virtual bool feel_touch_on_contact(CObject*) { return TRUE; }

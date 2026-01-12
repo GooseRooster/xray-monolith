@@ -2,6 +2,9 @@
 
 #include <fast_dynamic_cast/fast_dynamic_cast.hpp>
 
+// demonized: smart_cast with specializations modern c++ way
+// Fallback uses fast_dynamic_cast library
+
 // Helper to detect if a type has a dedicated cast method
 // Specializations will be provided for known dcast methods
 template<typename _To, typename _From>
@@ -31,6 +34,7 @@ DECLARE_SPECIALIZATION(IParticleCustom, IRenderVisual, dcast_ParticleCustom)
 #include "../xrGame/InventoryOwner.h"
 #include "../xrGame/inventory_item.h"
 #include "../xrGame/Weapon.h"
+#include "../xrGame/WeaponStatMgun.h"
 #include "xrServer_Objects_ALife.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 
@@ -46,7 +50,10 @@ class CWeapon;
 class CWeaponMagazined;
 class CWeaponAmmo;
 class CSE_ALifeTraderAbstract;
+class CWeaponStatMgun;
+class CHangingLamp;
 
+// Original specializations
 DECLARE_SPECIALIZATION(IRenderable, ISpatial, dcast_Renderable)
 DECLARE_SPECIALIZATION(IRender_Light, ISpatial, dcast_Light)
 DECLARE_SPECIALIZATION(CObject, ISpatial, dcast_CObject)

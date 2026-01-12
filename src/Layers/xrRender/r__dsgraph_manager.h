@@ -36,7 +36,16 @@ public:
 	ref_shader								f_shader;
 	ref_geom								f_geom;
 
-	CDSGraphManager(u32 options, u32 doptions, bool(&& mask)[7]) : i_options(options), i_doptions(doptions) { std::copy(mask, mask + 7, i_mask); }
+	CDSGraphManager(u32 options, u32 doptions, bool(&& mask)[7]) : i_options(options), i_doptions(doptions) {
+		std::copy(mask, mask + 7, i_mask);
+		for (u32 iPass = 0; iPass < SHADER_PASSES_MAX; ++iPass)
+		{
+			RGraph.mapStaticPasses[0][iPass].reserve(32);
+			RGraph.mapStaticPasses[1][iPass].reserve(32);
+			RGraph.mapDynamicPasses[0][iPass].reserve(32);
+			RGraph.mapDynamicPasses[1][iPass].reserve(32);
+		}
+	}
 	void initialize();
 	void destroy();
 	void traverse(CSector* start, CFrustum& F, Fvector& vBase, Fmatrix& mXFORM);
@@ -73,9 +82,8 @@ public:
 	void add_leafs_Dynamic(xr_vector<IRenderVisual*>& children, Fmatrix* xform);
 	void r_dsgraph_insert_dynamic(dxRender_Visual* pVisual, Fmatrix* xform);
 
-
-	void r_dsgraph_render_graph(R_dsgraph::mapDSGraphPasses* graph, u32 _priority, bool _clear = true, bool static_geometry = true);
-
+	void AddToRenderQueue(R_dsgraph::RenderQueue& queue, R_dsgraph::RenderPacket& packet, SPass& pass);
+	void r_dsgraph_render_graph(R_dsgraph::RenderQueueArray& queue, u32 _priority, bool _clear = true, bool static_geometry = true);
 	IC void r_dsgraph_render_graph(u32 _priority, bool _clear = true)
 	{
 		r_dsgraph_render_static(_priority, _clear);

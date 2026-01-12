@@ -35,6 +35,7 @@ DECLARE_SPECIALIZATION(IParticleCustom, IRenderVisual, dcast_ParticleCustom)
 #include "../xrGame/inventory_item.h"
 #include "../xrGame/Weapon.h"
 #include "../xrGame/WeaponStatMgun.h"
+#include "../xrGame/CustomRocket.h"
 #include "xrServer_Objects_ALife.h"
 #include "xrServer_Objects_ALife_Monsters.h"
 
@@ -52,6 +53,7 @@ class CWeaponAmmo;
 class CSE_ALifeTraderAbstract;
 class CWeaponStatMgun;
 class CHangingLamp;
+class CCustomRocket;
 
 // Original specializations
 DECLARE_SPECIALIZATION(IRenderable, ISpatial, dcast_Renderable)
@@ -134,6 +136,16 @@ DECLARE_SPECIALIZATION(CCustomDevice, CInventoryItem, cast_custom_device)
 DECLARE_SPECIALIZATION(CCustomDetector, CInventoryItem, cast_custom_detector)
 DECLARE_SPECIALIZATION(CFlare, CInventoryItem, cast_flare)
 DECLARE_SPECIALIZATION(CWeaponMagazined, CInventoryItem, cast_weapon_magazined)
+DECLARE_SPECIALIZATION(CWeaponKnife, CInventoryItem, cast_weapon_knife)
+DECLARE_SPECIALIZATION(CWeaponBinoculars, CInventoryItem, cast_weapon_binoculars)
+DECLARE_SPECIALIZATION(CWeaponMagazinedWGrenade, CInventoryItem, cast_weapon_magazined_w_grenade)
+DECLARE_SPECIALIZATION(CWeaponBM16, CInventoryItem, cast_weapon_bm16)
+DECLARE_SPECIALIZATION(CWeaponRG6, CInventoryItem, cast_weapon_rg6)
+DECLARE_SPECIALIZATION(CWeaponRPG7, CInventoryItem, cast_weapon_rpg7)
+DECLARE_SPECIALIZATION(CBolt, CInventoryItem, cast_bolt)
+DECLARE_SPECIALIZATION(CSilencer, CInventoryItem, cast_addon_silencer)
+DECLARE_SPECIALIZATION(CScope, CInventoryItem, cast_addon_scope)
+DECLARE_SPECIALIZATION(CGrenadeLauncher, CInventoryItem, cast_addon_grenade_launcher)
 
 DECLARE_SPECIALIZATION(CEntityAlive, CInventoryOwner, cast_entity_alive)
 DECLARE_SPECIALIZATION(CActor, CInventoryOwner, cast_actor)
@@ -141,6 +153,11 @@ DECLARE_SPECIALIZATION(CActor, CInventoryOwner, cast_actor)
 DECLARE_SPECIALIZATION(CInventoryOwner, CEntityAlive, cast_inventory_owner)
 
 DECLARE_SPECIALIZATION(CWeaponKnife, CWeapon, cast_weapon_knife)
+DECLARE_SPECIALIZATION(CWeaponBinoculars, CWeapon, cast_weapon_binoculars)
+DECLARE_SPECIALIZATION(CWeaponMagazinedWGrenade, CWeapon, cast_weapon_magazined_w_grenade)
+DECLARE_SPECIALIZATION(CWeaponBM16, CWeapon, cast_weapon_bm16)
+DECLARE_SPECIALIZATION(CWeaponRG6, CWeapon, cast_weapon_rg6)
+DECLARE_SPECIALIZATION(CWeaponRPG7, CWeapon, cast_weapon_rpg7)
 
 DECLARE_SPECIALIZATION(CGameObject, CActor, cast_game_object)
 
@@ -156,6 +173,8 @@ DECLARE_SPECIALIZATION(CCar, CObject, cast_car)
 DECLARE_SPECIALIZATION(CSpectator, CObject, cast_spectator)
 
 DECLARE_SPECIALIZATION(CHolderCustom, CPhysicsShellHolder, cast_holder_custom)
+DECLARE_SPECIALIZATION(CExplosiveRocket, CPhysicsShellHolder, cast_explosive_rocket)
+DECLARE_SPECIALIZATION(CGrenade, CPhysicsShellHolder, cast_grenade)
 
 DECLARE_SPECIALIZATION(CInventoryBox, CGameObject, cast_inventory_box)
 DECLARE_SPECIALIZATION(CHangingLamp, CGameObject, cast_hanging_lamp)
@@ -174,6 +193,8 @@ DECLARE_SPECIALIZATION(CAI_Trader, CGameObject, cast_trader)
 
 DECLARE_SPECIALIZATION(CBolt, CMissile, cast_bolt)
 DECLARE_SPECIALIZATION(CGrenade, CMissile, cast_grenade)
+
+DECLARE_SPECIALIZATION(CExplosiveRocket, CCustomRocket, cast_explosive_rocket)
 
 #endif
 

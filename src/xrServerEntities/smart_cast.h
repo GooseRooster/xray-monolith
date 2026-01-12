@@ -121,6 +121,57 @@ struct has_dcast<CGameObject*, CObject*> : std::true_type {
 		return static_cast<CGameObject*>(ptr);
     } 
 };
+
+// Additional specializations
+DECLARE_SPECIALIZATION(CGrenade, CInventoryItem, cast_grenade)
+DECLARE_SPECIALIZATION(CCustomOutfit, CInventoryItem, cast_outfit)
+DECLARE_SPECIALIZATION(CArtefact, CInventoryItem, cast_artefact)
+DECLARE_SPECIALIZATION(CHelmet, CInventoryItem, cast_helmet)
+DECLARE_SPECIALIZATION(CTorch, CInventoryItem, cast_torch)
+DECLARE_SPECIALIZATION(CAttachableItem, CInventoryItem, cast_attachable_item)
+DECLARE_SPECIALIZATION(CPda, CInventoryItem, cast_pda)
+DECLARE_SPECIALIZATION(CCustomDevice, CInventoryItem, cast_custom_device)
+DECLARE_SPECIALIZATION(CCustomDetector, CInventoryItem, cast_custom_detector)
+DECLARE_SPECIALIZATION(CFlare, CInventoryItem, cast_flare)
+DECLARE_SPECIALIZATION(CWeaponMagazined, CInventoryItem, cast_weapon_magazined)
+
+DECLARE_SPECIALIZATION(CEntityAlive, CInventoryOwner, cast_entity_alive)
+DECLARE_SPECIALIZATION(CActor, CInventoryOwner, cast_actor)
+
+DECLARE_SPECIALIZATION(CInventoryOwner, CEntityAlive, cast_inventory_owner)
+
+DECLARE_SPECIALIZATION(CWeaponKnife, CWeapon, cast_weapon_knife)
+
+DECLARE_SPECIALIZATION(CGameObject, CActor, cast_game_object)
+
+DECLARE_SPECIALIZATION(CWeaponStatMgun, CHolderCustom, cast_weapon_stat_mgun)
+DECLARE_SPECIALIZATION(CCar, CHolderCustom, cast_car)
+DECLARE_SPECIALIZATION(CGameObject, CHolderCustom, cast_game_object)
+
+DECLARE_SPECIALIZATION(CHolderCustom, CObject, cast_holder_custom)
+DECLARE_SPECIALIZATION(CPhysicsShellHolder, CObject, cast_physics_shell_holder)
+DECLARE_SPECIALIZATION(CActor, CObject, cast_actor)
+DECLARE_SPECIALIZATION(CInventoryOwner, CObject, cast_inventory_owner)
+DECLARE_SPECIALIZATION(CCar, CObject, cast_car)
+DECLARE_SPECIALIZATION(CSpectator, CObject, cast_spectator)
+
+DECLARE_SPECIALIZATION(CHolderCustom, CPhysicsShellHolder, cast_holder_custom)
+
+DECLARE_SPECIALIZATION(CInventoryBox, CGameObject, cast_inventory_box)
+DECLARE_SPECIALIZATION(CHangingLamp, CGameObject, cast_hanging_lamp)
+DECLARE_SPECIALIZATION(CHelicopter, CGameObject, cast_helicopter)
+DECLARE_SPECIALIZATION(CPhantom, CGameObject, cast_phantom)
+DECLARE_SPECIALIZATION(CScriptZone, CGameObject, cast_script_zone)
+DECLARE_SPECIALIZATION(CHudItem, CGameObject, cast_hud_item)
+DECLARE_SPECIALIZATION(CLevelChanger, CGameObject, cast_level_changer)
+DECLARE_SPECIALIZATION(CPhysicObject, CGameObject, cast_physics_object)
+DECLARE_SPECIALIZATION(CPda, CGameObject, cast_pda)
+DECLARE_SPECIALIZATION(CCustomDevice, CGameObject, cast_custom_device)
+DECLARE_SPECIALIZATION(CWeaponAmmo, CGameObject, cast_weapon_ammo)
+DECLARE_SPECIALIZATION(CUsableScriptObject, CGameObject, cast_usable_script_object)
+DECLARE_SPECIALIZATION(CProjector, CGameObject, cast_projector)
+DECLARE_SPECIALIZATION(CAI_Trader, CGameObject, cast_trader)
+
 #endif
 
 #ifdef XRPHYSICS_EXPORTS

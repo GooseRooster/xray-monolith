@@ -71,11 +71,7 @@ public:
 	virtual void net_Import(NET_Packet& P);
 	virtual void net_Relcase(CObject* object) override;
 
-	virtual CWeapon* cast_weapon()
-	{
-		return this;
-	}
-
+	virtual CWeapon* cast_weapon() { return this; }
 	virtual CWeaponBinoculars* cast_weapon_binoculars() { return nullptr; }
 	virtual CWeaponKnife* cast_weapon_knife() { return nullptr; }
 	virtual CWeaponMagazined* cast_weapon_magazined() { return nullptr; }

@@ -131,6 +131,7 @@ private:
 public:
 	virtual CHolderCustom* cast_holder_custom() { return this; }
 	virtual CGameObject* cast_game_object() { return this; }
+	virtual CWeaponStatMgun* cast_weapon_stat_mgun() { return this; }
 
 	//general
 public:

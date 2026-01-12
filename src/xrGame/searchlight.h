@@ -66,6 +66,8 @@ public:
 
 	virtual BOOL UsedAI_Locations();
 
+	virtual CProjector* cast_projector() { return this; }
+
 #ifdef PROJECTOR_NEW
 	/* Remove. */
 #else
@@ -74,7 +76,6 @@ public:
 
 	virtual CScriptEntity* cast_script_entity() { return this; }
 	virtual CGameObject* cast_game_object() { return this; }
-	virtual CProjector* cast_projector() { return this; }
 #endif
 
 	Fvector GetCurrentDirection();

@@ -373,7 +373,7 @@ void CRender::render_forward()
 // Redotix99: for 3D Shader Based Scopes
 void CRender::render_Reticle()
 {
-	VERIFY(0 == mapDistort.size() + mapHUDDistort.size());
+	VERIFY(0 == GMBase.RGraph.mapHUDSorted.Distort.size() + GMBase.RGraph.mapStaticSorted.Distort.size() + GMBase.RGraph.mapDynamicSorted.Distort.size());
 	RImplementation.o.distortion = RImplementation.o.distortion_enabled;
 
 	GMBase.r_dsgraph_render_ScopeSorted();

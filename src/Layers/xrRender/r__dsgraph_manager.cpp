@@ -5,6 +5,7 @@
 #include "../../xrEngine/xr_object.h"
 #include "../../xrEngine/PS_instance.h"
 #include "LightTrack.h"
+#include "../xrServerEntities/smart_cast.h"
 void CDSGraphManager::traverse(CSector* start, CFrustum& F, Fvector& vBase, Fmatrix& mXFORM)
 {
 	if (!start) return;

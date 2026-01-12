@@ -172,6 +172,9 @@ DECLARE_SPECIALIZATION(CUsableScriptObject, CGameObject, cast_usable_script_obje
 DECLARE_SPECIALIZATION(CProjector, CGameObject, cast_projector)
 DECLARE_SPECIALIZATION(CAI_Trader, CGameObject, cast_trader)
 
+DECLARE_SPECIALIZATION(CBolt, CMissile, cast_bolt)
+DECLARE_SPECIALIZATION(CGrenade, CMissile, cast_grenade)
+
 #endif
 
 #ifdef XRPHYSICS_EXPORTS

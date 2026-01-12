@@ -67,6 +67,8 @@ class CBackpack;
 class CClimableObject;
 class CPhysicObject;
 class CTeamBaseZone;
+class CAI_Trader;
+class CPhantom;
 
 //-----------------------------------------------------------------------------------------------------------
 #define CROW_RADIUS (30.f)
@@ -253,6 +255,8 @@ public:
 	virtual CClimableObject* cast_climable_object() { return nullptr; }
 	virtual CPhysicObject* cast_physics_object() { return nullptr; }
 	virtual CTeamBaseZone* cast_team_base_zone() { return nullptr; }
+	virtual CAI_Trader* cast_trader() { return nullptr; }
+	virtual CPhantom* cast_phantom() { return nullptr; }
 	// Name management
 	ICF shared_str cName() const { return NameObject; }
 	void cName_set(shared_str N);

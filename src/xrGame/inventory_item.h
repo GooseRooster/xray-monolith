@@ -60,6 +60,7 @@ class CGrenade;
 class CSilencer;
 class CScope;
 class CGrenadeLauncher;
+class CFlare;
 
 struct SHit;
 
@@ -349,6 +350,7 @@ public:
 	virtual CGrenadeLauncher* cast_addon_grenade_launcher() { return nullptr; }
 	virtual CPhysicItem* cast_physics_item() { return nullptr; }
 	virtual CBackpack* cast_backpack() { return nullptr; }
+	virtual CFlare* cast_flare() { return nullptr; }
 
 	////////// upgrades //////////////////////////////////////////////////
 public:

@@ -34,4 +34,6 @@ public:
 	void ActivateFlare();
 	void DropFlare();
 	bool IsFlareActive();
+
+	virtual CFlare* cast_flare() { return this; }
 };

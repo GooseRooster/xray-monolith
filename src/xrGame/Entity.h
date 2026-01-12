@@ -17,6 +17,7 @@ class CActor;
 class CAI_Stalker;
 class CEntityAlive;
 class CInventoryOwner;
+class CPhantom;
 
 class CEntity :
 	public CPhysicsShellHolder,
@@ -71,6 +72,7 @@ public:
 	virtual CEntityAlive* cast_entity_alive() { return nullptr; }
 	virtual CInventoryOwner* cast_inventory_owner() { return nullptr; }
 	virtual CGameObject* cast_game_object() { return this; }
+	virtual CPhantom* cast_phantom() { return nullptr; }
 public:
 
 	// Core events

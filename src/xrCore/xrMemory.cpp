@@ -104,7 +104,7 @@ void xrMemory::_initialize(BOOL bDebug)
 #endif // DEBUG_MEMORY_MANAGER
 
 	// DUMP_PHASE;
-	g_pStringContainer = xr_new<str_container>();
+	g_pStringContainer = xr_make_shared<str_container>();
 	shared_str_initialized = true;
 	// DUMP_PHASE;
 	g_pSharedMemoryContainer = xr_new<smem_container>();
@@ -128,8 +128,12 @@ void xrMemory::_destroy()
     if (debug_mode) dbg_dump_str_leaks();
 #endif // DEBUG_MEMORY_MANAGER
 
+	// Release global shared container reference
+	// The actual str_container will be destroyed only when no shared_str instances hold it
+	if (g_pStringContainer)
+		g_pStringContainer.reset();
+
 	xr_delete(g_pSharedMemoryContainer);
-	xr_delete(g_pStringContainer);
 
 #ifndef M_BORLAND
 # ifdef DEBUG_MEMORY_MANAGER

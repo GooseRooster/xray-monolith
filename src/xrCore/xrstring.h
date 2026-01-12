@@ -139,19 +139,20 @@ public:
 	u32 stat_economy(u32& count, u32& unique);
 };
 
-XRCORE_API extern str_container* g_pStringContainer;
+XRCORE_API extern xr_shared_ptr<str_container> g_pStringContainer;
 
 class shared_str
 {
 private:
 	str_value* p_;
+	// Hold shared ownership of container so it cannot be destroyed while any shared_str exists
+	xr_shared_ptr<str_container> container_ptr;
 protected:
 	// ref-counting
 	void _dec()
 	{
 		if (0 == p_) return;
-		p_->dwReference--;
-		if (0 == p_->dwReference)
+		if (0 == --p_->dwReference)
 		{
 			//g_pStringContainer->erase(p_->value.c_str()); // erasing causes crashes due to invalid pointers
 			p_ = 0;
@@ -161,10 +162,23 @@ protected:
 public:
 	void _set(str_c rhs)
 	{
-		str_value* v = g_pStringContainer->dock(rhs);
-		if (0 != v) v->dwReference++;
-		_dec();
-		p_ = v;
+		// Acquire shared ownership of the global container (may be null during shutdown)
+		xr_shared_ptr<str_container> gc = g_pStringContainer;
+		if (gc)
+		{
+			container_ptr = gc;
+			str_value* v = gc->dock(rhs);
+			if (0 != v) v->dwReference++;
+			_dec();
+			p_ = v;
+		}
+		else
+		{
+			// no container available
+			_dec();
+			container_ptr.reset();
+			p_ = 0;
+		}
 	}
 
 	void _set(shared_str const& rhs)
@@ -173,6 +187,7 @@ public:
 		if (0 != v) v->dwReference++;
 		_dec();
 		p_ = v;
+		container_ptr = rhs.container_ptr;
 	}
 
 	const str_value* _get() const { return p_; }
@@ -224,9 +239,8 @@ public:
 
 	void swap(shared_str& rhs)
 	{
-		str_value* tmp = p_;
-		p_ = rhs.p_;
-		rhs.p_ = tmp;
+		std::swap(p_, rhs.p_);
+		std::swap(container_ptr, rhs.container_ptr);
 	}
 
 	bool equal(const shared_str& rhs) const { return (p_ == rhs.p_); }

@@ -6,7 +6,7 @@
 
 #include "FS_impl.h"
 
-XRCORE_API extern str_container* g_pStringContainer = NULL;
+XRCORE_API xr_shared_ptr<str_container> g_pStringContainer = nullptr;
 
 struct str_container_impl
 {

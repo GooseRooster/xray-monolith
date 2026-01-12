@@ -119,7 +119,7 @@ namespace R_dsgraph
 		STextureList* pTextures;
 	};
 
-	using RenderQueue = xr_vector<RenderPacket, render_allocator::helper<RenderPacket>::result>;
+	using RenderQueue = xr_concurrent_vector<RenderPacket, render_allocator::helper<RenderPacket>::result>;
 	using RenderQueueArray = xr_array<xr_array<RenderQueue, SHADER_PASSES_MAX>, 2>;
 
 	// demonized: fix this to use vectors

@@ -21,18 +21,23 @@
 #include "blender_smaa.h"
 #include "blender_blur.h"
 #include "blender_dof.h"
-#include "blender_pp_bloom.h"
+// OWA: blender_pp_bloom.h removed - phase_pp_bloom() output was never sampled
 #include "blender_nightvision.h"
 #include "blender_lut.h"
 
-// HDR10
-#include "blender_hdr10_bloom.h"
-#include "blender_hdr10_lens_flare.h"
+// OWA Multi-Scale Bloom
+#include "blender_bloom_multiscale.h"
+
+// OWA XeGTAO - Intel's Ground Truth Ambient Occlusion
+#include "blender_xegtao.h"
 
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../xrRender/xrRender_console.h"
 
 #include <D3DX10Tex.h>
+#include <DirectXPackedVector.h>  // OWA: For half-float conversion (HDR material LUT)
+
+using namespace DirectX::PackedVector;  // OWA: For HALF type and XMConvertFloatToHalf
 
 D3D_VIEWPORT custom_viewport[1] = { 0, 0, 0, 0, 0.f, 1.f };
 
@@ -85,6 +90,51 @@ void CRenderTarget::u_setrt(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3
 	RCache.set_ZB(zb);
 	//	RImplementation.rmNormal				();
 }
+
+
+//-----------------------------------------------------------------------------
+// OWA: 5 render targets - for static lighting with lightmap (rt_Lmap) output
+//-----------------------------------------------------------------------------
+void CRenderTarget::u_setrt(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, const ref_rt& _4, const ref_rt& _5, ID3DDepthStencilView* zb)
+{
+	VERIFY(_1 || zb);
+	if (_1)
+	{
+		dwWidth = _1->dwWidth;
+		dwHeight = _1->dwHeight;
+	}
+	else
+	{
+		D3D_DEPTH_STENCIL_VIEW_DESC desc;
+		zb->GetDesc(&desc);
+
+		if (!RImplementation.o.dx10_msaa)
+			VERIFY(desc.ViewDimension == D3D_DSV_DIMENSION_TEXTURE2D);
+
+		ID3DResource* pRes;
+		zb->GetResource(&pRes);
+		ID3DTexture2D* pTex = (ID3DTexture2D*)pRes;
+		D3D_TEXTURE2D_DESC TexDesc;
+		pTex->GetDesc(&TexDesc);
+		dwWidth = TexDesc.Width;
+		dwHeight = TexDesc.Height;
+		_RELEASE(pRes);
+	}
+
+	if (_1) RCache.set_RT(_1->pRT, 0);
+	else RCache.set_RT(NULL, 0);
+	if (_2) RCache.set_RT(_2->pRT, 1);
+	else RCache.set_RT(NULL, 1);
+	if (_3) RCache.set_RT(_3->pRT, 2);
+	else RCache.set_RT(NULL, 2);
+	if (_4) RCache.set_RT(_4->pRT, 3);
+	else RCache.set_RT(NULL, 3);
+	if (_5) RCache.set_RT(_5->pRT, 4);
+	else RCache.set_RT(NULL, 4);
+	RCache.set_ZB(zb);
+}
+
+
 
 void CRenderTarget::u_setrt(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, ID3DDepthStencilView* zb)
 {
@@ -351,10 +401,6 @@ CRenderTarget::CRenderTarget()
 {
 	u32 SampleCount = 1;
 
-	if (ps_r_ssao_mode != 2/*hdao*/)
-		ps_r_ssao = _min(ps_r_ssao, 3);
-
-	RImplementation.o.ssao_ultra = ps_r_ssao > 3;
 	if (RImplementation.o.dx10_msaa)
 		SampleCount = RImplementation.o.dx10_msaa_samples;
 
@@ -403,45 +449,38 @@ CRenderTarget::CRenderTarget()
 	}
 	b_luminance = xr_new<CBlender_luminance>();
 	b_combine = xr_new<CBlender_combine>();
+	// OWA Multi-Scale Bloom
+	b_bloom_downsample = xr_new<CBlender_bloom_downsample>();
+	b_bloom_upsample = xr_new<CBlender_bloom_upsample>();
 	b_ssao = xr_new<CBlender_SSAO_noMSAA>();
+	// OWA XeGTAO - Intel's Ground Truth Ambient Occlusion
+	b_xegtao = xr_new<CBlender_XeGTAO>();
 	///////////////////////////////////lvutner
 	b_sunshafts = xr_new<CBlender_sunshafts>();
 	b_blur = xr_new<CBlender_blur>();
-	b_pp_bloom = xr_new<CBlender_pp_bloom>();
+	// OWA: Perceptual Lighting blenders (only create when PL is enabled at startup)
+	if (RImplementation.o.ssfx_pl)
+	{
+		b_blur_pl = xr_new<CBlender_blur_pl>();
+		b_perceptual_lighting = xr_new<CBlender_perceptual_lighting>();
+	}
+	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
 	b_dof = xr_new<CBlender_dof>();
 	b_gasmask_drops = xr_new<CBlender_gasmask_drops>();
 	b_gasmask_dudv = xr_new<CBlender_gasmask_dudv>();
 	b_nightvision = xr_new<CBlender_nightvision>();
 	b_fakescope = xr_new<CBlender_fakescope>(); //crookr
 	b_heatvision = xr_new<CBlender_heatvision>(); //--DSR-- HeatVision
-	b_lut = xr_new<CBlender_lut>();
 	b_smaa = xr_new<CBlender_smaa>();
 
-	// HDR10
-	b_hdr10_bloom_downsample = xr_new<CBlender_hdr10_bloom_downsample>();
-	b_hdr10_bloom_blur 		 = xr_new<CBlender_hdr10_bloom_blur>();
-	b_hdr10_bloom_upsample   = xr_new<CBlender_hdr10_bloom_upsample>();
-	
-	b_hdr10_lens_flare_downsample = xr_new<CBlender_hdr10_lens_flare_downsample>();
-	b_hdr10_lens_flare_fgen 	  = xr_new<CBlender_hdr10_lens_flare_fgen>();
-	b_hdr10_lens_flare_blur       = xr_new<CBlender_hdr10_lens_flare_blur>();
-	b_hdr10_lens_flare_upsample   = xr_new<CBlender_hdr10_lens_flare_upsample>();
-
 	// Screen Space Shaders Stuff
+	b_ssfx_il = xr_new<CBlender_ssfx_il>(); // Indirect Lighting
 	b_ssfx_fog_scattering = xr_new<CBlender_ssfx_fog_scattering>();
-	b_ssfx_motion_blur = xr_new<CBlender_ssfx_motion_blur>();
 	b_ssfx_taa = xr_new<CBlender_ssfx_taa>();
-	b_ssfx_rain = xr_new<CBlender_ssfx_rain>();
 	b_ssfx_water_blur = xr_new<CBlender_ssfx_water_blur>();
-	b_ssfx_bloom = xr_new<CBlender_ssfx_bloom_build>();
-	b_ssfx_bloom_lens = xr_new<CBlender_ssfx_bloom_lens>();
-	b_ssfx_bloom_downsample = xr_new<CBlender_ssfx_bloom_downsample>();
-	b_ssfx_bloom_upsample = xr_new<CBlender_ssfx_bloom_upsample>();
 	b_ssfx_sss_ext = xr_new<CBlender_ssfx_sss_ext>(); // SSS
 	b_ssfx_sss = xr_new<CBlender_ssfx_sss>(); // SSS
-	b_ssfx_ssr = xr_new<CBlender_ssfx_ssr>(); // SSR
 	b_ssfx_volumetric_blur = xr_new<CBlender_ssfx_volumetric_blur>(); // Volumetric Blur
-	b_ssfx_ao = xr_new<CBlender_ssfx_ao>(); // AO
 
 	// HDAO
 	b_hdao_cs = xr_new<CBlender_CS_HDAO>();
@@ -497,10 +536,12 @@ CRenderTarget::CRenderTarget()
 		rt_tempzb.create("$user$temp_zb", w, h, D3DFMT_D24S8); // Redotix99: for 3D Shader Based Scopes
 
 		// select albedo & accum
+		// OWA: Use FP16 for rt_Color when HDR10 or hires_rts enabled
+		bool use_hires_color = RImplementation.o.dx11_hdr10 || RImplementation.o.hires_rts;
 		if (RImplementation.o.mrtmixdepth)
 		{
 			// NV50
-			if (RImplementation.o.dx11_hdr10) {
+			if (use_hires_color) {
 				rt_Color.create(r2_RT_albedo, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 			} else {
 				rt_Color.create(r2_RT_albedo, w, h, D3DFMT_A8R8G8B8, SampleCount);
@@ -520,15 +561,20 @@ CRenderTarget::CRenderTarget()
 			{
 				// R4xx, no-fp-blend,-> albedo_wo
 				VERIFY(RImplementation.o.albedo_wo);
-				rt_Color.create(r2_RT_albedo, w, h, D3DFMT_A8R8G8B8, SampleCount); // normal
+				// OWA: Use FP16 for rt_Color when hires_rts enabled even on legacy path
+				if (use_hires_color) {
+					rt_Color.create(r2_RT_albedo, w, h, D3DFMT_A16B16G16R16F, SampleCount);
+				} else {
+					rt_Color.create(r2_RT_albedo, w, h, D3DFMT_A8R8G8B8, SampleCount); // normal
+				}
 				rt_Accumulator.create(r2_RT_accum, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 				rt_Accumulator_temp.create(r2_RT_accum_temp, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 			}
 		}
 
-		// generic(LDR) RTs
-		//LV - we should change their formats into D3DFMT_A16B16G16R16F for better HDR support.
-		if (RImplementation.o.dx11_hdr10) {
+		// generic(LDR) RTs - OWA: hires_rts allows 16-bit in SDR for better gradients
+		bool use_hires_format = RImplementation.o.dx11_hdr10 || RImplementation.o.hires_rts;
+		if (use_hires_format) {
 			rt_Generic_0.create(r2_RT_generic0, w, h, D3DFMT_A16B16G16R16F, 1);
 			rt_Generic_1.create(r2_RT_generic1, w, h, D3DFMT_A16B16G16R16F, 1);
 			rt_Generic.create(r2_RT_generic, w, h, D3DFMT_A16B16G16R16F, 1);
@@ -544,13 +590,19 @@ CRenderTarget::CRenderTarget()
 		rt_Heat.create(r2_RT_heat, w, h, D3DFMT_A8R8G8B8, SampleCount);
 		//--DSR-- HeatVision_end
 
-		if (RImplementation.o.dx11_hdr10) {
+		// OWA: Static lighting lightmap render target
+		// Only created when static lighting mode is enabled
+		// RGB = baked indirect bounce lighting, A = sun occlusion
+		if (RImplementation.o.staticlighting)
+			rt_Lmap.create(r2_RT_lmap, w, h, D3DFMT_A8R8G8B8, SampleCount);
+
+		if (use_hires_format) {
 			rt_Generic_temp.create("$user$generic_temp", w, h, D3DFMT_A16B16G16R16F, RImplementation.o.dx10_msaa ? SampleCount : 1);
 		} else {
 			rt_Generic_temp.create("$user$generic_temp", w, h, D3DFMT_A8R8G8B8, RImplementation.o.dx10_msaa ? SampleCount : 1);
 		}
 
-		rt_dof.create(r2_RT_dof, w, h, RImplementation.o.dx11_hdr10 ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8);
+		rt_dof.create(r2_RT_dof, w, h, use_hires_format ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8);
 
 		if (RImplementation.o.dx11_hdr10) {
 			rt_secondVP.create(r2_RT_secondVP, w, h, D3DFMT_A2R10G10B10, 1); //--#SM+#-- +SecondVP+ // NOTE: this is a hack to use DXGI R10G10B10A2_UNORM
@@ -560,35 +612,48 @@ CRenderTarget::CRenderTarget()
 			rt_ui_pda.create(r2_RT_ui, w, h, D3DFMT_A8R8G8B8);
 		}
 
-		// TODO: R11G11B10F? needs another horrible hack + cast + update to converter function
-		if (RImplementation.o.dx11_hdr10) {
-			rt_HDR10_HalfRes[0].create(r4_RT_HDR10_halfres0, w/2,  h/2,  D3DFMT_A16B16G16R16F);
-			rt_HDR10_HalfRes[1].create(r4_RT_HDR10_halfres1, w/2,  h/2,  D3DFMT_A16B16G16R16F);
-		}
 		// PDA, probably not ideal though
 // RT - KD
-		rt_sunshafts_0.create(r2_RT_sunshafts0, w, h, D3DFMT_A8R8G8B8);
-		rt_sunshafts_1.create(r2_RT_sunshafts1, w, h, D3DFMT_A8R8G8B8);
+		// OWA: Use FP16 for sunshafts when HDR10 or hires_rts enabled (better gradients)
+		rt_sunshafts_0.create(r2_RT_sunshafts0, w, h, use_hires_format ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8);
+		rt_sunshafts_1.create(r2_RT_sunshafts1, w, h, use_hires_format ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8);
 
 		// RT Blur
-		rt_blur_h_2.create(r2_RT_blur_h_2, u32(w/2), u32(h/2), D3DFMT_A8R8G8B8);
-		rt_blur_2.create(r2_RT_blur_2, u32(w/2), u32(h/2), D3DFMT_A8R8G8B8);
+		// OWA: Use FP16 for blur when HDR10 or hires_rts enabled (better gradients)
+		D3DFORMAT blur_fmt = use_hires_format ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8;
+		rt_blur_h_2.create(r2_RT_blur_h_2, u32(w/2), u32(h/2), blur_fmt);
+		rt_blur_2.create(r2_RT_blur_2, u32(w/2), u32(h/2), blur_fmt);
 
-		rt_blur_h_4.create(r2_RT_blur_h_4, u32(w/4), u32(h/4), D3DFMT_A8R8G8B8);
-		rt_blur_4.create(r2_RT_blur_4, u32(w/4), u32(h/4), D3DFMT_A8R8G8B8);
+		rt_blur_h_4.create(r2_RT_blur_h_4, u32(w/4), u32(h/4), blur_fmt);
+		rt_blur_4.create(r2_RT_blur_4, u32(w/4), u32(h/4), blur_fmt);
 
-		rt_blur_h_8.create(r2_RT_blur_h_8, u32(w/8), u32(h/8), D3DFMT_A8R8G8B8);
-		rt_blur_8.create(r2_RT_blur_8, u32(w/8), u32(h/8), D3DFMT_A8R8G8B8);
+		rt_blur_h_8.create(r2_RT_blur_h_8, u32(w/8), u32(h/8), blur_fmt);
+		rt_blur_8.create(r2_RT_blur_8, u32(w/8), u32(h/8), blur_fmt);
 
-		rt_pp_bloom.create(r2_RT_pp_bloom, w, h, D3DFMT_A8R8G8B8);
+		// OWA: Perceptual Lighting render targets - FGFX LSPOIrr implementation
+		// Uses RGBA16F for HDR compatibility (matching original ReShade shader)
+		if (RImplementation.o.ssfx_pl)
+		{
+			// Progressive downsampling chain (energy-conservative)
+			rt_pl_half.create(r2_RT_pl_half, u32(w/2), u32(h/2), D3DFMT_A16B16G16R16F);    // 1/2 res
+			rt_pl_quad.create(r2_RT_pl_quad, u32(w/4), u32(h/4), D3DFMT_A16B16G16R16F);    // 1/4 res
+			rt_pl_octo.create(r2_RT_pl_octo, u32(w/8), u32(h/8), D3DFMT_A16B16G16R16F);    // 1/8 res
+			rt_pl_hexa.create(r2_RT_pl_hexa, u32(w/16), u32(h/16), D3DFMT_A16B16G16R16F);  // 1/16 res (cascade base)
+			// Cascaded blur ping-pong buffers (1/16 resolution)
+			rt_pl_hblur.create(r2_RT_pl_hblur, u32(w/16), u32(h/16), D3DFMT_A16B16G16R16F);
+			rt_pl_vblur.create(r2_RT_pl_vblur, u32(w/16), u32(h/16), D3DFMT_A16B16G16R16F);
+			rt_pl_short.create(r2_RT_pl_short, u32(w/16), u32(h/16), D3DFMT_A16B16G16R16F);
+			// Full resolution capture
+			rt_pl_source.create(r2_RT_pl_source, w, h, D3DFMT_A16B16G16R16F);
+		}
+
+		// OWA: rt_pp_bloom removed - phase_pp_bloom() output was never sampled
 
 		// Screen Space Shaders Stuff
 		rt_ssfx_taa.create(r2_RT_ssfx_taa, w, h, D3DFMT_A16B16G16R16F, SampleCount); // Temp RT
 
-		if (RImplementation.o.dx11_hdr10)
-			rt_ssfx_prev_frame.create(r2_RT_ssfx_prev_frame, w, h, D3DFMT_A16B16G16R16F); // Temp RT
-		else
-			rt_ssfx_prev_frame.create(r2_RT_ssfx_prev_frame, w, h, D3DFMT_A8R8G8B8); // Temp RT
+		// OWA: Use FP16 for previous frame when HDR10 or hires_rts enabled (better TAA quality)
+		rt_ssfx_prev_frame.create(r2_RT_ssfx_prev_frame, w, h, use_hires_format ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8);
 
 		rt_ssfx_motion_vectors.create(r2_RT_ssfx_motion_vectors, w, h, D3DFMT_A16B16G16R16F, SampleCount); // HUD mask & Velocity buffer
 		
@@ -598,10 +663,9 @@ CRenderTarget::CRenderTarget()
 		rt_ssfx_temp3.create(r2_RT_ssfx_temp3, w, h, D3DFMT_A8R8G8B8); // Temp RT
 
 		rt_ssfx_accum.create(r2_RT_ssfx_accum, w, h, D3DFMT_A16B16G16R16F, SampleCount); // Volumetric Acc
-		rt_ssfx_ssr.create(r2_RT_ssfx_ssr, w, h, D3DFMT_A8R8G8B8); // SSR Acc
 		rt_ssfx_water.create(r2_RT_ssfx_water, w, h, D3DFMT_A8R8G8B8); // Water Acc
-		rt_ssfx_ao.create(r2_RT_ssfx_ao, w, h, D3DFMT_A8R8G8B8); // AO Acc
-		rt_ssfx_il.create(r2_RT_ssfx_il, w, h, D3DFMT_A8R8G8B8); // IL Acc
+		// OWA: Use FP16 for IL when HDR10 or hires_rts enabled (better indirect lighting)
+		rt_ssfx_il.create(r2_RT_ssfx_il, w, h, use_hires_format ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8); // IL Acc
 
 		if (RImplementation.o.ssfx_sss)
 		{
@@ -611,38 +675,28 @@ CRenderTarget::CRenderTarget()
 			rt_ssfx_sss_tmp.create(r2_RT_ssfx_sss_tmp, w, h, D3DFMT_A8R8G8B8); // SSS EXT Acc
 		}
 
-		if (RImplementation.o.ssfx_bloom)
-		{
-			rt_ssfx_bloom1.create(r2_RT_ssfx_bloom1, w / 2.0f, h / 2.0f, D3DFMT_A16B16G16R16F); // Bloom
-			rt_ssfx_bloom_emissive.create(r2_RT_ssfx_bloom_emissive, w, h, D3DFMT_A8R8G8B8, SampleCount); // Emissive
-			rt_ssfx_bloom_lens.create(r2_RT_ssfx_bloom_lens, w / 4.0f, h / 4.0f, D3DFMT_A8R8G8B8); // Lens
-
-			rt_ssfx_bloom_tmp2.create(r2_RT_ssfx_bloom_tmp2, w / 2.0f, h / 2.0f, D3DFMT_A16B16G16R16F); // Bloom / 2
-			rt_ssfx_bloom_tmp4.create(r2_RT_ssfx_bloom_tmp4, w / 4.0f, h / 4.0f, D3DFMT_A16B16G16R16F); // Bloom / 4
-			rt_ssfx_bloom_tmp8.create(r2_RT_ssfx_bloom_tmp8, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Bloom / 8
-			rt_ssfx_bloom_tmp16.create(r2_RT_ssfx_bloom_tmp16, w / 16.0f, h / 16.0f, D3DFMT_A16B16G16R16F); // Bloom / 16
-			rt_ssfx_bloom_tmp32.create(r2_RT_ssfx_bloom_tmp32, w / 32.0f, h / 32.0f, D3DFMT_A16B16G16R16F); // Bloom / 32
-			rt_ssfx_bloom_tmp64.create(r2_RT_ssfx_bloom_tmp64, w / 64.0f, h / 64.0f, D3DFMT_A16B16G16R16F); // Bloom / 64
-
-			rt_ssfx_bloom_tmp32_2.create(r2_RT_ssfx_bloom_tmp32_2, w / 32.0f, h / 32.0f, D3DFMT_A16B16G16R16F); // Bloom / 32
-			rt_ssfx_bloom_tmp16_2.create(r2_RT_ssfx_bloom_tmp16_2, w / 16.0f, h / 16.0f, D3DFMT_A16B16G16R16F); // Bloom / 16
-			rt_ssfx_bloom_tmp8_2.create(r2_RT_ssfx_bloom_tmp8_2, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Bloom / 8
-			rt_ssfx_bloom_tmp4_2.create(r2_RT_ssfx_bloom_tmp4_2, w / 4.0f, h / 4.0f, D3DFMT_A16B16G16R16F); // Bloom / 4
-		}
-
 		rt_ssfx_volumetric.create(r2_RT_ssfx_volumetric, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Volumetric
 		rt_ssfx_volumetric_tmp.create(r2_RT_ssfx_volumetric_tmp, w / 8.0f, h / 8.0f, D3DFMT_A16B16G16R16F); // Volumetric
-		rt_ssfx_rain.create(r2_RT_ssfx_rain, w / 8.0f, h / 8.0f, D3DFMT_A8R8G8B8); // Rain refraction buffer
 		rt_ssfx_water_waves.create(r2_RT_ssfx_water_waves, 512, 512, D3DFMT_A8R8G8B8); // Water Waves
 
 		rt_ssfx_prevPos.create(r2_RT_ssfx_prevPos, w, h, D3DFMT_A16B16G16R16F, SampleCount);
+
+		// OWA XeGTAO render targets
+		// rt_gtao: 16-bit for bent normals precision (RGB = bent normal, A = obscurance)
+		// rt_gtao_edges: 8-bit for packed edge data (4 edges, 2 bits each)
+		// rt_gtao_temp: same format as rt_gtao, used to avoid read/write hazard in denoise pass
+		rt_gtao.create(r2_RT_gtao, w, h, D3DFMT_A16B16G16R16F, SampleCount);
+		rt_gtao_edges.create(r2_RT_gtao_edges, w, h, D3DFMT_L8);
+		rt_gtao_temp.create(r2_RT_gtao_temp, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 
 		//rt_ssfx_hud.create(r2_RT_ssfx_hud, w, h, D3DFMT_A16B16G16R16F); // Deprecated
 
 		if (RImplementation.o.dx10_msaa)
 		{
-            rt_Generic_0_r.create(r2_RT_generic0_r, w, h, ps_r4_hdr10_on ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8, SampleCount);
-            rt_Generic_1_r.create(r2_RT_generic1_r, w, h, ps_r4_hdr10_on ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8, SampleCount);
+			// OWA: Use same hi-res format as main generic targets
+			bool use_hires_msaa = RImplementation.o.dx11_hdr10 || RImplementation.o.hires_rts;
+            rt_Generic_0_r.create(r2_RT_generic0_r, w, h, use_hires_msaa ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8, SampleCount);
+            rt_Generic_1_r.create(r2_RT_generic1_r, w, h, use_hires_msaa ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8, SampleCount);
 			//rt_Generic.create		      (r2_RT_generic,w,h,   D3DFMT_A8R8G8B8, 1		);
 		}
 		//	Igor: for volumetric lights
@@ -652,18 +706,15 @@ CRenderTarget::CRenderTarget()
 			rt_Generic_2.create(r2_RT_generic2, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 	}
 
-	s_hdr10_bloom_downsample.create(b_hdr10_bloom_downsample, "hdr10_bloom_downsample");
-	s_hdr10_bloom_blur.create(b_hdr10_bloom_blur, "hdr10_bloom_blur");
-	s_hdr10_bloom_upsample.create(b_hdr10_bloom_upsample, "hdr10_bloom_upsample");
-
-	s_hdr10_lens_flare_downsample.create(b_hdr10_lens_flare_downsample, "hdr10_lens_flare_downsample");
-	s_hdr10_lens_flare_fgen.create(b_hdr10_lens_flare_fgen, "hdr10_lens_flare_fgen");
-	s_hdr10_lens_flare_blur.create(b_hdr10_lens_flare_blur, "hdr10_lens_flare_blur");
-	s_hdr10_lens_flare_upsample.create(b_hdr10_lens_flare_upsample, "hdr10_lens_flare_upsample");
-
 	s_sunshafts.create(b_sunshafts, "r2\\sunshafts");
 	s_blur.create(b_blur, "r2\\blur");
-	s_pp_bloom.create(b_pp_bloom, "r2\\pp_bloom");
+	// OWA: Perceptual Lighting shaders (only create when PL is enabled at startup)
+	if (RImplementation.o.ssfx_pl)
+	{
+		s_blur_pl.create(b_blur_pl, "r2\\blur_pl");
+		s_perceptual_lighting.create(b_perceptual_lighting, "r2\\perceptual_lighting");
+	}
+	// OWA: s_pp_bloom removed - phase_pp_bloom() output was never sampled
 	s_dof.create(b_dof, "r2\\dof");
 	s_gasmask_drops.create(b_gasmask_drops, "r2\\gasmask_drops");
 	s_gasmask_dudv.create(b_gasmask_dudv, "r2\\gasmask_dudv");
@@ -672,29 +723,20 @@ CRenderTarget::CRenderTarget()
 	s_fakescope.create(b_fakescope, "r2\\fakescope"); //crookr
 
 	s_heatvision.create(b_heatvision, "r2\\heatvision"); //--DSR-- HeatVision
-	s_lut.create(b_lut, "r2\\lut");
 	// OCCLUSION
 	s_occq.create(b_occq, "r2\\occq");
 
 	// Screen Space Shaders Stuff
+	s_ssfx_il.create(b_ssfx_il, "ssfx_il"); // Indirect Lighting
 	s_ssfx_fog_scattering.create(b_ssfx_fog_scattering, "ssfx_fog_scattering"); // SSS Fog Scattering
-	s_ssfx_motion_blur.create(b_ssfx_motion_blur, "ssfx_motion_blur"); // SSS Motion Blur
 	s_ssfx_taa.create(b_ssfx_taa, "ssfx_taa"); // SSS TAA
-	s_ssfx_rain.create(b_ssfx_rain, "ssfx_rain"); // SSS Rain
-	s_ssfx_bloom.create(b_ssfx_bloom, "ssfx_bloom"); // SSS Bloom
-	s_ssfx_bloom_lens.create(b_ssfx_bloom_lens, "ssfx_bloom_flares"); // SSS Bloom Lens flare
-	s_ssfx_bloom_downsample.create(b_ssfx_bloom_downsample, "ssfx_bloom_downsample"); // SSS Bloom
-	s_ssfx_bloom_upsample.create(b_ssfx_bloom_upsample, "ssfx_bloom_upsample"); // SSS Bloom
 	s_ssfx_sss_ext.create(b_ssfx_sss_ext, "ssfx_sss_ext"); // SSS Extended
 	s_ssfx_sss.create(b_ssfx_sss, "ssfx_sss"); // SSS
-	s_ssfx_ssr.create(b_ssfx_ssr, "ssfx_ssr"); // SSR
 	s_ssfx_volumetric_blur.create(b_ssfx_volumetric_blur, "ssfx_volumetric_blur"); // Volumetric Blur
-	
+
 	s_ssfx_water_ssr.create("ssfx_water_ssr"); // Water SSR
 	s_ssfx_water.create("ssfx_water"); // Water
 	s_ssfx_water_blur.create(b_ssfx_water_blur, "ssfx_water_blur"); // Water
-
-	s_ssfx_ao.create(b_ssfx_ao, "ssfx_ao"); // SSR
 
 	// SSS 23: Deprecated
 	/*string32 cskin_buffer;
@@ -713,7 +755,9 @@ CRenderTarget::CRenderTarget()
 		if (RImplementation.o.nullrt) nullrt = (D3DFORMAT)MAKEFOURCC('N', 'U', 'L', 'L');
 
 		u32 size = RImplementation.o.smapsize;
-		rt_smap_depth.create(r2_RT_smap_depth, size, size, depth_format);
+		// Create shadow map as texture array for parallel cascade rendering
+		// Each cascade writes to its own slice, enabling true parallel shadow map generation
+		rt_smap_depth.create(r2_RT_smap_depth, size, size, depth_format, 1, R__NUM_SUN_CASCADES);
 
 		if (RImplementation.o.dx10_minmax_sm)
 		{
@@ -866,7 +910,9 @@ CRenderTarget::CRenderTarget()
 
 	// BLOOM
 	{
-		D3DFORMAT fmt = D3DFMT_A8R8G8B8; //;		// D3DFMT_X8R8G8B8
+		// OWA: Use FP16 for bloom when HDR10 or hires_rts enabled (better gradients)
+		bool use_hires_bloom = RImplementation.o.dx11_hdr10 || RImplementation.o.hires_rts;
+		D3DFORMAT fmt = use_hires_bloom ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8;
 		u32 w = BLOOM_size_X, h = BLOOM_size_Y;
 		u32 fvf_build = D3DFVF_XYZRHW | D3DFVF_TEX4 | D3DFVF_TEXCOORDSIZE2(0) | D3DFVF_TEXCOORDSIZE2(1) |
 			D3DFVF_TEXCOORDSIZE2(2) | D3DFVF_TEXCOORDSIZE2(3);
@@ -886,6 +932,23 @@ CRenderTarget::CRenderTarget()
 			s_postprocess_msaa.create(b_postprocess_msaa, "r2\\post");
 		}
 		f_bloom_factor = 0.5f;
+	}
+
+	// OWA Multi-Scale Bloom pyramid
+	{
+		u32 w = Device.dwWidth;
+		u32 h = Device.dwHeight;
+		// Always use FP16 for multi-scale bloom (energy conservation)
+		D3DFORMAT fmt = D3DFMT_A16B16G16R16F;
+
+		rt_Bloom_D2.create(r2_RT_bloom_d2, w / 2, h / 2, fmt);
+		rt_Bloom_D4.create(r2_RT_bloom_d4, w / 4, h / 4, fmt);
+		rt_Bloom_D8.create(r2_RT_bloom_d8, w / 8, h / 8, fmt);
+		rt_Bloom_D16.create(r2_RT_bloom_d16, w / 16, h / 16, fmt);
+		rt_Bloom_D32.create(r2_RT_bloom_d32, w / 32, h / 32, fmt);
+
+		s_bloom_downsample.create(b_bloom_downsample, "r2\\bloom_downsample");
+		s_bloom_upsample.create(b_bloom_upsample, "r2\\bloom_upsample");
 	}
 
 	//SMAA
@@ -962,17 +1025,9 @@ CRenderTarget::CRenderTarget()
 	//	}
 	//}
 
-	// HDAO
-	if (RImplementation.o.ssao_hdao && RImplementation.o.ssao_ultra)
-	{
-		u32 w = Device.dwWidth, h = Device.dwHeight;
-		rt_ssao_temp.create(r2_RT_ssao_temp, w, h, D3DFMT_R16F, 1, true);
-		s_hdao_cs.create(b_hdao_cs, "r2\\ssao");
-		if (RImplementation.o.dx10_msaa)
-		{
-			s_hdao_cs_msaa.create(b_hdao_msaa_cs, "r2\\ssao");
-		}
-	}
+
+	// OWA XeGTAO shader - Intel's Ground Truth Ambient Occlusion
+	s_xegtao.create(b_xegtao, "r2\\xegtao");
 
 	// COMBINE
 	{
@@ -1030,20 +1085,20 @@ CRenderTarget::CRenderTarget()
 		{
 			//	Create immutable texture.
 			//	So we need to init data _before_ the creation.
-			// Surface
-			//R_CHK						(D3DXCreateVolumeTexture(HW.pDevice,TEX_material_LdotN,TEX_material_LdotH,4,1,0,D3DFMT_A8L8,D3DPOOL_MANAGED,&t_material_surf));
-			//t_material					= dxRenderDeviceRender::Instance().Resources->_CreateTexture(r2_material);
-			//t_material->surface_set		(t_material_surf);
-			//	Use DXGI_FORMAT_R8G8_UNORM
-
-			u16 tempData[TEX_material_LdotN * TEX_material_LdotH * TEX_material_Count];
+			//
+			// OWA HDR10: Use R16G16_FLOAT format in HDR mode to preserve full specular range
+			// SDR mode: Use R8G8_UNORM (original behavior)
+			//
+			// The material LUT stores pre-computed BRDF responses. In SDR mode, specular values
+			// are clamped to 0-1, which crushes highlight detail. In HDR mode, we preserve the
+			// full specular range (can exceed 1.0) so highlights have proper gradation when
+			// they reach the tonemapper.
 
 			D3D_TEXTURE3D_DESC desc;
 			desc.Width = TEX_material_LdotN;
 			desc.Height = TEX_material_LdotH;
 			desc.Depth = TEX_material_Count;
 			desc.MipLevels = 1;
-			desc.Format = DXGI_FORMAT_R8G8_UNORM;
 			desc.Usage = D3D_USAGE_IMMUTABLE;
 			desc.BindFlags = D3D_BIND_SHADER_RESOURCE;
 			desc.CPUAccessFlags = 0;
@@ -1051,84 +1106,140 @@ CRenderTarget::CRenderTarget()
 
 			D3D_SUBRESOURCE_DATA subData;
 
-			subData.pSysMem = tempData;
-			subData.SysMemPitch = desc.Width * 2;
-			subData.SysMemSlicePitch = desc.Height * subData.SysMemPitch;
-
-			// Fill it (addr: x=dot(L,N),y=dot(L,H))
-			//D3DLOCKED_BOX				R;
-			//R_CHK						(t_material_surf->LockBox	(0,&R,0,0));
-			for (u32 slice = 0; slice < TEX_material_Count; slice++)
-			{
-				for (u32 y = 0; y < TEX_material_LdotH; y++)
+			// Helper lambda to compute material BRDF values
+			auto computeBRDF = [](u32 slice, float ld, float ls, float& fd, float& fs) {
+				ls *= powf(ld, 1 / 32.f);
+				switch (slice)
 				{
-					for (u32 x = 0; x < TEX_material_LdotN; x++)
+				case 0:
+					// OrenNayar-like
+					fd = powf(ld, 0.75f);
+					fs = powf(ls, 16.f) * .5f;
+					break;
+				case 1:
+					// Blinn-like
+					fd = powf(ld, 0.90f);
+					fs = powf(ls, 24.f);
+					break;
+				case 2:
+					// Phong-like
+					fd = ld;
+					fs = powf(ls * 1.01f, 128.f);
+					break;
+				case 3:
+					// Metal-like
 					{
-						u16* p = (u16*)
-						(LPBYTE(subData.pSysMem)
-							+ slice * subData.SysMemSlicePitch
-							+ y * subData.SysMemPitch + x * 2);
-						float ld = float(x) / float(TEX_material_LdotN - 1);
-						float ls = float(y) / float(TEX_material_LdotH - 1) + EPS_S;
-						ls *= powf(ld, 1 / 32.f);
-						float fd, fs;
+						float s0 = _abs(1 - _abs(0.05f * _sin(33.f * ld) + ld - ls));
+						float s1 = _abs(1 - _abs(0.05f * _cos(33.f * ld * ls) + ld - ls));
+						float s2 = _abs(1 - _abs(ld - ls));
+						fd = ld;
+						fs = powf(_max(_max(s0, s1), s2), 24.f);
+						fs *= powf(ld, 1 / 7.f);
+					}
+					break;
+				default:
+					fd = fs = 0;
+				}
+			};
 
-						switch (slice)
+			if (RImplementation.o.dx11_hdr10)
+			{
+				// HDR mode: Use R16G16_FLOAT to preserve full specular range
+				// This allows specular highlights > 1.0 to flow through to the tonemapper
+				desc.Format = DXGI_FORMAT_R16G16_FLOAT;
+
+				// R16G16_FLOAT: 4 bytes per texel (2x 16-bit half-float)
+				const u32 texelSize = 4;
+				const u32 totalSize = TEX_material_LdotN * TEX_material_LdotH * TEX_material_Count * texelSize;
+				u8* tempDataHDR = (u8*)_alloca(totalSize);
+
+				subData.pSysMem = tempDataHDR;
+				subData.SysMemPitch = desc.Width * texelSize;
+				subData.SysMemSlicePitch = desc.Height * subData.SysMemPitch;
+
+				for (u32 slice = 0; slice < TEX_material_Count; slice++)
+				{
+					for (u32 y = 0; y < TEX_material_LdotH; y++)
+					{
+						for (u32 x = 0; x < TEX_material_LdotN; x++)
 						{
-						case 0:
+							float* p = (float*)(tempDataHDR
+								+ slice * subData.SysMemSlicePitch
+								+ y * subData.SysMemPitch + x * texelSize);
+
+							float ld = float(x) / float(TEX_material_LdotN - 1);
+							float ls = float(y) / float(TEX_material_LdotH - 1) + EPS_S;
+							float fd, fs;
+
+							computeBRDF(slice, ld, ls, fd, fs);
+
+							// Force maximum at corner (original behavior)
+							if ((y == (TEX_material_LdotH - 1)) && (x == (TEX_material_LdotN - 1)))
 							{
-								// looks like OrenNayar
-								fd = powf(ld, 0.75f); // 0.75
-								fs = powf(ls, 16.f) * .5f;
+								fd = 1.0f;
+								fs = 1.0f;
 							}
-							break;
-						case 1:
-							{
-								// looks like Blinn
-								fd = powf(ld, 0.90f); // 0.90
-								fs = powf(ls, 24.f);
-							}
-							break;
-						case 2:
-							{
-								// looks like Phong
-								fd = ld; // 1.0
-								fs = powf(ls * 1.01f, 128.f);
-							}
-							break;
-						case 3:
-							{
-								// looks like Metal
-								float s0 = _abs(1 - _abs(0.05f * _sin(33.f * ld) + ld - ls));
-								float s1 = _abs(1 - _abs(0.05f * _cos(33.f * ld * ls) + ld - ls));
-								float s2 = _abs(1 - _abs(ld - ls));
-								fd = ld; // 1.0
-								fs = powf(_max(_max(s0, s1), s2), 24.f);
-								fs *= powf(ld, 1 / 7.f);
-							}
-							break;
-						default:
-							fd = fs = 0;
+
+							// Convert to half-float and store
+							// Note: We're storing as R16G16_FLOAT but writing via float pointer
+							// Need to use DirectXMath or manual half conversion
+							HALF* hp = (HALF*)p;
+							hp[0] = XMConvertFloatToHalf(fd);  // R channel = diffuse
+							hp[1] = XMConvertFloatToHalf(fs);  // G channel = specular
 						}
-						s32 _d = clampr(iFloor(fd * 255.5f), 0, 255);
-						s32 _s = clampr(iFloor(fs * 255.5f), 0, 255);
-						if ((y == (TEX_material_LdotH - 1)) && (x == (TEX_material_LdotN - 1)))
-						{
-							_d = 255;
-							_s = 255;
-						}
-						*p = u16(_s * 256 + _d);
 					}
 				}
-			}
-			//R_CHK		(t_material_surf->UnlockBox	(0));
 
-			R_CHK(HW.pDevice->CreateTexture3D(&desc, &subData, &t_material_surf));
+				R_CHK(HW.pDevice->CreateTexture3D(&desc, &subData, &t_material_surf));
+				Msg("* HDR10: Material LUT using R16G16_FLOAT format (preserving full specular range)");
+			}
+			else
+			{
+				// SDR mode: Use R8G8_UNORM (original behavior)
+				desc.Format = DXGI_FORMAT_R8G8_UNORM;
+
+				u16 tempData[TEX_material_LdotN * TEX_material_LdotH * TEX_material_Count];
+
+				subData.pSysMem = tempData;
+				subData.SysMemPitch = desc.Width * 2;
+				subData.SysMemSlicePitch = desc.Height * subData.SysMemPitch;
+
+				for (u32 slice = 0; slice < TEX_material_Count; slice++)
+				{
+					for (u32 y = 0; y < TEX_material_LdotH; y++)
+					{
+						for (u32 x = 0; x < TEX_material_LdotN; x++)
+						{
+							u16* p = (u16*)
+							(LPBYTE(subData.pSysMem)
+								+ slice * subData.SysMemSlicePitch
+								+ y * subData.SysMemPitch + x * 2);
+
+							float ld = float(x) / float(TEX_material_LdotN - 1);
+							float ls = float(y) / float(TEX_material_LdotH - 1) + EPS_S;
+							float fd, fs;
+
+							computeBRDF(slice, ld, ls, fd, fs);
+
+							// Clamp to 8-bit range (SDR limitation)
+							s32 _d = clampr(iFloor(fd * 255.5f), 0, 255);
+							s32 _s = clampr(iFloor(fs * 255.5f), 0, 255);
+
+							if ((y == (TEX_material_LdotH - 1)) && (x == (TEX_material_LdotN - 1)))
+							{
+								_d = 255;
+								_s = 255;
+							}
+							*p = u16(_s * 256 + _d);
+						}
+					}
+				}
+
+				R_CHK(HW.pDevice->CreateTexture3D(&desc, &subData, &t_material_surf));
+			}
+
 			t_material = dxRenderDeviceRender::Instance().Resources->_CreateTexture(r2_material);
 			t_material->surface_set(t_material_surf);
-			//R_CHK						(D3DXCreateVolumeTexture(HW.pDevice,TEX_material_LdotN,TEX_material_LdotH,4,1,0,D3DFMT_A8L8,D3DPOOL_MANAGED,&t_material_surf));
-			//t_material					= dxRenderDeviceRender::Instance().Resources->_CreateTexture(r2_material);
-			//t_material->surface_set		(t_material_surf);
 
 			// #ifdef DEBUG
 			// R_CHK	(D3DXSaveTextureToFile	("x:\\r2_material.dds",D3DXIFF_DDS,t_material_surf,0));
@@ -1373,40 +1484,22 @@ CRenderTarget::~CRenderTarget()
 	////////////lvutner
 	xr_delete(b_blur);
 	xr_delete(b_dof);
-	xr_delete(b_pp_bloom);
+	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
 	xr_delete(b_gasmask_drops);
 	xr_delete(b_gasmask_dudv);
 	xr_delete(b_nightvision);
 	xr_delete(b_fakescope); //crookr
 	xr_delete(b_heatvision); //--DSR-- HeatVision
-	xr_delete(b_lut);
 	xr_delete(b_smaa);
 
 	// [ SSS Stuff ]
-	xr_delete(b_ssfx_fog_scattering); // SSS MotionBlur
-	xr_delete(b_ssfx_motion_blur); // SSS MotionBlur
+	xr_delete(b_ssfx_il); // Indirect Lighting
+	xr_delete(b_ssfx_fog_scattering); // SSS Fog Scattering
 	xr_delete(b_ssfx_taa); // SSS TAA
-	xr_delete(b_ssfx_rain); // SSS Rain
 	xr_delete(b_ssfx_water_blur); // SSS Water Blur
-	xr_delete(b_ssfx_bloom); // SSS Bloom
-	xr_delete(b_ssfx_bloom_lens); // SSS Bloom Lens
-	xr_delete(b_ssfx_bloom_downsample); // SSS Bloom Blur
-	xr_delete(b_ssfx_bloom_upsample); // SSS Bloom Blur
 	xr_delete(b_ssfx_sss_ext); // SSS Phase Ext
 	xr_delete(b_ssfx_sss); // SSS Phase
-	xr_delete(b_ssfx_ssr); // SSR Phase
 	xr_delete(b_ssfx_volumetric_blur); // Volumetric Phase
-	xr_delete(b_ssfx_ao); // AO Phase
-
-	// HDR10
-	xr_delete(b_hdr10_bloom_downsample);
-	xr_delete(b_hdr10_bloom_blur);
-	xr_delete(b_hdr10_bloom_upsample);
-	
-	xr_delete(b_hdr10_lens_flare_downsample);
-	xr_delete(b_hdr10_lens_flare_fgen);
-	xr_delete(b_hdr10_lens_flare_blur);
-	xr_delete(b_hdr10_lens_flare_upsample);
 
 	if (RImplementation.o.dx10_msaa)
 	{

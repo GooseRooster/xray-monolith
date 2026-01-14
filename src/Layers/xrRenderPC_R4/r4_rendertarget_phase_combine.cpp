@@ -61,22 +61,25 @@ void CRenderTarget::phase_combine()
 		t_LUM_dest->surface_set(rt_LUM_pool[gpu_id * 2 + 1]->pSurface);
 	}
 
-	if (RImplementation.o.ssao_hdao && RImplementation.o.ssao_ultra)
+	// OWA: AO passes (skip in static lighting mode - R1 aesthetic)
+	// XeGTAO runs as a separate pass when GTAO mode is enabled
+	// SSDO is still handled inline in combine_1.ps
+	if (!RImplementation.o.staticlighting)
 	{
-		if (ps_r_ssao > 0)
+		if (RImplementation.o.ssao_gtao)
 		{
-			phase_hdao();
+			// XeGTAO: Intel's Ground Truth Ambient Occlusion
+			// Outputs to rt_gtao (bent normal + obscurance) for combine_1.ps to sample
+			phase_xegtao();
 		}
-	}
-	else
-	{
-		if (RImplementation.o.ssao_opt_data)
+		else if (RImplementation.o.ssao_opt_data)
 		{
 			phase_downsamp();
-			//phase_ssao();
 		}
 		else if (RImplementation.o.ssao_blur_on)
+		{
 			phase_ssao();
+		}
 	}
 
 	// Save previus and current matrices
@@ -107,13 +110,9 @@ void CRenderTarget::phase_combine()
 			HW.pContext->ClearRenderTargetView(rt_ssfx_temp->pRT, ColorRGBA);
 			HW.pContext->ClearRenderTargetView(rt_ssfx_temp2->pRT, ColorRGBA);
 
-			if (RImplementation.o.ssfx_ao && ps_ssfx_ao.y > 0)
-			{
-				ssfx_PrevPos_Requiered = true;
-				phase_ssfx_ao(); // [SSFX] - New AO Phase
-			}
-
-			if (RImplementation.o.ssfx_il && ps_ssfx_il.y > 0)
+			// OWA: o.ssfx_il now includes r3_gi check (compile-time)
+			// Skip in static lighting mode (R1 aesthetic - no screen-space bounce)
+			if (RImplementation.o.ssfx_il && ps_ssfx_il.y > 0 && !RImplementation.o.staticlighting)
 			{
 				ssfx_PrevPos_Requiered = true;
 				phase_ssfx_il(); // [SSFX] - New IL Phase
@@ -322,19 +321,17 @@ void CRenderTarget::phase_combine()
 		}
 	}
 
-	//Copy previous rt
-	if (!RImplementation.o.dx10_msaa)
-		HW.pContext->CopyResource(rt_Generic_temp->pTexture->surface_get(), rt_Generic_0->pTexture->surface_get());
-	else
-		HW.pContext->CopyResource(rt_Generic_temp->pTexture->surface_get(), rt_Generic_0_r->pTexture->surface_get());
-
-	if (RImplementation.o.ssfx_ssr && !Device.m_SecondViewport.IsSVPFrame())
+	// OWA: Only copy rt_Generic to temp if water SSR needs it
+	// o.ssfx_water now includes r3_ssfx_water check (compile-time)
+	if (RImplementation.o.ssfx_water && !Device.m_SecondViewport.IsSVPFrame())
 	{
-		ssfx_PrevPos_Requiered = true;
-		phase_ssfx_ssr(); // [SSFX] - New SSR Phase
+		if (!RImplementation.o.dx10_msaa)
+			HW.pContext->CopyResource(rt_Generic_temp->pTexture->surface_get(), rt_Generic_0->pTexture->surface_get());
+		else
+			HW.pContext->CopyResource(rt_Generic_temp->pTexture->surface_get(), rt_Generic_0_r->pTexture->surface_get());
 	}
 
-	// [SSFX] - Water SSR rendering
+	// [SSFX] - Water SSR rendering (o.ssfx_water includes r3_ssfx_water check)
 	if (RImplementation.o.ssfx_water && !Device.m_SecondViewport.IsSVPFrame())
 	{
 		FLOAT ColorRGBA[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -378,19 +375,7 @@ void CRenderTarget::phase_combine()
 	RCache.set_xform_world(Fidentity);
 	RImplementation.r_dsgraph_render_water();
 	
-	{
-		if (RImplementation.o.ssfx_rain)
-		{
-			phase_ssfx_rain(); // Render a small color buffer to do the refraction and more
-
-			if (!RImplementation.o.dx10_msaa)
-				u_setrt(rt_Generic_0, 0, rt_ssfx_motion_vectors, HW.pBaseZB);
-			else
-				u_setrt(rt_Generic_0_r, 0, rt_ssfx_motion_vectors, rt_MSAADepth->pZRT);
-		}
-
-		g_pGamePersistent->Environment().RenderLast(); // rain/thunder-bolts
-	}
+	g_pGamePersistent->Environment().RenderLast(); // rain/thunder-bolts
 
 	/*if (ssfx_PrevPos_Requiered)
 		HW.pContext->CopyResource(rt_ssfx_prevPos->pTexture->surface_get(), rt_Position->pTexture->surface_get());*/
@@ -443,10 +428,13 @@ void CRenderTarget::phase_combine()
 	if (RImplementation.o.dx10_msaa)
 	{
 		// we need to resolve rt_Generic_1 into rt_Generic_1_r
+		// OWA: use fp16 format if HDR10 or hires_rts is on, otherwise use 8-bit
+		bool use_hires = RImplementation.o.dx11_hdr10 || RImplementation.o.hires_rts;
+		DXGI_FORMAT resolveFormat = use_hires ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R8G8B8A8_UNORM;
 		HW.pContext->ResolveSubresource(rt_Generic_1->pTexture->surface_get(), 0,
-		                                rt_Generic_1_r->pTexture->surface_get(), 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+		                                rt_Generic_1_r->pTexture->surface_get(), 0, resolveFormat);
 		HW.pContext->ResolveSubresource(rt_Generic_0->pTexture->surface_get(), 0,
-		                                rt_Generic_0_r->pTexture->surface_get(), 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+		                                rt_Generic_0_r->pTexture->surface_get(), 0, resolveFormat);
 	}
 
 	// for msaa we need a resolved color buffer - Holger
@@ -500,20 +488,17 @@ void CRenderTarget::phase_combine()
 
 
 
-	if (!_menu_pp)
+	// OWA: Skip sunshafts in static lighting mode (relies on light accumulation data)
+	if (!_menu_pp && !RImplementation.o.staticlighting)
 	{
 		if (ps_sunshafts_mode == R2SS_SCREEN_SPACE || ps_sunshafts_mode == R2SS_COMBINE_SUNSHAFTS)
 			phase_sunshafts();
 	}
 
+	// OWA: o.ssfx_fog now includes r3_ssfx_fog check (compile-time)
 	if (RImplementation.o.ssfx_fog && ps_ssfx_fog_scattering > 0)
 	{
 		phase_ssfx_fog_scattering();
-	}
-
-	if (RImplementation.o.ssfx_motionblur && ps_ssfx_motionblur.y > 0)
-	{
-		phase_ssfx_motion_blur();
 	}
 
 	if (scope_3D_fake_enabled)
@@ -523,27 +508,19 @@ void CRenderTarget::phase_combine()
 
 	//Compute blur textures
 	if (!Device.m_SecondViewport.IsSVPFrame()) // Temp fix for blur buffer and SVP
+	{
 		phase_blur();
+		// OWA: Perceptual Lighting cascaded blur (only when PL enabled at startup)
+		if (RImplementation.o.ssfx_pl)
+			phase_blur_pl();
+	}
 
-	//Compute bloom (new)
-	if (RImplementation.o.ssfx_bloom)
-	{
-		if (!Device.m_SecondViewport.IsSVPFrame())
-			phase_ssfx_bloom();
-		else
-			HW.pContext->ClearRenderTargetView(rt_ssfx_bloom1->pRT, ColorRGBA);
-	}
-	else
-	{
-		phase_pp_bloom();
-	}
-	
+	// OWA: phase_pp_bloom() removed - output was never sampled, replaced by multi-scale Kawase bloom
+
 	if (ps_r2_ls_flags.test(R2FLAG_DOF))
 	{	
 		phase_dof();
 	}
-
-	phase_lut();	
 
 	if(ps_r2_mask_control.x > 0)
 	{
@@ -575,6 +552,7 @@ void CRenderTarget::phase_combine()
         RCache.set_Stencil(FALSE);
     }    
 	
+	// OWA: o.ssfx_taa now includes r3_ssfx_taa check (compile-time)
 	if (RImplementation.o.ssfx_taa && ps_ssfx_taa.x > 0)
 	{
 		phase_ssfx_taa();
@@ -592,14 +570,18 @@ void CRenderTarget::phase_combine()
 	PP_Complex = TRUE;
 
 	// Combine everything + perform AA
+	// OWA: When perceptual lighting is enabled (compile-time) and PP_Complex is false,
+	// write to rt_pl_source instead of backbuffer so phase_perceptual_lighting can process it
 	if (RImplementation.o.dx10_msaa)
 	{
 		if (PP_Complex) u_setrt(rt_Generic, 0, 0, HW.pBaseZB); // LDR RT
+		else if (RImplementation.o.ssfx_pl) u_setrt(rt_pl_source, 0, 0, HW.pBaseZB); // OWA: PL intermediate RT
 		else u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
 	}
 	else
 	{
 		if (PP_Complex) u_setrt(rt_Color, 0, 0, HW.pBaseZB); // LDR RT
+		else if (RImplementation.o.ssfx_pl) u_setrt(rt_pl_source, 0, 0, HW.pBaseZB); // OWA: PL intermediate RT
 		else u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
 	}
 	//. u_setrt				( Device.dwWidth,Device.dwHeight,HW.pBaseRT,NULL,NULL,HW.pBaseZB);
@@ -695,17 +677,7 @@ void CRenderTarget::phase_combine()
 		/////lvutner		
 		RCache.set_c("mask_control", ps_r2_mask_control.x, ps_r2_mask_control.y, ps_r2_mask_control.z, ps_r2_mask_control.w);
 
-		RCache.set_c("tnmp_a", ps_r2_tnmp_a);
-		RCache.set_c("tnmp_b", ps_r2_tnmp_b);
-		RCache.set_c("tnmp_c", ps_r2_tnmp_c);
-		RCache.set_c("tnmp_d", ps_r2_tnmp_d);
-		RCache.set_c("tnmp_e", ps_r2_tnmp_e);
-		RCache.set_c("tnmp_f", ps_r2_tnmp_f);
-		RCache.set_c("tnmp_w", ps_r2_tnmp_w);
-
-		RCache.set_c("tnmp_exposure", ps_r2_tnmp_exposure);
-		RCache.set_c("tnmp_gamma", ps_r2_tnmp_gamma);
-		RCache.set_c("tnmp_onoff", ps_r2_tnmp_onoff);
+		// OWA: tnmp_* removed - unified hermite spline tonemapping now used in HDR10_ToDisplay_World()
 
 		//////////
 
@@ -713,18 +685,6 @@ void CRenderTarget::phase_combine()
 		RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 	}
 	RCache.set_Stencil(FALSE);
-
-	if (RImplementation.o.dx11_hdr10) {
-		// TODO: we should be able to avoid a copy if both are enabled
-		if (ps_r4_hdr10_bloom_on) {
-			HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), rt_Color->pTexture->surface_get());
-			phase_hdr10_bloom(); // samples from rt_Generic_0, writes to rt_Color
-		}
-		if (ps_r4_hdr10_flare_on) {
-			HW.pContext->CopyResource(rt_Generic_0->pTexture->surface_get(), rt_Color->pTexture->surface_get());
-			phase_hdr10_lens_flare(); // samples from rt_Generic_0, writes to rt_Color
-		}
-	}
 
 	//	if FP16-BLEND !not! supported - draw flares here, overwise they are already in the bloom target
 	/* if (!RImplementation.o.fp16_blend)*/
@@ -736,6 +696,15 @@ void CRenderTarget::phase_combine()
 	{
 		PIX_EVENT(phase_pp);
 		phase_pp();
+	}
+
+	// OWA: Perceptual Lighting phase - runs after ALL post-processing
+	// This matches the original ReShade implementation which operates on the final backbuffer
+	// Controlled by r3_gi command (compile-time flag, requires restart)
+	if (RImplementation.o.ssfx_pl)
+	{
+		PIX_EVENT(phase_perceptual_lighting);
+		phase_perceptual_lighting();
 	}
 
 	//	Re-adapt luminance

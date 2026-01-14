@@ -52,44 +52,34 @@ public:
 	IBlender* b_ssao;
 	IBlender* b_ssao_msaa[8];
 
-	IBlender* b_hdr10_bloom_downsample;
-	IBlender* b_hdr10_bloom_blur;
-	IBlender* b_hdr10_bloom_upsample;
-	
-	IBlender* b_hdr10_lens_flare_downsample;
-	IBlender* b_hdr10_lens_flare_fgen;
-	IBlender* b_hdr10_lens_flare_blur;
-	IBlender* b_hdr10_lens_flare_upsample;
+	// OWA Multi-Scale Bloom
+	IBlender* b_bloom_downsample;
+	IBlender* b_bloom_upsample;
 
 	IBlender* b_blur;
 	IBlender* b_dof;
-	IBlender* b_pp_bloom;
+	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
 	IBlender* b_gasmask_drops;
 	IBlender* b_gasmask_dudv;
 	IBlender* b_nightvision;
 	IBlender* b_fakescope; //crookr
 	IBlender* b_heatvision; //--DSR-- HeatVision
-	IBlender* b_lut;
 	IBlender* b_smaa;
 	// compute shader for hdao
 	IBlender* b_hdao_cs;
 	IBlender* b_hdao_msaa_cs;
 
 	// [SSS Stuff]
+	IBlender* b_ssfx_il; // Indirect Lighting
 	IBlender* b_ssfx_fog_scattering;
-	IBlender* b_ssfx_motion_blur;
 	IBlender* b_ssfx_taa;
-	IBlender* b_ssfx_rain;
 	IBlender* b_ssfx_water_blur;
-	IBlender* b_ssfx_bloom_downsample;
-	IBlender* b_ssfx_bloom_upsample;
-	IBlender* b_ssfx_bloom;
-	IBlender* b_ssfx_bloom_lens;
 	IBlender* b_ssfx_sss_ext;
 	IBlender* b_ssfx_sss;
-	IBlender* b_ssfx_ssr;
 	IBlender* b_ssfx_volumetric_blur;
-	IBlender* b_ssfx_ao;
+	IBlender* b_blur_pl; // OWA: Perceptual Lighting cascaded blur
+	IBlender* b_perceptual_lighting; // OWA: Perceptual Lighting final composite
+	IBlender* b_xegtao; // OWA: XeGTAO (Intel GTAO)
 
 #ifdef DEBUG
 	struct		dbg_line_t		{
@@ -113,6 +103,10 @@ public:
 	//--DSR-- HeatVision_start
 	ref_rt rt_Heat;
 	//--DSR-- HeatVision_end
+
+	// OWA: Static lighting lightmap render target
+	// RGB = baked indirect bounce lighting, A = sun occlusion
+	ref_rt rt_Lmap;
 
 	//
 	ref_rt rt_Accumulator; // 64bit		(r,g,b,specular)
@@ -141,7 +135,20 @@ public:
 	ref_rt rt_blur_h_8;
 	ref_rt rt_blur_8;
 
-	ref_rt rt_pp_bloom;
+	// OWA: Perceptual Lighting - FGFX LSPOIrr implementation
+	// Progressive downsampling chain (energy-conservative)
+	ref_rt rt_pl_half;    // 1/2 resolution downsample
+	ref_rt rt_pl_quad;    // 1/4 resolution downsample
+	ref_rt rt_pl_octo;    // 1/8 resolution downsample
+	ref_rt rt_pl_hexa;    // 1/16 resolution - base for cascaded blur
+	// Cascaded blur ping-pong buffers (1/16 resolution)
+	ref_rt rt_pl_hblur;   // Horizontal blur buffer
+	ref_rt rt_pl_vblur;   // Vertical blur buffer (also long blur output)
+	ref_rt rt_pl_short;   // Short blur capture (for recovery pass)
+	// Full resolution
+	ref_rt rt_pl_source;  // Full-res capture of post-PP image for PL
+
+	// OWA: rt_pp_bloom removed - phase_pp_bloom() output was never sampled
 
 	ref_rt rt_smaa_edgetex;
 	ref_rt rt_smaa_blendtex;
@@ -150,15 +157,22 @@ public:
 	ref_rt rt_Generic_2; // 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	ref_rt rt_Bloom_1; // 32bit, dim/4	(r,g,b,?)
 	ref_rt rt_Bloom_2; // 32bit, dim/4	(r,g,b,?)
+
+	// OWA Multi-Scale Bloom pyramid (Kawase downsample/tent upsample)
+	// Downsample chain: half -> quarter -> eighth -> sixteenth -> thirty-second
+	ref_rt rt_Bloom_D2;   // 1/2 resolution (initial extraction)
+	ref_rt rt_Bloom_D4;   // 1/4 resolution
+	ref_rt rt_Bloom_D8;   // 1/8 resolution
+	ref_rt rt_Bloom_D16;  // 1/16 resolution
+	ref_rt rt_Bloom_D32;  // 1/32 resolution (smallest, for wide haze)
+	// Upsample chain: reuses D16, D8, D4, D2 for output (ping-pong not needed with accumulation)
+
 	ref_rt rt_LUM_64; // 64bit, 64x64,	log-average in all components
 	ref_rt rt_LUM_8; // 64bit, 8x8,		log-average in all components
 
 	ref_rt rt_LUM_pool[CHWCaps::MAX_GPUS * 2]; // 1xfp32,1x1,		exp-result -> scaler
 	ref_texture t_LUM_src; // source
 	ref_texture t_LUM_dest; // destination & usage for current frame
-
-	// HDR10
-	ref_rt rt_HDR10_HalfRes[2];
 
 	// env
 	ref_texture t_envmap_0; // env-0
@@ -179,34 +193,16 @@ public:
 
 	ref_rt rt_ssfx_accum;
 	//ref_rt rt_ssfx_hud; // DEPRECATED
-	ref_rt rt_ssfx_ssr;
 	ref_rt rt_ssfx_water;
 	ref_rt rt_ssfx_water_waves;
-	ref_rt rt_ssfx_ao;
 	ref_rt rt_ssfx_il;
 
 	ref_rt rt_ssfx_sss;
 	ref_rt rt_ssfx_sss_ext;
 	ref_rt rt_ssfx_sss_ext2;
 	ref_rt rt_ssfx_sss_tmp;
-	ref_rt rt_ssfx_bloom1;
-	ref_rt rt_ssfx_bloom_emissive;
-	ref_rt rt_ssfx_bloom_lens;
-	ref_rt rt_ssfx_rain;
 	ref_rt rt_ssfx_volumetric;
 	ref_rt rt_ssfx_volumetric_tmp;
-
-	ref_rt rt_ssfx_bloom_tmp2;
-	ref_rt rt_ssfx_bloom_tmp4;
-	ref_rt rt_ssfx_bloom_tmp8;
-	ref_rt rt_ssfx_bloom_tmp16;
-	ref_rt rt_ssfx_bloom_tmp32;
-	ref_rt rt_ssfx_bloom_tmp64;
-
-	ref_rt rt_ssfx_bloom_tmp32_2;
-	ref_rt rt_ssfx_bloom_tmp16_2;
-	ref_rt rt_ssfx_bloom_tmp8_2;
-	ref_rt rt_ssfx_bloom_tmp4_2;
 
 	ref_rt rt_ssfx_taa;
 	ref_rt rt_ssfx_prev_frame;
@@ -214,10 +210,14 @@ public:
 
 	ref_rt rt_ssfx_prevPos;
 
+	// OWA XeGTAO
+	ref_rt rt_gtao;			// RGBA16F: RGB = bent normal, A = obscurance
+	ref_rt rt_gtao_edges;	// R8: Packed edge data for denoise
+	ref_rt rt_gtao_temp;	// RGBA16F: Temp copy for denoise pass (avoids read/write hazard)
+
 	ref_shader s_ssfx_water;
 	ref_shader s_ssfx_water_blur;
 	ref_shader s_ssfx_water_ssr;
-	ref_shader s_ssfx_ao;
 	//ref_shader s_ssfx_hud[5]; // SSS23: DEPRECATED
 
 	Fmatrix Matrix_previous, Matrix_current;
@@ -265,8 +265,10 @@ private:
 	ref_shader s_accum_reflected;
 	ref_shader s_accum_volume;
 	ref_shader s_blur;
+	ref_shader s_blur_pl; // OWA: Perceptual Lighting cascaded blur
+	ref_shader s_perceptual_lighting; // OWA: Perceptual Lighting final composite
 	ref_shader s_dof;
-	ref_shader s_pp_bloom;
+	// OWA: s_pp_bloom removed - phase_pp_bloom() output was never sampled
 	ref_shader s_gasmask_drops;
 	ref_shader s_gasmask_dudv;
 	ref_shader s_nightvision;
@@ -274,7 +276,6 @@ private:
 	ref_shader s_heatvision; //--DSR-- HeatVision
 	ref_shader s_smaa;
 
-	ref_shader s_lut;
 	//	generate min/max
 	ref_shader s_create_minmax_sm;
 
@@ -292,19 +293,15 @@ private:
 	ref_shader s_accum_volume_msaa[8];
 
 	// Screen Space Shaders Stuff
+	ref_shader s_ssfx_il; // Indirect Lighting
 	ref_shader s_ssfx_fog_scattering;
-	ref_shader s_ssfx_motion_blur;
 	ref_shader s_ssfx_taa;
-	ref_shader s_ssfx_rain;
-	ref_shader s_ssfx_bloom;
-	ref_shader s_ssfx_bloom_lens;
-	ref_shader s_ssfx_bloom_upsample;
-	ref_shader s_ssfx_bloom_downsample;
 	ref_shader s_ssfx_sss_ext;
 	ref_shader s_ssfx_sss;
-
-	ref_shader s_ssfx_ssr;
 	ref_shader s_ssfx_volumetric_blur;
+
+	// OWA XeGTAO
+	ref_shader s_xegtao;
 
 	ref_geom g_accum_point;
 	ref_geom g_accum_spot;
@@ -332,15 +329,9 @@ private:
 	ref_shader s_bloom_msaa;
 	float f_bloom_factor;
 
-	// HDR10
-	ref_shader s_hdr10_bloom_downsample;
-	ref_shader s_hdr10_bloom_blur;
-	ref_shader s_hdr10_bloom_upsample;
-	
-	ref_shader s_hdr10_lens_flare_downsample;
-	ref_shader s_hdr10_lens_flare_fgen;
-	ref_shader s_hdr10_lens_flare_blur;
-	ref_shader s_hdr10_lens_flare_upsample;
+	// OWA Multi-Scale Bloom
+	ref_shader s_bloom_downsample;
+	ref_shader s_bloom_upsample;
 
 	// Luminance
 	ref_shader s_luminance;
@@ -406,9 +397,12 @@ public:
 	void u_stencil_optimize(eStencilOptimizeMode eSOM = SO_Light);
 	void u_compute_texgen_screen(Fmatrix& dest);
 	void u_compute_texgen_jitter(Fmatrix& dest);
+	void u_setrt(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, const ref_rt& _4, const ref_rt& _5, ID3DDepthStencilView* zb);
 	void u_setrt(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, const ref_rt& _4, ID3DDepthStencilView* zb);
 	void u_setrt(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, ID3DDepthStencilView* zb);
 	void u_setrt(const ref_rt& _1, const ref_rt& _2, ID3DDepthStencilView* zb);
+	// Parallel-aware versions
+	void u_setrt(CBackend& cmd_list, const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, ID3DDepthStencilView* zb);
 	void u_setrt(u32 W, u32 H, ID3DRenderTargetView* _1, ID3DRenderTargetView* _2, ID3DRenderTargetView* _3,
 	             ID3DDepthStencilView* zb);
 	void u_calc_tc_noise(Fvector2& p0, Fvector2& p1);
@@ -419,7 +413,9 @@ public:
 	void u_DBT_disable();
 	void phase_sunshafts();
 	void phase_blur();
-	void phase_pp_bloom();
+	void phase_blur_pl(); // OWA: Perceptual Lighting cascaded blur
+	void phase_perceptual_lighting(); // OWA: Perceptual Lighting final composite (post-PP)
+	// OWA: phase_pp_bloom() removed - output was never sampled, replaced by multi-scale Kawase bloom
 	void phase_dof();
 	void phase_gasmask_drops();
 	void phase_gasmask_dudv();
@@ -427,13 +423,13 @@ public:
 	void phase_fakescope(); //crookr
 	void phase_heatvision(); //--DSR-- HeatVision
 	void phase_3DSSReticle(); // Redotix99: for 3D Shader Based Scopes
-	void phase_lut();
 	void phase_smaa();
 	void phase_scene_prepare();
 	void phase_scene_begin();
 	void phase_scene_end();
 	void phase_occq();
 	void phase_ssao();
+	void phase_xegtao(); // OWA: XeGTAO (Intel GTAO)
 	void phase_hdao();
 	void phase_downsamp();
 	void phase_wallmarks();
@@ -448,24 +444,15 @@ public:
 
 	// SSS Stuff
 	void phase_ssfx_taa();
-	void phase_ssfx_motion_blur();
 	void phase_ssfx_fog_scattering();
-	void phase_ssfx_rain(); // Bloom PP
-	void phase_ssfx_bloom(); // Bloom PP
 	void phase_ssfx_sss(); // SSS
 	void phase_ssfx_sss_ext(light_Package& LP); // SSS Spot lights
 
-	void phase_ssfx_ssr(); // SSR Phase
 	void phase_ssfx_volumetric_blur(); // Volumetric Blur
 	void phase_ssfx_water_blur(); // Water Blur
 	void phase_ssfx_water_waves(); // Water Waves
-	void phase_ssfx_ao(); // AO
 	void phase_ssfx_il(); // IL
 	void set_viewport_size(ID3DDeviceContext* dev, float w, float h);
-
-	// HDR10
-	void phase_hdr10_bloom();
-	void phase_hdr10_lens_flare();
 
 	//	Generates min/max sm
 	void create_minmax_SM();

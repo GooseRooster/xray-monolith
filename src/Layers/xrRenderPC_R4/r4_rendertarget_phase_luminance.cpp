@@ -150,7 +150,15 @@ void CRenderTarget::phase_luminance()
 		RCache.Vertex.Unlock(4, g_bloom_filter->vb_stride);
 
 		f_luminance_adapt = .9f * f_luminance_adapt + .1f * Device.fTimeDelta * ps_r2_tonemap_adaptation;
-		float amount = ps_r2_ls_flags.test(R2FLAG_TONEMAP) ? ps_r2_tonemap_amount : 0;
+
+		// OWA: r2_tonemap (legacy auto-exposure) is now disabled
+		// The system averaged the entire screen to one value and applied a uniform multiplier,
+		// which is not proper eye adaptation. The Hermite spline tonemapper in HDR10_ToDisplay_World()
+		// now handles all highlight compression uniformly for both SDR and HDR paths.
+		// Setting amount to 0 forces MiddleGray to neutral (1, 0, 1) = no adaptation effect.
+		// float amount = ps_r2_ls_flags.test(R2FLAG_TONEMAP) ? ps_r2_tonemap_amount : 0;
+		float amount = 0;  // OWA: Disabled - r2_tonemap toggle has no effect
+
 		Fvector3 _none, _full, _result;
 		_none.set(1, 0, 1);
 		_full.set(ps_r2_tonemap_middlegray, 1.f, ps_r2_tonemap_low_lum);

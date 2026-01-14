@@ -59,10 +59,7 @@ void CRenderTarget::draw_rain(light& RainSetup)
 	}
 
 	// recalculate d_Z, to perform depth-clipping
-	float fRainFar = 250;
-
-	if (ps_ssfx_gloss_method == 0)
-		fRainFar = ps_r3_dyn_wet_surf_far;
+	float fRainFar = ps_r3_dyn_wet_surf_far;
 
 	Fvector center_pt;
 	center_pt.mad(Device.vCameraPosition, Device.vCameraDirection, fRainFar);
@@ -110,7 +107,7 @@ void CRenderTarget::draw_rain(light& RainSetup)
 		Fmatrix m_shadow;
 		{
 			Fmatrix xf_project;
-			xf_project.mul(m_TexelAdjust, RainSetup.X.D.combine);
+			xf_project.mul(m_TexelAdjust, RainSetup.X.D[0].combine);
 			m_shadow.mul(xf_project, Device.mInvView);
 
 			FPU::m24r();

@@ -37,11 +37,6 @@ dxRainRender::dxRainRender()
 	hGeom_Rain.create(FVF::F_LIT, RCache.Vertex.Buffer(), RCache.QuadIB);
 	hGeom_Drops.create(D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1, RCache.Vertex.Buffer(), RCache.Index.Buffer());
 
-#if defined(USE_DX11)
-	if (RImplementation.o.ssfx_rain)
-		SH_Splash.create("effects\\rain_splash", "fx\\fx_rain");
-#endif
-
 	FS.r_close(F);
 }
 
@@ -66,23 +61,9 @@ void dxRainRender::Render(CEffect_Rain& owner)
 	float _drop_width = drop_width;
 	float _drop_speed = 1.0f;
 	ref_shader& _splash_SH = DM_Drop->shader;
-	static shared_str s_shader_setup = "ssfx_rain_setup";
 
 	int rain_max_particles = max_desired_items;
 	float rain_radius = source_radius;
-
-	// SSS Rain shader is available
-#if defined(USE_DX11)
-	if (RImplementation.o.ssfx_rain)
-	{
-		_drop_len = ps_ssfx_rain_1.x;
-		_drop_width = ps_ssfx_rain_1.y;
-		_drop_speed = ps_ssfx_rain_1.z;
-		_splash_SH = SH_Splash;
-		rain_max_particles = ps_ssfx_rain_drops_setup.x;
-		rain_radius = ps_ssfx_rain_drops_setup.y;
-	}
-#endif
 
 	u32 desired_items = iFloor(0.01f * (1.f + factor * 99.0f) * float(rain_max_particles));
 
@@ -93,6 +74,13 @@ void dxRainRender::Render(CEffect_Rain& owner)
 	// visual
 	float factor_visual = factor / 2.f + .5f;
 	Fvector3 f_rain_color = g_pGamePersistent->Environment().CurrentEnv->rain_color;
+
+	// OWA: Blend rain color with environment hemi to prevent overly bright rain in shadowed areas
+	// rain_hemi ranges from 0 (fully shadowed) to ~1 (fully lit by sky)
+	// Use a minimum of 0.3 to prevent rain from becoming completely invisible in dark areas
+	float hemi_blend = _max(owner.rain_hemi, 0.3f);
+	f_rain_color.mul(hemi_blend);
+
 	u32 u_rain_color = color_rgba_f(f_rain_color.x, f_rain_color.y, f_rain_color.z, factor_visual);
 
 	// born _new_ if needed
@@ -249,7 +237,6 @@ void dxRainRender::Render(CEffect_Rain& owner)
 		RCache.Render(D3DPT_TRIANGLELIST, vOffset, 0, vCount, 0, vCount / 2);
 		//HW.pDevice->SetRenderState	(D3DRS_CULLMODE,D3DCULL_CCW);
 		RCache.set_CullMode(CULL_CCW);
-		RCache.set_c(s_shader_setup, ps_ssfx_rain_2); // Alpha, Brigthness, Refraction, Reflection
 	}
 
 	// Particles
@@ -260,7 +247,6 @@ void dxRainRender::Render(CEffect_Rain& owner)
 		float dt = Device.fTimeDelta;
 		_IndexStream& _IS = RCache.Index;
 		RCache.set_Shader(_splash_SH);
-		RCache.set_c(s_shader_setup, ps_ssfx_rain_3); // Alpha, Refraction
 
 		Fmatrix mXform, mScale;
 		int pcount = 0;

@@ -69,6 +69,39 @@ namespace FVF
 
 	const u32 F_LIT = D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1;
 
+	// OWA: HDR-capable vertex format for particles
+	// Uses float4 color instead of u32 to support values > 1.0
+	struct LIT_HDR
+	{
+		Fvector p;
+		Fvector4 color;  // RGBA as floats, can exceed 1.0 for HDR
+		Fvector2 t;
+		IC void set(const LIT_HDR& src) { *this = src; };
+		IC void set(float x, float y, float z, float r, float g, float b, float a, float u, float v)
+		{
+			p.set(x, y, z);
+			color.set(r, g, b, a);
+			t.set(u, v);
+		}
+
+		IC void set(const Fvector& _p, float r, float g, float b, float a, float u, float v)
+		{
+			p.set(_p);
+			color.set(r, g, b, a);
+			t.set(u, v);
+		}
+
+		IC void set(const Fvector& _p, const Fvector4& c, float u, float v)
+		{
+			p.set(_p);
+			color = c;
+			t.set(u, v);
+		}
+	};
+
+	// Note: LIT_HDR uses custom vertex declaration, not D3DFVF
+	// The stride is: 3 floats (pos) + 4 floats (color) + 2 floats (tex) = 36 bytes
+
 	struct TL0uv
 	{
 		Fvector4 p;

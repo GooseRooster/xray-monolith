@@ -12,6 +12,16 @@
 using namespace PAPI;
 using namespace PS;
 
+// OWA: HDR particle vertex declaration
+// Layout: position(float3) + color(float4) + texcoord(float2) = 36 bytes
+static D3DVERTEXELEMENT9 dwDecl_LIT_HDR[] =
+{
+	{0, 0,  D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0},  // pos (12 bytes)
+	{0, 12, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0},     // color RGBA as floats (16 bytes)
+	{0, 28, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0},  // texcoord (8 bytes)
+	D3DDECL_END()
+};
+
 static void ApplyTexgen(const Fmatrix& mVP)
 {
 	Fmatrix mTexgen;
@@ -249,6 +259,8 @@ void CParticleEffect::OnDeviceCreate()
 		if (m_Def->m_Flags.is(CPEDef::dfSprite))
 		{
 			geom.create(FVF::F_LIT, RCache.Vertex.Buffer(), RCache.QuadIB);
+			// OWA: Also create HDR geometry for HDR10 mode
+			geom_hdr.create(dwDecl_LIT_HDR, RCache.Vertex.Buffer(), RCache.QuadIB);
 			if (m_Def) shader = m_Def->m_CachedShader;
 		}
 	}
@@ -261,6 +273,7 @@ void CParticleEffect::OnDeviceDestroy()
 		if (m_Def->m_Flags.is(CPEDef::dfSprite))
 		{
 			geom.destroy();
+			geom_hdr.destroy();  // OWA: Destroy HDR geometry
 			shader.destroy();
 		}
 	}
@@ -423,6 +436,46 @@ IC void FillSprite(FVF::LIT*& pv, const Fvector& pos, const Fvector& dir, const 
 	FillSprite(pv, T, R, pos, lt, rb, r1, r2, clr, sina, cosa);
 }
 
+// OWA: HDR FillSprite - uses FVF::LIT_HDR with float4 color
+IC void FillSpriteHDR(FVF::LIT_HDR*& pv, const Fvector& T, const Fvector& R, const Fvector& pos, const Fvector2& lt,
+                      const Fvector2& rb, float r1, float r2, const Fvector4& clr, float sina, float cosa)
+{
+	m_sprite_section.Enter();
+
+	float sa = sina;
+	float ca = cosa;
+	Fvector Vr, Vt;
+	Vr.x = T.x * r1 * sa + R.x * r1 * ca;
+	Vr.y = T.y * r1 * sa + R.y * r1 * ca;
+	Vr.z = T.z * r1 * sa + R.z * r1 * ca;
+	Vt.x = T.x * r2 * ca - R.x * r2 * sa;
+	Vt.y = T.y * r2 * ca - R.y * r2 * sa;
+	Vt.z = T.z * r2 * ca - R.z * r2 * sa;
+
+	Fvector a, b, c, d;
+	a.sub(Vt, Vr);
+	b.add(Vt, Vr);
+	c.invert(a);
+	d.invert(b);
+
+	pv->set(d.x + pos.x, d.y + pos.y, d.z + pos.z, clr.x, clr.y, clr.z, clr.w, lt.x, rb.y); pv++;
+	pv->set(a.x + pos.x, a.y + pos.y, a.z + pos.z, clr.x, clr.y, clr.z, clr.w, lt.x, lt.y); pv++;
+	pv->set(c.x + pos.x, c.y + pos.y, c.z + pos.z, clr.x, clr.y, clr.z, clr.w, rb.x, rb.y); pv++;
+	pv->set(b.x + pos.x, b.y + pos.y, b.z + pos.z, clr.x, clr.y, clr.z, clr.w, rb.x, lt.y); pv++;
+
+	m_sprite_section.Leave();
+}
+
+// OWA: HDR FillSprite with direction (calculates R from direction)
+IC void FillSpriteHDR(FVF::LIT_HDR*& pv, const Fvector& pos, const Fvector& dir, const Fvector2& lt, const Fvector2& rb,
+                      float r1, float r2, const Fvector4& clr, float sina, float cosa)
+{
+	const Fvector& T = dir;
+	Fvector R;
+	R.crossproduct(T, RDEVICE.vCameraDirection).normalize_safe();
+	FillSpriteHDR(pv, T, R, pos, lt, rb, r1, r2, clr, sina, cosa);
+}
+
 struct PRS_PARAMS
 {
 	FVF::LIT* pv;
@@ -569,7 +622,131 @@ void ParticleRenderStream(FVF::LIT* pv, u32 count, PAPI::Particle * particles, C
 		}
 }
 
-void CParticleEffect::Render(float)
+// OWA: HDR particle render stream - uses float4 color instead of u32
+void ParticleRenderStreamHDR(FVF::LIT_HDR* pv, u32 count, PAPI::Particle* particles, CParticleEffect* pPE)
+{
+	float sina = 0.0f, cosa = 0.0f;
+	float angle = 0xFFFFFFFF;
+
+	for (u32 i = 0; i != count; ++i)
+	{
+		PAPI::Particle& m = particles[i];
+		Fvector2 lt, rb;
+		lt.set(0.f, 0.f);
+		rb.set(1.f, 1.f);
+
+		_mm_prefetch((char*)&particles[i + 1], _MM_HINT_NTA);
+
+		if (angle != m.rot.x)
+		{
+			angle = m.rot.x;
+			sina = std::sinf(*(float*)&angle);
+			cosa = std::cosf(*(float*)&angle);
+		}
+
+		_mm_prefetch(64 + (char*)&particles[i + 1], _MM_HINT_NTA);
+
+		if (pPE->m_Def->m_Flags.is(CPEDef::dfFramed))
+			pPE->m_Def->m_Frame.CalculateTC(iFloor(float(m.frame) / 255.f), lt, rb);
+
+		float r_x = m.size.x * 0.5f;
+		float r_y = m.size.y * 0.5f;
+		float speed = 0.f;
+		bool speed_calculated = false;
+
+		// OWA: Use Fvector4 for color - preserves full float precision for HDR
+		Fvector4 clr;
+		clr.set(m.colorR, m.colorG, m.colorB, m.colorA);
+
+		if (pPE->m_Def->m_Flags.is(CPEDef::dfVelocityScale))
+		{
+			magnitude_sse(m.vel, speed);
+			speed_calculated = true;
+			r_x += speed * pPE->m_Def->m_VelocityScale.x;
+			r_y += speed * pPE->m_Def->m_VelocityScale.y;
+		}
+
+		if (pPE->m_Def->m_Flags.is(CPEDef::dfAlignToPath))
+		{
+			if (!speed_calculated)
+				magnitude_sse(m.vel, speed);
+			if ((speed < EPS_S) && pPE->m_Def->m_Flags.is(CPEDef::dfWorldAlign))
+			{
+				Fmatrix M;
+				M.setXYZ(pPE->m_Def->m_APDefaultRotation);
+				if (pPE->m_RT_Flags.is(CParticleEffect::flRT_XFORM))
+				{
+					Fvector p;
+					pPE->m_XFORM.transform_tiny(p, m.pos);
+					M.mulA_43(pPE->m_XFORM);
+					FillSpriteHDR(pv, M.k, M.i, p, lt, rb, r_x, r_y, clr, sina, cosa);
+				}
+				else
+				{
+					FillSpriteHDR(pv, M.k, M.i, m.pos, lt, rb, r_x, r_y, clr, sina, cosa);
+				}
+			}
+			else if ((speed >= EPS_S) && pPE->m_Def->m_Flags.is(CPEDef::dfFaceAlign))
+			{
+				Fmatrix M;
+				M.identity();
+				M.k.div(m.vel, speed);
+				M.j.set(0, 1, 0);
+				if (_abs(M.j.dotproduct(M.k)) > .99f)
+					M.j.set(0, 0, 1);
+				M.i.crossproduct(M.j, M.k);
+				M.i.normalize();
+				M.j.crossproduct(M.k, M.i);
+				M.j.normalize();
+				if (pPE->m_RT_Flags.is(CParticleEffect::flRT_XFORM))
+				{
+					Fvector p;
+					pPE->m_XFORM.transform_tiny(p, m.pos);
+					M.mulA_43(pPE->m_XFORM);
+					FillSpriteHDR(pv, M.j, M.i, p, lt, rb, r_x, r_y, clr, sina, cosa);
+				}
+				else
+				{
+					FillSpriteHDR(pv, M.j, M.i, m.pos, lt, rb, r_x, r_y, clr, sina, cosa);
+				}
+			}
+			else
+			{
+				Fvector dir;
+				if (speed >= EPS_S)
+					dir.div(m.vel, speed);
+				else
+					dir.setHP(-pPE->m_Def->m_APDefaultRotation.y, -pPE->m_Def->m_APDefaultRotation.x);
+				if (pPE->m_RT_Flags.is(CParticleEffect::flRT_XFORM))
+				{
+					Fvector p, d;
+					pPE->m_XFORM.transform_tiny(p, m.pos);
+					pPE->m_XFORM.transform_dir(d, dir);
+					FillSpriteHDR(pv, p, d, lt, rb, r_x, r_y, clr, sina, cosa);
+				}
+				else
+				{
+					FillSpriteHDR(pv, m.pos, dir, lt, rb, r_x, r_y, clr, sina, cosa);
+				}
+			}
+		}
+		else
+		{
+			if (pPE->m_RT_Flags.is(CParticleEffect::flRT_XFORM))
+			{
+				Fvector p;
+				pPE->m_XFORM.transform_tiny(p, m.pos);
+				FillSpriteHDR(pv, RDEVICE.vCameraTop, RDEVICE.vCameraRight, p, lt, rb, r_x, r_y, clr, sina, cosa);
+			}
+			else
+			{
+				FillSpriteHDR(pv, RDEVICE.vCameraTop, RDEVICE.vCameraRight, m.pos, lt, rb, r_x, r_y, clr, sina, cosa);
+			}
+		}
+	}
+}
+
+void CParticleEffect::Render(float, bool)
 {
 #ifdef _GPA_ENABLED
 		TAL_SCOPED_TASK_NAMED( "CParticleEffect::Render()" );
@@ -585,12 +762,28 @@ void CParticleEffect::Render(float)
 	{
 		if (m_Def && m_Def->m_Flags.is(CPEDef::dfSprite))
 		{
-			FVF::LIT* pv_start = (FVF::LIT*)RCache.Vertex.Lock(p_cnt * 4 * 4, geom->vb_stride, dwOffset);
-			ParticleRenderStream(pv_start, p_cnt, particles, this);
+			// OWA: Use HDR path when HDR10 is enabled (R4/DX11 only)
+#ifdef USE_DX11
+			bool use_hdr = RImplementation.o.dx11_hdr10 && geom_hdr;
+#else
+			bool use_hdr = false;
+#endif
+			ref_geom& active_geom = use_hdr ? geom_hdr : geom;
+
+			if (use_hdr)
+			{
+				FVF::LIT_HDR* pv_start = (FVF::LIT_HDR*)RCache.Vertex.Lock(p_cnt * 4 * sizeof(FVF::LIT_HDR), active_geom->vb_stride, dwOffset);
+				ParticleRenderStreamHDR(pv_start, p_cnt, particles, this);
+			}
+			else
+			{
+				FVF::LIT* pv_start = (FVF::LIT*)RCache.Vertex.Lock(p_cnt * 4 * 4, active_geom->vb_stride, dwOffset);
+				ParticleRenderStream(pv_start, p_cnt, particles, this);
+			}
 
 			dwCount = p_cnt << 2;
 
-			RCache.Vertex.Unlock(dwCount, geom->vb_stride);
+			RCache.Vertex.Unlock(dwCount, active_geom->vb_stride);
 			if (dwCount)
 			{
 #ifndef _EDITOR
@@ -605,7 +798,7 @@ void CParticleEffect::Render(float)
 #endif
 
 				RCache.set_xform_world(Fidentity);
-				RCache.set_Geometry(geom);
+				RCache.set_Geometry(active_geom);
 
 				RCache.set_CullMode(m_Def->m_Flags.is(CPEDef::dfCulling)
 					                    ? (m_Def->m_Flags.is(CPEDef::dfCullCCW) ? CULL_CCW : CULL_CW)
@@ -678,7 +871,7 @@ IC void FillSprite	(FVF::LIT*& pv, const Fvector& pos, const Fvector& dir, const
 	pv->set		(b.x+pos.x,b.y+pos.y,b.z+pos.z,	clr, rb.x,lt.y);	pv++;
 }
 
-void CParticleEffect::Render(float )
+void CParticleEffect::Render(float, bool)
 {
 	u32			dwOffset,dwCount;
 	// Get a pointer to the particles in gp memory
@@ -708,7 +901,7 @@ void CParticleEffect::Render(float )
 				if (m_Def->m_Flags.is(CPEDef::dfAlignToPath)){
 					float speed	= m.vel.magnitude();
                     if ((speed<EPS_S)&&m_Def->m_Flags.is(CPEDef::dfWorldAlign)){
-                    	Fmatrix	M;  	
+                    	Fmatrix	M;
                         M.setXYZ			(m_Def->m_APDefaultRotation);
                         if (m_RT_Flags.is(flRT_XFORM)){
                             Fvector p;
@@ -720,7 +913,7 @@ void CParticleEffect::Render(float )
                         }
                     }else if ((speed>=EPS_S)&&m_Def->m_Flags.is(CPEDef::dfFaceAlign)){
                     	Fmatrix	M;  		M.identity();
-                        M.k.div				(m.vel,speed);            
+                        M.k.div				(m.vel,speed);
                         M.j.set 			(0,1,0);	if (_abs(M.j.dotproduct(M.k))>.99f)  M.j.set(0,0,1);
                         M.i.crossproduct	(M.j,M.k);	M.i.normalize	();
                         M.j.crossproduct   	(M.k,M.i);	M.j.normalize  ();
@@ -757,7 +950,7 @@ void CParticleEffect::Render(float )
 			}
 			dwCount 			= u32(pv-pv_start);
 			RCache.Vertex.Unlock(dwCount,geom->vb_stride);
-			if (dwCount)    
+			if (dwCount)
 			{
 #ifndef _EDITOR
 				Fmatrix FTold						= Device.mFullTransform;
@@ -775,7 +968,7 @@ void CParticleEffect::Render(float )
 
                 RCache.set_CullMode		(m_Def->m_Flags.is(CPEDef::dfCulling)?(m_Def->m_Flags.is(CPEDef::dfCullCCW)?CULL_CCW:CULL_CW):CULL_NONE);
 				RCache.Render	   		(D3DPT_TRIANGLELIST,dwOffset,0,dwCount,0,dwCount/2);
-                RCache.set_CullMode		(CULL_CCW	); 
+                RCache.set_CullMode		(CULL_CCW	);
 #ifndef _EDITOR
 				if(GetHudMode())
 				{

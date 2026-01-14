@@ -64,16 +64,37 @@
 #define		r2_RT_blur_h_8	"$user$blur_h_8"
 #define		r2_RT_blur_8	"$user$blur_8"
 
-#define		r2_RT_pp_bloom	"$user$pp_bloom"
+// OWA: Perceptual Lighting - FGFX LSPOIrr implementation
+// Progressive downsampling chain (energy-conservative)
+#define		r2_RT_pl_half		"$user$pl_half"			// 1/2 resolution
+#define		r2_RT_pl_quad		"$user$pl_quad"			// 1/4 resolution
+#define		r2_RT_pl_octo		"$user$pl_octo"			// 1/8 resolution
+#define		r2_RT_pl_hexa		"$user$pl_hexa"			// 1/16 resolution (cascaded blur base)
+// Cascaded blur ping-pong buffers (1/16 resolution)
+#define		r2_RT_pl_hblur		"$user$pl_hblur"		// Horizontal blur buffer
+#define		r2_RT_pl_vblur		"$user$pl_vblur"		// Vertical blur buffer (long blur output)
+#define		r2_RT_pl_short		"$user$pl_short"		// Short blur capture (for recovery)
+// Full resolution
+#define		r2_RT_pl_source		"$user$pl_source"		// Full-res capture of post-PP image
+
+// OWA: r2_RT_pp_bloom removed - phase_pp_bloom() output was never sampled
 
 #define 	r4_RT_HDR10_halfres0 "$user$hdr10_halfres0"
 #define 	r4_RT_HDR10_halfres1 "$user$hdr10_halfres1"
+
+// OWA Multi-Scale Bloom pyramid
+#define		r2_RT_bloom_d2		"$user$bloom_d2"	// 1/2 resolution
+#define		r2_RT_bloom_d4		"$user$bloom_d4"	// 1/4 resolution
+#define		r2_RT_bloom_d8		"$user$bloom_d8"	// 1/8 resolution
+#define		r2_RT_bloom_d16		"$user$bloom_d16"	// 1/16 resolution
+#define		r2_RT_bloom_d32		"$user$bloom_d32"	// 1/32 resolution (wide haze)
 
 #define		r2_RT_dof			"$user$dof"
 #define		r2_RT_ui			"$user$ui"
 
 #define		r2_RT_scopert		"$user$scopeRT" //crookr
 #define		r2_RT_heat			"$user$heat" //--DSR-- HeatVision
+#define		r2_RT_lmap			"$user$lmap" // OWA: Static lighting lightmap (RGB=indirect, A=sun_occ)
 
 #define		r2_RT_smaa_edgetex "$user$smaa_edgetex"
 #define		r2_RT_smaa_blendtex "$user$smaa_blendtex"
@@ -83,42 +104,28 @@
 #define		r2_RT_ssfx_temp2		"$user$ssfx_temp2" // SSS Temp3
 #define		r2_RT_ssfx_temp3		"$user$ssfx_temp3"
 #define		r2_RT_ssfx_accum		"$user$ssfx_accum" // SSS Volumetric
-//#define		r2_RT_ssfx_hud			"$user$ssfx_hud" // HUD & Velocity Buffer
 
-#define		r2_RT_ssfx_ssr			"$user$ssfx_ssr" // SSR Acc
 #define		r2_RT_ssfx_water		"$user$ssfx_water" // Water Acc
 #define		r2_RT_ssfx_water_waves	"$user$ssfx_water_waves"
-#define		r2_RT_ssfx_ao			"$user$ssfx_ao" // AO Acc
 #define		r2_RT_ssfx_il			"$user$ssfx_il" // IL Acc
 
 #define		r2_RT_ssfx_sss			"$user$ssfx_sss" // SSS Acc
 #define		r2_RT_ssfx_sss_ext		"$user$ssfx_sss_ext" // SSS Acc
 #define		r2_RT_ssfx_sss_ext2		"$user$ssfx_sss_ext2" // SSS Acc
 #define		r2_RT_ssfx_sss_tmp		"$user$ssfx_sss_tmp" // SSS Acc
-#define		r2_RT_ssfx_bloom1		"$user$ssfx_bloom1" // Bloom
-#define		r2_RT_ssfx_bloom_emissive	"$user$ssfx_bloom_emissive" // Bloom
-#define		r2_RT_ssfx_bloom_lens	"$user$ssfx_bloom_lens" // Bloom
-#define		r2_RT_ssfx_rain			"$user$ssfx_rain" // Rain refraction buffer
 #define		r2_RT_ssfx_volumetric	"$user$ssfx_volumetric" // Volumetric
 #define		r2_RT_ssfx_volumetric_tmp	"$user$ssfx_volumetric_tmp" // Volumetric
-
-#define		r2_RT_ssfx_bloom_tmp2		"$user$ssfx_bloom_tmp2" // Bloom
-#define		r2_RT_ssfx_bloom_tmp4		"$user$ssfx_bloom_tmp4" // Bloom
-#define		r2_RT_ssfx_bloom_tmp8		"$user$ssfx_bloom_tmp8" // Bloom
-#define		r2_RT_ssfx_bloom_tmp16		"$user$ssfx_bloom_tmp16" // Bloom
-#define		r2_RT_ssfx_bloom_tmp32		"$user$ssfx_bloom_tmp32" // Bloom
-#define		r2_RT_ssfx_bloom_tmp64		"$user$ssfx_bloom_tmp64" // Bloom
-
-#define		r2_RT_ssfx_bloom_tmp32_2		"$user$ssfx_bloom_tmp32_2" // Bloom
-#define		r2_RT_ssfx_bloom_tmp16_2		"$user$ssfx_bloom_tmp16_2" // Bloom
-#define		r2_RT_ssfx_bloom_tmp8_2		"$user$ssfx_bloom_tmp8_2" // Bloom
-#define		r2_RT_ssfx_bloom_tmp4_2		"$user$ssfx_bloom_tmp4_2" // Bloom
 
 #define		r2_RT_ssfx_taa				"$user$ssfx_taa" // TAA
 #define		r2_RT_ssfx_prev_frame		"$user$ssfx_prev_frame" // Prev Frame
 #define		r2_RT_ssfx_motion_vectors	"$user$ssfx_motion_vectors" // Motion vectors
 
 #define		r2_RT_ssfx_prevPos		"$user$ssfx_prev_p" // Prev Position
+
+// OWA XeGTAO - Intel's Ground Truth Ambient Occlusion
+#define		r2_RT_gtao				"$user$gtao"		// RGB = bent normal, A = obscurance
+#define		r2_RT_gtao_edges		"$user$gtao_edges"	// Packed edge data for denoise
+#define		r2_RT_gtao_temp			"$user$gtao_temp"	// Temp copy for denoise read/write hazard
 
 #define		JITTER(a) r2_jitter #a
 
@@ -170,22 +177,10 @@ const u32 LUMINANCE_size = 16;
 extern float ps_r2_gloss_factor;
 extern float ps_r2_gloss_min;
 
-extern int ps_ssfx_gloss_method;
-extern float ps_ssfx_gloss_factor;
-extern Fvector3 ps_ssfx_gloss_minmax;
-
 IC float u_diffuse2s(float x, float y, float z)
 {
-	if (ps_ssfx_gloss_method == 0)
-	{
-		float v = (x + y + z) / 3.f;
-		return ps_r2_gloss_min + ps_r2_gloss_factor * ((v < 1) ? powf(v, 2.f / 3.f) : v);
-	}
-	else
-	{
-		// Remove sun from the equation and clamp value.
-		return ps_ssfx_gloss_minmax.x + clampr(ps_ssfx_gloss_minmax.y - ps_ssfx_gloss_minmax.x, 0.0f, 1.0f) * ps_ssfx_gloss_factor;
-	}
+	float v = (x + y + z) / 3.f;
+	return ps_r2_gloss_min + ps_r2_gloss_factor * ((v < 1) ? powf(v, 2.f / 3.f) : v);
 }
 
 IC float u_diffuse2s(Fvector3& c) { return u_diffuse2s(c.x, c.y, c.z); }

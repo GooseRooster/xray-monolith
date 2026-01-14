@@ -44,9 +44,15 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("sky_s1", r2_T_sky1);
 		C.r_dx10Texture("s_occ", r2_RT_ssao_temp);
 		C.r_dx10Texture("s_half_depth", r2_RT_half_depth);
+		// OWA XeGTAO: Pre-computed AO from separate pass
+		C.r_dx10Texture("s_gtao", r2_RT_gtao);
 
 		C.r_dx10Texture("ssfx_ao", r2_RT_ssfx_temp);
 		C.r_dx10Texture("ssfx_il", r2_RT_ssfx_temp2);
+
+		// OWA: Static lighting lightmap - RGB = baked indirect bounce, A = sun occlusion
+		// Only populated when USE_STATIC_LIGHTING is enabled in deferred pass
+		C.r_dx10Texture("s_lmap", r2_RT_lmap);
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
@@ -69,8 +75,8 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
-		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
+		C.r_dx10Texture("s_bloom", r2_RT_bloom_d2);  // OWA multi-scale bloom output
+		// OWA: s_bloom_new removed - phase_pp_bloom() output was never sampled
 		C.r_dx10Texture("s_distort", r2_RT_generic1);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
@@ -82,7 +88,6 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
-		C.r_dx10Texture("s_ssfx_bloom", r2_RT_ssfx_bloom1);
 
 		C.r_dx10Sampler("smp_linear");
 		C.r_dx10Sampler("smp_nofilter");
@@ -100,8 +105,8 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
-		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
+		C.r_dx10Texture("s_bloom", r2_RT_bloom_d2);  // OWA multi-scale bloom output
+		// OWA: s_bloom_new removed - phase_pp_bloom() output was never sampled
 		C.r_dx10Texture("s_distort", r2_RT_generic1);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
@@ -109,7 +114,6 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
-		C.r_dx10Texture("s_ssfx_bloom", r2_RT_ssfx_bloom1);
 
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 		C.r_dx10Texture("s_lens_dirt", "shaders\\lens_dirt");
@@ -130,8 +134,8 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
-		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
+		C.r_dx10Texture("s_bloom", r2_RT_bloom_d2);  // OWA multi-scale bloom output
+		// OWA: s_bloom_new removed - phase_pp_bloom() output was never sampled
 		C.r_dx10Texture("s_distort", r2_RT_generic1);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
@@ -139,7 +143,6 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
-		C.r_dx10Texture("s_ssfx_bloom", r2_RT_ssfx_bloom1);
 
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 		C.r_dx10Texture("s_lens_dirt", "shaders\\lens_dirt");
@@ -161,8 +164,8 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
-		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
+		C.r_dx10Texture("s_bloom", r2_RT_bloom_d2);  // OWA multi-scale bloom output
+		// OWA: s_bloom_new removed - phase_pp_bloom() output was never sampled
 		C.r_dx10Texture("s_distort", r2_RT_generic1);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
@@ -170,7 +173,6 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
-		C.r_dx10Texture("s_ssfx_bloom", r2_RT_ssfx_bloom1);
 
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 		C.r_dx10Texture("s_lens_dirt", "shaders\\lens_dirt");
@@ -229,6 +231,8 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_material", r2_material);
 		C.r_dx10Texture("s_occ", r2_RT_ssao_temp);
 		C.r_dx10Texture("s_half_depth", r2_RT_half_depth);
+		// OWA XeGTAO: Pre-computed AO from separate pass
+		C.r_dx10Texture("s_gtao", r2_RT_gtao);
 		C.r_dx10Texture("env_s0", r2_T_envs0);
 		C.r_dx10Texture("env_s1", r2_T_envs1);
 		C.r_dx10Texture("sky_s0", r2_T_sky0);
@@ -236,6 +240,10 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("ssfx_ao", r2_RT_ssfx_temp);
 		C.r_dx10Texture("ssfx_il", r2_RT_ssfx_temp2);
+
+		// OWA: Static lighting lightmap - RGB = baked indirect bounce, A = sun occlusion
+		// Only populated when USE_STATIC_LIGHTING is enabled in deferred pass
+		C.r_dx10Texture("s_lmap", r2_RT_lmap);
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
@@ -258,8 +266,8 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
-		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
+		C.r_dx10Texture("s_bloom", r2_RT_bloom_d2);  // OWA multi-scale bloom output
+		// OWA: s_bloom_new removed - phase_pp_bloom() output was never sampled
 		C.r_dx10Texture("s_distort", r2_RT_generic1_r);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
@@ -271,7 +279,6 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
-		C.r_dx10Texture("s_ssfx_bloom", r2_RT_ssfx_bloom1);
 
 		C.r_dx10Sampler("smp_linear");
 		C.r_dx10Sampler("smp_nofilter");
@@ -289,8 +296,8 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
-		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
+		C.r_dx10Texture("s_bloom", r2_RT_bloom_d2);  // OWA multi-scale bloom output
+		// OWA: s_bloom_new removed - phase_pp_bloom() output was never sampled
 		C.r_dx10Texture("s_distort", r2_RT_generic1_r);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
@@ -302,7 +309,6 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
-		C.r_dx10Texture("s_ssfx_bloom", r2_RT_ssfx_bloom1);
 
 		C.r_dx10Sampler("smp_linear");
 		C.r_dx10Sampler("smp_nofilter");
@@ -319,8 +325,8 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
-		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
+		C.r_dx10Texture("s_bloom", r2_RT_bloom_d2);  // OWA multi-scale bloom output
+		// OWA: s_bloom_new removed - phase_pp_bloom() output was never sampled
 		C.r_dx10Texture("s_distort", r2_RT_generic1_r);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
@@ -328,7 +334,6 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
-		C.r_dx10Texture("s_ssfx_bloom", r2_RT_ssfx_bloom1);
 
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 		C.r_dx10Texture("s_lens_dirt", "shaders\\lens_dirt");
@@ -350,8 +355,8 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);
-		C.r_dx10Texture("s_bloom_new", r2_RT_pp_bloom);
+		C.r_dx10Texture("s_bloom", r2_RT_bloom_d2);  // OWA multi-scale bloom output
+		// OWA: s_bloom_new removed - phase_pp_bloom() output was never sampled
 		C.r_dx10Texture("s_distort", r2_RT_generic1_r);
 		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
 		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
@@ -359,7 +364,6 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
-		C.r_dx10Texture("s_ssfx_bloom", r2_RT_ssfx_bloom1);
 
 		C.r_dx10Texture("s_lut_atlas", "shaders\\lut_atlas");
 		C.r_dx10Texture("s_lens_dirt", "shaders\\lens_dirt");

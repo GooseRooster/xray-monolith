@@ -120,7 +120,13 @@ void CRender::render_main(Fmatrix& m_ViewProjection, bool _fportals)
 				{
 					// renderable
 					IRenderable* renderable = spatial->dcast_Renderable();
-					VERIFY(renderable);
+					if (0 == renderable)
+					{
+						// It may be a glow
+						CGlow* glow = dynamic_cast<CGlow*>(spatial);
+						if (glow) Glows->add(glow);
+						break;
+					}
 
 					// Occlusion
 					//	casting is faster then using getVis method
@@ -510,6 +516,7 @@ void CRender::render_forward()
 		r_dsgraph_render_graph(1); // normal level, secondary priority
 		PortalTraverser.fade_render(); // faded-portals
 		r_dsgraph_render_sorted(); // strict-sorted geoms
+		if (Glows && ps_r2_ls_flags_ext.test(R2FLAGEXT_DYN_GLOWS)) Glows->Render(); // glows
 		g_pGamePersistent->Environment().RenderLast(); // rain/thunder-bolts
 	}
 

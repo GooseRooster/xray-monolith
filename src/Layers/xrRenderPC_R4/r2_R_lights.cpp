@@ -64,20 +64,16 @@ void CRender::render_lights(light_Package& LP)
 	// const	u16		smap_unassigned		= u16(-1);
 	{
 		xr_vector<light*>& source = LP.v_shadowed;
-		for (u32 it = 0; it < source.size(); it++)
-		{
-			light* L = source[it];
-			L->vis_update();
-			if (!L->vis.visible)
-			{
-				source.erase(source.begin() + it);
-				it--;
-			}
-			else
-			{
+		// OWA: Use remove-erase idiom instead of erase-during-iteration (O(n) vs O(n²))
+		auto new_end = std::remove_if(source.begin(), source.end(),
+			[this](light* L) {
+				L->vis_update();
+				if (!L->vis.visible)
+					return true;  // Remove invisible lights
 				LR.compute_xf_spot(L);
-			}
-		}
+				return false;     // Keep visible lights
+			});
+		source.erase(new_end, source.end());
 	}
 
 	// 2. refactor - infact we could go from the backside and sort in ascending order
@@ -87,25 +83,35 @@ void CRender::render_lights(light_Package& LP)
 		refactored.reserve(source.size());
 		u32 total = source.size();
 
+		// OWA: Use swap-based approach instead of erase-during-iteration (O(n) vs O(n²))
+		xr_vector<light*> remaining;
+		remaining.reserve(source.size());
+
 		for (u16 smap_ID = 0; refactored.size() != total; smap_ID++)
 		{
 			LP_smap_pool.initialize(RImplementation.o.smapsize);
 			std::sort(source.begin(), source.end(), pred_area);
+
+			remaining.clear();
 			for (u32 test = 0; test < source.size(); test++)
 			{
 				light* L = source[test];
 				SMAP_Rect R;
 				if (LP_smap_pool.push(R, L->X.S.size))
 				{
-					// OK
+					// OK - light fits in this shadow map
 					L->X.S.posX = R.min.x;
 					L->X.S.posY = R.min.y;
 					L->vis.smap_ID = smap_ID;
 					refactored.push_back(L);
-					source.erase(source.begin() + test);
-					test --;
+				}
+				else
+				{
+					// Didn't fit - try again in next shadow map
+					remaining.push_back(L);
 				}
 			}
+			source.swap(remaining);  // O(1) swap instead of O(n) erases
 		}
 
 		// save (lights are popped from back)

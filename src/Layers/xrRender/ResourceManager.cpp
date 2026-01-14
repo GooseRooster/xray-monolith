@@ -13,7 +13,7 @@
 #include "tss.h"
 #include "blenders\blender.h"
 #include "blenders\blender_recorder.h"
-#include <tbb\parallel_for_each.h>
+#include "xrRender_console.h"
 
 //	Already defined in Texture.cpp
 void fix_texture_name(LPSTR fn);
@@ -379,9 +379,20 @@ void CResourceManager::DeferredUpload()
 	CTimer timer;
 	timer.Start();
 
-	tbb::parallel_for_each(m_textures, [&](auto m_tex) { m_tex.second->Load(); });
-
-	Msg("texture loading time: %d", timer.GetElapsed_ms());
+	if (ps_r__common_flags.test(RFLAG_MT_TEX_LOAD))
+	{
+		// Parallel texture loading using PPL
+		xr_parallel_foreach(m_textures.begin(), m_textures.end(),
+			[](auto& tex_pair) { tex_pair.second->Load(); });
+		Msg("* [MT] texture loading time: %d ms (parallel)", timer.GetElapsed_ms());
+	}
+	else
+	{
+		// Sequential fallback
+		for (auto& tex_pair : m_textures)
+			tex_pair.second->Load();
+		Msg("* texture loading time: %d ms (sequential)", timer.GetElapsed_ms());
+	}
 }
 
 void CResourceManager::DeferredUnload()
@@ -389,7 +400,18 @@ void CResourceManager::DeferredUnload()
 	if (!RDEVICE.b_is_Ready)
 		return;
 
-	tbb::parallel_for_each(m_textures, [&](auto m_tex) { m_tex.second->Unload(); });
+	if (ps_r__common_flags.test(RFLAG_MT_TEX_LOAD))
+	{
+		// Parallel texture unloading
+		xr_parallel_foreach(m_textures.begin(), m_textures.end(),
+			[](auto& tex_pair) { tex_pair.second->Unload(); });
+	}
+	else
+	{
+		// Sequential fallback
+		for (auto& tex_pair : m_textures)
+			tex_pair.second->Unload();
+	}
 }
 
 #ifdef _EDITOR

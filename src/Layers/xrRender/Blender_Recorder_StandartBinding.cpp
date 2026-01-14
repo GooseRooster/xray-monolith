@@ -267,7 +267,7 @@ class cl_eye_P : public R_constant_setup
 static cl_eye_P binder_eye_P;
 
 // interpolated eye position (crookr scope parallax)
-// We can improve this by clamping the magnitude of the travel here instead of in-shader. 
+// We can improve this by clamping the magnitude of the travel here instead of in-shader.
 // it would fix the issue with the fog "sticking" when moving too far off center
 extern float scope_fog_interp;
 extern float scope_fog_travel;
@@ -605,6 +605,40 @@ class cl_sky_color : public R_constant_setup
 	}
 };
 static cl_sky_color binder_sky_color;
+
+// OWA: Individual sky rotations for fog shader per-cubemap sampling
+// x = rotation for sky_s0 (state A / "from" state)
+// y = rotation for sky_s1 (state B / "to" state)
+// z = lerp paused flag (1.0 = weather editor active, 0.0 = normal gameplay)
+// w = reserved
+class cl_sky_rotations : public R_constant_setup
+{
+	u32 marker;
+	Fvector4 result;
+
+	virtual void setup(R_constant* C) override
+	{
+		if (marker != Device.dwFrame)
+		{
+			marker = Device.dwFrame;
+			CEnvDescriptorMixer& desc = *g_pGamePersistent->Environment().CurrentEnv;
+			bool lerp_paused = g_pGamePersistent->Environment().m_lerp_paused;
+			// When lerp is paused (weather editor mode), use the single sky_rotation for both
+			// The editor sets sky_rotation directly, so both cubemaps should use the same value
+			// z component = 1.0 signals editor mode to the shader (skip brightness multiplier)
+			if (lerp_paused)
+			{
+				result.set(desc.sky_rotation, desc.sky_rotation, 1.0f, 0.0f);
+			}
+			else
+			{
+				result.set(desc.sky_rotation_0, desc.sky_rotation_1, 0.0f, 0.0f);
+			}
+		}
+		RCache.set_c(C, result);
+	}
+};
+static cl_sky_rotations binder_sky_rotations;
 #endif
 
 static class cl_screen_res : public R_constant_setup
@@ -703,21 +737,7 @@ static class cl_inv_v : public R_constant_setup
 	}
 } binder_inv_v;
 
-static class pp_image_corrections : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_r2_img_exposure, ps_r2_img_gamma, ps_r2_img_saturation, 1);
-	}
-} pp_image_corrections;
-
-static class pp_color_grading : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_r2_img_cg.x, ps_r2_img_cg.y, ps_r2_img_cg.z, 1);
-	}
-} pp_color_grading;
+// OWA: pp_image_corrections and pp_color_grading removed - img_corrections() never called in R4
 
 static class cl_pda_params : public R_constant_setup
 {
@@ -750,49 +770,47 @@ static class cl_near_far_plane : public R_constant_setup
 // Screen Space Shaders Stuff
 extern Fvector4 ps_ssfx_floravariation;
 extern Fvector4 ps_ssfx_fog;
-extern Fvector4 ps_ssfx_motionblur;
 
 extern Fvector4 ps_ssfx_pom;
 extern Fvector4 ps_ssfx_terrain_pom;
+extern u32 ps_r3_terrain_quality;
 
-extern Fvector4 ps_ssfx_bloom_1;
-extern Fvector4 ps_ssfx_bloom_2;
 extern Fvector4 ps_ssfx_il_setup1;
 
 extern float ps_ssfx_hud_hemi;
+
+// OWA retro shader constants
+extern float ps_r2_auto_fog;
+// OWA Multi-Scale Bloom parameters
+extern float ps_r2_bloom_threshold;
+extern float ps_r2_bloom_intensity;
+extern float ps_r2_bloom_radius;
 extern Fvector4 ps_ssfx_il;
 extern Fvector4 ps_ssfx_il_setup1;
-extern Fvector4 ps_ssfx_ao;
-extern Fvector4 ps_ssfx_ao_setup1;
 extern Fvector4 ps_ssfx_water;
 extern Fvector4 ps_ssfx_water_setup1;
 extern Fvector4 ps_ssfx_water_setup2;
 
 extern Fvector4 ps_ssfx_volumetric;
-extern Fvector4 ps_ssfx_ssr_2;
 extern Fvector4 ps_ssfx_terrain_offset;
 
 extern Fvector3 ps_ssfx_shadow_bias;
-extern Fvector4 ps_ssfx_lut;
+extern int ps_r3_ssfx_shadows;
+extern int ps_r3_ssfx_fog;
+extern int ps_r3_ssfx_water;
+extern int ps_r3_ssfx_taa;
+extern int ps_r3_ssfx_il;
 extern Fvector4 ps_ssfx_wind_grass;
 extern Fvector4 ps_ssfx_wind_trees;
 
 extern Fvector4 ps_ssfx_florafixes_1;
 extern Fvector4 ps_ssfx_florafixes_2;
 
-extern float ps_ssfx_gloss_factor;
-extern Fvector3 ps_ssfx_gloss_minmax;
-
-extern Fvector4 ps_ssfx_wetsurfaces_1;
-extern Fvector4 ps_ssfx_wetsurfaces_2;
-
 extern int ps_ssfx_is_underground;
 extern Fvector4 ps_ssfx_lightsetup_1;
 extern Fvector4 ps_ssfx_hud_drops_1;
 extern Fvector4 ps_ssfx_hud_drops_2;
 extern Fvector4 ps_ssfx_blood_decals;
-extern Fvector4 ps_ssfx_wpn_dof_1;
-extern float ps_ssfx_wpn_dof_2;
 
 //Sneaky debug stuff
 extern Fvector4 ps_dev_param_1;
@@ -868,22 +886,6 @@ static class dev_param_8 : public R_constant_setup
 	}
 }    dev_param_8;
 
-static class ssfx_wpn_dof_1 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_wpn_dof_1.x, ps_ssfx_wpn_dof_1.y, ps_ssfx_wpn_dof_1.z, ps_ssfx_wpn_dof_1.w);
-	}
-}    ssfx_wpn_dof_1;
-
-static class ssfx_wpn_dof_2 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_wpn_dof_2, 0, 0, 0);
-	}
-}    ssfx_wpn_dof_2;
-
 static class ssfx_blood_decals : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
@@ -923,30 +925,6 @@ static class ssfx_is_underground : public R_constant_setup
 		RCache.set_c(C, ps_ssfx_is_underground, 0, 0, 0);
 	}
 }    ssfx_is_underground;
-
-static class ssfx_wetsurfaces_1 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_wetsurfaces_1);
-	}
-}    ssfx_wetsurfaces_1;
-
-static class ssfx_wetsurfaces_2 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_wetsurfaces_2);
-	}
-}    ssfx_wetsurfaces_2;
-
-static class ssfx_gloss : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_gloss_minmax.x, ps_ssfx_gloss_minmax.y, ps_ssfx_gloss_factor, 0);
-	}
-}    ssfx_gloss;
 
 static class ssfx_florafixes_1 : public R_constant_setup
 {
@@ -996,14 +974,6 @@ static class ssfx_wind_anim_prev : public R_constant_setup
 	}
 }    ssfx_wind_anim_prev;
 
-static class ssfx_lut : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_lut);
-	}
-}    ssfx_lut;
-
 static class ssfx_shadow_bias : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
@@ -1019,14 +989,6 @@ static class ssfx_terrain_offset : public R_constant_setup
 		RCache.set_c(C, ps_ssfx_terrain_offset);
 	}
 }    ssfx_terrain_offset;
-
-static class ssfx_ssr_2 : public R_constant_setup
-{
-	virtual void setup(R_constant * C)
-	{
-		RCache.set_c(C, ps_ssfx_ssr_2);
-	}
-}    ssfx_ssr_2;
 
 static class ssfx_volumetric : public R_constant_setup
 {
@@ -1060,22 +1022,6 @@ static class ssfx_water_setup2 : public R_constant_setup
 	}
 }    ssfx_water_setup2;
 
-static class ssfx_ao : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_ao);
-	}
-}    ssfx_ao;
-
-static class ssfx_ao_setup1 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_ao_setup1);
-	}
-}    ssfx_ao_setup1;
-
 static class ssfx_il : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
@@ -1092,9 +1038,44 @@ static class ssfx_il_setup1 : public R_constant_setup
 	}
 }    ssfx_il_setup1;
 
+// OWA: IL radius and distance-adaptive parameters
+extern float ps_ssfx_il_radius;
+extern Fvector4 ps_ssfx_il_params;
+
+static class ssfx_il_radius : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		// x = base radius, y = radius scale, z = min radius, w = max radius
+		RCache.set_c(C, ps_ssfx_il_radius, ps_ssfx_il_params.x, ps_ssfx_il_params.y, ps_ssfx_il_params.z);
+	}
+}    ssfx_il_radius;
+
+// OWA: Perceptual Lighting (controlled by r3_gi command)
+extern Fvector4 ps_r3_gi_pl_params;
+extern Fvector4 ps_r3_gi_pl_params2;
+
+static class pl_params : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		// OWA: Just pass PL params - enable/disable is handled by
+		// compile-time #ifdef SSFX_INDIRECT_LIGHT in shaders (set via r3_gi)
+		RCache.set_c(C, ps_r3_gi_pl_params);
+	}
+}    pl_params;
+
+static class pl_params2 : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		RCache.set_c(C, ps_r3_gi_pl_params2);
+	}
+}    pl_params2;
+
 static class ssfx_hud_hemi : public R_constant_setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(R_constant* C) override
 	{
 		RCache.set_c(C, ps_ssfx_hud_hemi, 0, 0, 0);
 	}
@@ -1102,53 +1083,31 @@ static class ssfx_hud_hemi : public R_constant_setup
 
 static class ssfx_issvp : public R_constant_setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(R_constant* C) override
 	{
 		RCache.set_c(C, Device.m_SecondViewport.IsSVPFrame(), 0, 0, 0);
 	}
 }    ssfx_issvp;
 
-static class ssfx_bloom_1 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		Fvector4 BloomSetup = { 0,0,0,0 };
-		if (ps_ssfx_bloom_use_presets)
-		{
-			BloomSetup.x = g_pGamePersistent->Environment().CurrentEnv->bloom_threshold;
-			BloomSetup.y = g_pGamePersistent->Environment().CurrentEnv->bloom_exposure;
-			BloomSetup.w = g_pGamePersistent->Environment().CurrentEnv->bloom_sky_intensity;
-		}
-		else
-		{
-			BloomSetup.x = ps_ssfx_bloom_1.x;
-			BloomSetup.y = ps_ssfx_bloom_1.y;
-			BloomSetup.w = ps_ssfx_bloom_1.w;
-		}
-
-		RCache.set_c(C, BloomSetup);
-	}
-}    ssfx_bloom_1;
-
-static class ssfx_bloom_2 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_bloom_2);
-	}
-}    ssfx_bloom_2;
-
 static class ssfx_terrain_pom : public R_constant_setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(R_constant* C) override
 	{
 		RCache.set_c(C, ps_ssfx_terrain_pom);
 	}
 }    ssfx_terrain_pom;
 
+static class r3_terrain_quality : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		RCache.set_c(C, (float)ps_r3_terrain_quality, 0, 0, 0);
+	}
+}    r3_terrain_quality;
+
 static class ssfx_pom : public R_constant_setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(R_constant* C) override
 	{
 		RCache.set_c(C, ps_ssfx_pom);
 	}
@@ -1156,12 +1115,13 @@ static class ssfx_pom : public R_constant_setup
 
 static class ssfx_jitter : public R_constant_setup
 {
-	virtual void setup(R_constant* C)
+	virtual void setup(R_constant* C) override
 	{
 		float JitterX = 0;
 		float JitterY = 0;
 
 #if defined(USE_DX11)
+		// OWA: o.ssfx_taa now includes r3_ssfx_taa check (compile-time)
 		if (ps_ssfx_taa.x > 0 && RImplementation.o.ssfx_taa)
 		{
 			static Fvector2 TAA_Offset[4] = 
@@ -1190,14 +1150,6 @@ static class ssfx_fTimeDelta : public R_constant_setup
 	}
 }    ssfx_fTimeDelta;
 
-static class ssfx_motionblur : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_motionblur);
-	}
-}    ssfx_motionblur;
-
 static class ssfx_fog : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
@@ -1222,8 +1174,8 @@ extern int   ps_r4_hdr10_pda;
 extern int   ps_r4_hdr10_on;
 
 extern int   ps_r4_hdr10_colorspace;
-extern int   ps_r4_hdr10_tonemapper;
-extern int   ps_r4_hdr10_tonemap_mode;
+// ps_r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping
+extern float ps_r4_hdr10_chroma_correction;
 extern float ps_r4_hdr10_exposure;
 extern float ps_r4_hdr10_contrast;
 extern float ps_r4_hdr10_contrast_middle_gray;
@@ -1232,27 +1184,11 @@ extern float ps_r4_hdr10_brightness;
 extern float ps_r4_hdr10_gamma;
 extern float ps_r4_hdr10_ui_saturation;
 
-extern int   ps_r4_hdr10_bloom_on;
-extern float ps_r4_hdr10_bloom_blur_scale;
-extern float ps_r4_hdr10_bloom_intensity;
-
-extern float    ps_r4_hdr10_flare_threshold;
-extern float    ps_r4_hdr10_flare_power;
-extern int      ps_r4_hdr10_flare_ghosts;
-extern float    ps_r4_hdr10_flare_ghost_dispersal;
-extern float    ps_r4_hdr10_flare_center_falloff;
-extern float    ps_r4_hdr10_flare_halo_scale;
-extern float    ps_r4_hdr10_flare_halo_ca;
-extern float    ps_r4_hdr10_flare_ghost_ca;
-extern float    ps_r4_hdr10_flare_blur_scale;
-extern float    ps_r4_hdr10_flare_ghost_intensity;
-extern float    ps_r4_hdr10_flare_halo_intensity;
-extern Fvector3 ps_r4_hdr10_flare_lens_color;
+// OWA: HDR10 bloom and lens flare removed - unified multi-scale bloom handles both SDR and HDR
 
 extern int   ps_r4_hdr10_sun_on;
 extern float ps_r4_hdr10_sun_intensity;
-extern float ps_r4_hdr10_sun_inner_radius;
-extern float ps_r4_hdr10_sun_outer_radius;
+extern float ps_r4_hdr10_moon_intensity;
 extern float ps_r4_hdr10_sun_dawn_begin;
 extern float ps_r4_hdr10_sun_dawn_end;
 extern float ps_r4_hdr10_sun_dusk_begin;
@@ -1286,8 +1222,8 @@ DECL_BINDER4F( binder_hdr10_parameters1,
 DECL_BINDER4F( binder_hdr10_parameters2,
 	ps_r4_hdr10_colorspace,
 	ps_r4_hdr10_pda_intensity,
-	1u << ps_r4_hdr10_tonemapper,
-	ps_r4_hdr10_tonemap_mode
+	ps_r4_hdr10_chroma_correction,  // Chroma correction scaling for EETF
+	0.0f  // Was tonemap_mode - now unused, HDR always uses hybrid tonemapping
 );
 
 DECL_BINDER4F( binder_hdr10_parameters3,
@@ -1297,10 +1233,12 @@ DECL_BINDER4F( binder_hdr10_parameters3,
 	ps_r4_hdr10_contrast_middle_gray
 );
 
+// OWA: HDR10 bloom and lens flare removed - unified multi-scale bloom handles both SDR and HDR
+// binder_hdr10_parameters4-10 now use placeholder values for removed bloom/flare parameters
 DECL_BINDER4F( binder_hdr10_parameters4,
-	ps_r4_hdr10_bloom_on,
-	ps_r4_hdr10_bloom_blur_scale,
-	ps_r4_hdr10_bloom_intensity,
+	0.0f,  // Was bloom_on (removed)
+	0.0f,  // Was bloom_blur_scale (removed)
+	0.0f,  // Was bloom_intensity (removed)
 	ps_r4_hdr10_sun_intensity
 );
 
@@ -1314,36 +1252,46 @@ DECL_BINDER4F( binder_hdr10_parameters5,
 DECL_BINDER4F( binder_hdr10_parameters6,
 	ps_r4_hdr10_brightness,
 	1.0f / ps_r4_hdr10_gamma,
-	ps_r4_hdr10_flare_threshold,
-	ps_r4_hdr10_flare_power
+	0.0f,  // Was flare_threshold (removed)
+	0.0f   // Was flare_power (removed)
 );
 
 DECL_BINDER4F( binder_hdr10_parameters7,
-	ps_r4_hdr10_flare_ghosts,
-	ps_r4_hdr10_flare_ghost_dispersal,
-	ps_r4_hdr10_flare_center_falloff,
-	ps_r4_hdr10_flare_halo_scale
+	0.0f,  // Was flare_ghosts (removed)
+	0.0f,  // Was flare_ghost_dispersal (removed)
+	0.0f,  // Was flare_center_falloff (removed)
+	0.0f   // Was flare_halo_scale (removed)
 );
 
 DECL_BINDER4F( binder_hdr10_parameters8,
-	ps_r4_hdr10_flare_halo_ca,
-	ps_r4_hdr10_flare_ghost_ca,
-	ps_r4_hdr10_flare_blur_scale,
+	0.0f,  // Was flare_halo_ca (removed)
+	0.0f,  // Was flare_ghost_ca (removed)
+	0.0f,  // Was flare_blur_scale (removed)
 	ps_r4_hdr10_ui_saturation + 1.0f
 );
 
 DECL_BINDER4F( binder_hdr10_parameters9,
-	ps_r4_hdr10_flare_ghost_intensity,
-	ps_r4_hdr10_flare_halo_intensity,
-	ps_r4_hdr10_sun_inner_radius,
-	ps_r4_hdr10_sun_outer_radius
+	0.0f,  // Was flare_ghost_intensity (removed)
+	0.0f,  // Was flare_halo_intensity (removed)
+	ps_r4_hdr10_moon_intensity,
+	0.0f   // Unused (was highlight_intensity, now controlled by hermite spline)
 );
 
 DECL_BINDER4F( binder_hdr10_parameters10,
-	ps_r4_hdr10_flare_lens_color.x,
-	ps_r4_hdr10_flare_lens_color.y,
-	ps_r4_hdr10_flare_lens_color.z,
+	0.0f,  // Was flare_lens_color.x (removed)
+	0.0f,  // Was flare_lens_color.y (removed)
+	0.0f,  // Was flare_lens_color.z (removed)
 	ps_r4_hdr10_sun_on
+);
+
+// OWA: HDR expansion tuning parameters (knee is now automatic per BT.2408)
+extern float ps_r4_hdr10_light_expansion;
+extern float ps_r4_hdr10_particle_expansion;
+DECL_BINDER4F( binder_hdr10_parameters11,
+	0.0f,  // Unused (was eetf_knee, now automatic per BT.2408)
+	ps_r4_hdr10_light_expansion,
+	ps_r4_hdr10_particle_expansion,
+	0.0f   // Unused (was eetf_knee_softness, now automatic)
 );
 /* --- HDR10 Parameters --- */
 
@@ -1355,6 +1303,48 @@ static class vignette_control : public R_constant_setup
 		RCache.set_c(C, ps_vignette_control.x, ps_vignette_control.y, ps_vignette_control.z, ps_vignette_control.w);
 	}
 } vignette_control;
+
+// OWA retro shader constant setters
+
+static class cl_owa_tex_contrast : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		// OWA: Get tex_contrast from current weather instead of console variable
+		float tex_contrast = g_pGamePersistent->Environment().CurrentEnv->m_fTexContrast;
+		RCache.set_c(C, tex_contrast, 0, 0, 0);
+	}
+} binder_owa_tex_contrast;
+
+static class cl_owa_auto_fog : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		// OWA: Get fog_auto_blend from current weather instead of console variable
+		float fog_auto_blend = g_pGamePersistent->Environment().CurrentEnv->m_fFogAutoBlend;
+		RCache.set_c(C, fog_auto_blend, 0, 0, 0);
+	}
+} binder_owa_auto_fog;
+
+// OWA Multi-Scale Bloom parameters: x=threshold, y=intensity, z=radius, w=reserved
+static class cl_owa_bloom_params : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		RCache.set_c(C, ps_r2_bloom_threshold, ps_r2_bloom_intensity, ps_r2_bloom_radius, 0);
+	}
+} binder_owa_bloom_params;
+
+// OWA: Static lighting brightness multiplier (for R1-style lightmap rendering)
+// Default 2.0 matches OLR legacy value; tune for HDR pipeline integration
+extern float ps_r4_static_brightness;
+static class cl_static_brightness : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		RCache.set_c(C, ps_r4_static_brightness, 0, 0, 0);
+	}
+} binder_static_brightness;
 
 // Standart constant-binding
 void CBlender_Compile::SetMapping()
@@ -1424,6 +1414,12 @@ void CBlender_Compile::SetMapping()
 	r_Constant("screen_res", &binder_screen_res);
 	r_Constant("ogse_c_screen", &binder_screen_params);
 	r_Constant("near_far_plane", &binder_near_far_plane);
+
+	// OWA retro shader constants - globally available to all shaders
+	r_Constant("bloom_params", &binder_owa_bloom_params);  // OWA Multi-Scale Bloom: x=threshold, y=intensity, z=radius
+	r_Constant("tex_contrast", &binder_owa_tex_contrast);
+	r_Constant("auto_fog", &binder_owa_auto_fog);
+	r_Constant("L_static_brightness", &binder_static_brightness);  // OWA: Static lighting brightness (R1-style)
 	// misc
 	r_Constant("m_hud_params", &binder_hud_params);	//--#SM+#--
 	r_Constant("m_hud_fov_params", &binder_hud_fov_params);
@@ -1434,11 +1430,8 @@ void CBlender_Compile::SetMapping()
 	r_Constant("rain_params", &binder_rain_params);
 	//Actor data
 	r_Constant("actor_data", &binder_actor_data);
-	//Image corrections
-	r_Constant("pp_img_corrections", &pp_image_corrections);
-	//Image corrections
-	r_Constant("pp_img_cg", &pp_color_grading);
-	
+	// OWA: pp_img_corrections and pp_img_cg removed - img_corrections() never called in R4
+
 	// detail
 	//if (bDetail	&& detail_scaler)
 	//	Igor: bDetail can be overridden by no_detail_texture option.
@@ -1454,46 +1447,39 @@ void CBlender_Compile::SetMapping()
 	r_Constant("ssfx_floravariation", &ssfx_floravariation);
 	r_Constant("ssfx_fog", &ssfx_fog);
 	r_Constant("ssfx_timedelta", &ssfx_fTimeDelta);
-	r_Constant("ssfx_motionblur", &ssfx_motionblur);
 	r_Constant("ssfx_jitter", &ssfx_jitter);
 	r_Constant("ssfx_pom", &ssfx_pom);
 
 	r_Constant("ssfx_terrain_pom", &ssfx_terrain_pom);
-	r_Constant("ssfx_bloom_1", &ssfx_bloom_1);
-	r_Constant("ssfx_bloom_2", &ssfx_bloom_2);
+	r_Constant("r3_terrain_quality", &r3_terrain_quality);
 
 	r_Constant("ssfx_issvp", &ssfx_issvp);
 	r_Constant("ssfx_hud_hemi", &ssfx_hud_hemi);
 	r_Constant("ssfx_il_setup", &ssfx_il);
 	r_Constant("ssfx_il_setup2", &ssfx_il_setup1);
-	r_Constant("ssfx_ao_setup", &ssfx_ao);
-	r_Constant("ssfx_ao_setup2", &ssfx_ao_setup1);
+	r_Constant("ssfx_il_radius", &ssfx_il_radius);
+	r_Constant("pl_params", &pl_params);
+	r_Constant("pl_params2", &pl_params2);
 	r_Constant("ssfx_water", &ssfx_water);
 	r_Constant("ssfx_water_setup1", &ssfx_water_setup1);
 	r_Constant("ssfx_water_setup2", &ssfx_water_setup2);
 
 	r_Constant("ssfx_volumetric", &ssfx_volumetric);
-	r_Constant("ssfx_ssr_2", &ssfx_ssr_2);
 	r_Constant("ssfx_terrain_offset", &ssfx_terrain_offset);
 	r_Constant("ssfx_shadow_bias", &ssfx_shadow_bias);
 	r_Constant("ssfx_wind_anim", &ssfx_wind_anim);
 	r_Constant("ssfx_wind_anim_prev", &ssfx_wind_anim_prev);
 	r_Constant("sky_color", &binder_sky_color);
-	r_Constant("ssfx_wpn_dof_1", &ssfx_wpn_dof_1);
-	r_Constant("ssfx_wpn_dof_2", &ssfx_wpn_dof_2);
+	r_Constant("sky_rotations", &binder_sky_rotations);  // OWA: Per-state sky rotations for fog sampling
 	r_Constant("ssfx_blood_decals", &ssfx_blood_decals);
 	r_Constant("ssfx_hud_drops_1", &ssfx_hud_drops_1);
 	r_Constant("ssfx_hud_drops_2", &ssfx_hud_drops_2);
 	r_Constant("ssfx_lightsetup_1", &ssfx_lightsetup_1);
 	r_Constant("ssfx_is_underground", &ssfx_is_underground);
-	r_Constant("ssfx_wetsurfaces_1", &ssfx_wetsurfaces_1);
-	r_Constant("ssfx_wetsurfaces_2", &ssfx_wetsurfaces_2);
-	r_Constant("ssfx_gloss", &ssfx_gloss);
 	r_Constant("ssfx_florafixes_1", &ssfx_florafixes_1);
 	r_Constant("ssfx_florafixes_2", &ssfx_florafixes_2);
 	r_Constant("ssfx_wsetup_grass", &ssfx_wind_grass);
 	r_Constant("ssfx_wsetup_trees", &ssfx_wind_trees);
-	r_Constant("ssfx_lut", &ssfx_lut);
 
 	// Shader stuff
 	r_Constant("shader_param_1", &dev_param_1);
@@ -1549,6 +1535,7 @@ void CBlender_Compile::SetMapping()
 	r_Constant("hdr10_parameters8",  &binder_hdr10_parameters8);
 	r_Constant("hdr10_parameters9",  &binder_hdr10_parameters9);
 	r_Constant("hdr10_parameters10", &binder_hdr10_parameters10);
+	r_Constant("hdr10_parameters11", &binder_hdr10_parameters11);
 
 	r_Constant("vignette_control", &vignette_control);
 }

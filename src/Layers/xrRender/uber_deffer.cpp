@@ -5,7 +5,7 @@ void fix_texture_name(LPSTR fn);
 #include "dxRenderDeviceRender.h"
 
 void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR _vspec, LPCSTR _pspec, BOOL _aref, LPCSTR _detail_replace,
-                 bool DO_NOT_FINISH, bool DO_NOT_WRITE)
+                 bool DO_NOT_FINISH, bool DO_NOT_WRITE, bool force_lmap)
 {
 	// Uber-parse
 	string256 fname, fnameA, fnameB;
@@ -15,15 +15,19 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR _vspec, LPCSTR _pspec, BOO
 	_t.create(fname);
 	bool bump = _t.bump_exist();
 
-	// detect lmap
-	bool lmap = true;
-	if (C.L_textures.size() < 3) lmap = false;
-	else
+	// detect lmap (or force it for terrain static lighting)
+	bool lmap = force_lmap;
+	if (!lmap)
 	{
-		pcstr tex = C.L_textures[2].c_str();
-		if (tex[0] == 'l' && tex[1] == 'm' && tex[2] == 'a' && tex[3] == 'p') lmap = true;
-		else lmap = false;
+		if (C.L_textures.size() < 3) lmap = false;
+		else
+		{
+			pcstr tex = C.L_textures[2].c_str();
+			if (tex[0] == 'l' && tex[1] == 'm' && tex[2] == 'a' && tex[3] == 'p') lmap = true;
+			else lmap = false;
+		}
 	}
+
 
 
 	string256 ps, vs, dt;
@@ -179,7 +183,7 @@ void uber_deffer(CBlender_Compile& C, bool hq, LPCSTR _vspec, LPCSTR _pspec, BOO
 	}
 	C.r_dx10Sampler("smp_base");
 	C.r_dx10Sampler("smp_linear");
-	if (lmap)
+	if (lmap && C.L_textures.size() > 2)
 	{
 		//C.r_Sampler("s_hemi",	C.L_textures[2],	false,	D3DTADDRESS_CLAMP,	D3DTEXF_LINEAR,		D3DTEXF_NONE,	D3DTEXF_LINEAR);
 		C.r_dx10Texture("s_hemi", C.L_textures[2]);

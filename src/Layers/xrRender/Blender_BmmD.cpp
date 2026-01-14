@@ -209,6 +209,7 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 // R3
 //////////////////////////////////////////////////////////////////////////
 #include "uber_deffer.h"
+#include "xrRender_console.h"
 
 void CBlender_BmmD::Compile(CBlender_Compile& C)
 {
@@ -234,12 +235,17 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 		if (RImplementation.o.ssfx_terrain)
 		{
 			C.SH->flags.isLandscape = TRUE;
-			uber_deffer(C, true, "terrain", "terrain_high", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass);
+			// Quality 2 = full POM, Quality 1 = terrain_high without POM, Quality 0 = vanilla
+			// OWA: Static lighting forces vanilla impl path - no height maps/puddles needed
+			if (ps_r3_terrain_quality >= 1 && !RImplementation.o.staticlighting)
+				uber_deffer(C, true, "terrain", "terrain_high", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass);
+			else
+				uber_deffer(C, true, "impl", "impl", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass, RImplementation.o.staticlighting); // Vanilla path - force lmap for static lighting
 		}
 		else
 #endif
 		{
-			uber_deffer(C, true, "impl", "impl", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass);
+			uber_deffer(C, true, "impl", "impl", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass, RImplementation.o.staticlighting);
 		}
 
 		if (z_prepass) C.RS.SetRS(D3DRS_ZFUNC, D3DCMP_EQUAL);
@@ -270,7 +276,8 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_dn_a", strconcat(sizeof(mask), mask, oA_Name, "_bump"));
 
 #if RENDER == R_R4
-		if (RImplementation.o.ssfx_terrain)
+		// OWA: Load height textures for mid/high quality terrain (terrain_high needs them)
+		if (RImplementation.o.ssfx_terrain && ps_r3_terrain_quality >= 1)
 		{
 			C.r_dx10Texture("s_height_r", strconcat(sizeof(mask), mask, oR_Name, "_height"));
 			C.r_dx10Texture("s_height_g", strconcat(sizeof(mask), mask, oG_Name, "_height"));
@@ -305,41 +312,41 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 		if (RImplementation.o.ssfx_terrain)
 		{
 			C.SH->flags.isLandscape = TRUE;
-			uber_deffer(C, false, "base", "terrain_mid", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass);
+			// OWA: Always use terrain_mid for distant terrain - provides smooth distance-based
+			// blending between detailed and raw textures, eliminating the jarring color shift
+			// that occurs with the vanilla impl shader (which lacks the 2x brightness multiplier)
+			// Works in static lighting mode too - terrain_mid samples s_lmap when USE_STATIC_LIGHTING defined
+			uber_deffer(C, false, "base", "terrain_mid", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass, RImplementation.o.staticlighting);
 		}
 		else
 #endif
 		{
-			// Vanilla
-			uber_deffer(C, false, "base", "impl", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass);
+			// Vanilla path
+			uber_deffer(C, false, "base", "impl", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass, RImplementation.o.staticlighting);
 		}
 
 		if (z_prepass) C.RS.SetRS(D3DRS_ZFUNC, D3DCMP_EQUAL);
 
-		//C.r_Sampler		("s_lmap",	C.L_textures[1]);
-
-		
-		//C.r_dx10Texture("s_lmap", C.L_textures[1]);
-
 		C.r_dx10Texture("s_mask", mask);
 
 #if RENDER == R_R4
+		// OWA: Static lighting needs s_lmap for baked lighting (terrain_mid samples this)
+		if (RImplementation.o.staticlighting)
+		{
+			C.r_dx10Texture("s_lmap", C.L_textures[1]);
+		}
+		// OWA: Load LOD textures for terrain_mid shader
 		if (RImplementation.o.ssfx_terrain)
 		{
 			LPSTR LodTexture = strconcat(sizeof(mask), mask, C.L_textures[0].c_str(), "_lod_textures");
 			string_path fn;
 			if (FS.exist(fn, "$game_textures$", LodTexture, ".dds"))
-			{
 				C.r_dx10Texture("s_lod_texture", LodTexture);
-			}
 			else
-			{
 				C.r_dx10Texture("s_lod_texture", "terrain\\default_lod_textures");
-			}
 		}
 #endif
 
-		//C.r_dx10Texture("s_lmap", C.L_textures[1]);
 		C.r_dx10Sampler("smp_base");
 		C.r_dx10Sampler("smp_linear");
 
@@ -362,8 +369,16 @@ void CBlender_BmmD::Compile(CBlender_Compile& C)
 
 		C.SH->flags.isLandscape = TRUE;
 
-		uber_deffer(C, false, "base", "terrain_low", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass);
+		uber_deffer(C, false, "base", "terrain_low", false, oT2_Name[0] ? oT2_Name : 0, true, z_prepass, RImplementation.o.staticlighting);
 		if (z_prepass) C.RS.SetRS(D3DRS_ZFUNC, D3DCMP_EQUAL);
+
+#if RENDER == R_R4
+		// OWA: Static lighting needs s_lmap for baked lighting
+		if (RImplementation.o.staticlighting)
+		{
+			C.r_dx10Texture("s_lmap", C.L_textures[1]);
+		}
+#endif
 
 		C.r_dx10Sampler("smp_linear");
 

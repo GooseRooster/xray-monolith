@@ -16,14 +16,22 @@ xr_token qpreset_token [ ] = {
 	{0, 0}
 };
 
-u32 ps_r_ssao_mode = 2;
+// OWA: AO mode (OGSR style - simple enum check in shader compilation)
+u32 ps_r_ssao_mode = AO_MODE_GTAO;
 xr_token qssao_mode_token [ ] = {
-	{"disabled", 0},
-	{"default", 1},
-	{"hdao", 2},
-	{"hbao", 3},
+	{"gtao", AO_MODE_GTAO},
+	{"ssdo", AO_MODE_SSDO},
 	{0, 0}
 };
+
+// OWA: R4 Lighting style (static vs dynamic) - requires restart
+u32 ps_r4_lighting_style = st_opt_dynamic;  // Default to dynamic (standard R4 deferred)
+xr_token lighting_style_token [] = {
+	{ "st_opt_dynamic", st_opt_dynamic },  // Standard R4 deferred with cascade shadows
+	{ "st_opt_static",  st_opt_static  },  // R1-style static lightmaps (retro mode)
+	{ 0, 0 }
+};
+float ps_r4_static_brightness = 2.0f;  // OLR legacy default, tunable for HDR pipeline
 
 u32 ps_r_sun_shafts = 2;
 xr_token qsun_shafts_token [ ] = {
@@ -37,8 +45,8 @@ u32 ps_sunshafts_mode = 2;
 xr_token sunshafts_mode_token [ ] = {
 	{"off", 0},
 	{"volumetric", 1},
-	{"screen_space", 2},
-	{"combined", 3},
+	{"screen_space", 3},
+	{"combined", 4},
 	{0, 0}
 };
 
@@ -52,15 +60,13 @@ xr_token smaa_quality_token[] = {
 	{ 0, 0 }
 };
 
+// OWA: SSAO quality - only 0-3 like OGSR (no ultra)
 u32 ps_r_ssao = 3;
 xr_token qssao_token [ ] = {
 	{"st_opt_off", 0},
 	{"st_opt_low", 1},
 	{"st_opt_medium", 2},
 	{"st_opt_high", 3},
-#if defined(USE_DX10) || defined(USE_DX11)
-	{"st_opt_ultra", 4},
-#endif
 	{0, 0}
 };
 
@@ -190,8 +196,7 @@ Flags32 ps_r2_ls_flags = {
 }; // r2-only
 
 Flags32 ps_r2_ls_flags_ext = {
-	/*R2FLAGEXT_SSAO_OPT_DATA |*/ R2FLAGEXT_SSAO_HALF_DATA
-	| R2FLAGEXT_ENABLE_TESSELLATION
+	R2FLAGEXT_ENABLE_TESSELLATION
 };
 
 
@@ -207,14 +212,22 @@ float ps_r2_tonemap_middlegray = 1.f; // r2-only
 float ps_r2_tonemap_adaptation = 1.f; // r2-only
 float ps_r2_tonemap_low_lum = .4f; // r2-only
 float ps_r2_tonemap_amount = 0.7f; // r2-only
-float ps_r2_ls_bloom_kernel_g = 3.f; // r2-only
-float ps_r2_ls_bloom_kernel_b = .7f; // r2-only
-float ps_r2_ls_bloom_speed = 100.f; // r2-only
-float ps_r2_ls_bloom_kernel_scale = .7f; // r2-only	// gauss
 float ps_r2_ls_dsm_kernel = .7f; // r2-only
 float ps_r2_ls_psm_kernel = .7f; // r2-only
 float ps_r2_ls_ssm_kernel = .7f; // r2-only
-float ps_r2_ls_bloom_threshold = 1.f; // r2-only
+
+// OWA Multi-Scale Bloom (Kawase downsample/tent upsample)
+// Threshold uses power function: <1.0 = more bloom, >1.0 = less bloom (only bright areas)
+float ps_r2_bloom_threshold = 1.5f;   // Power for bloom extraction (0.5-4.0), 1.0=linear
+float ps_r2_bloom_intensity = 1.0f;   // Bloom intensity/strength (0.0-4.0)
+float ps_r2_bloom_radius = 1.0f;      // Sample radius multiplier (0.5-4.0)
+float ps_r2_ls_bloom_speed = 100.f;   // Eye adaptation speed (kept for luminance)
+
+// OWA auto fog - derives fog color from environment instead of weather file
+// 0 = use weather fog_color with distance-based sky horizon blending
+// 1 = fully automatic fog color from sky/environment sampling
+float ps_r2_auto_fog = 0.f; // Default off (use weather fog_color)
+
 Fvector ps_r2_aa_barier = {.8f, .1f, 0}; // r2-only
 Fvector ps_r2_aa_weight = {.25f, .25f, 0}; // r2-only
 float ps_r2_aa_kernel = .5f; // r2-only
@@ -288,16 +301,7 @@ int scope_3D_fake_enabled = 0; // Redotix99: for 3D Shader Based Scopes
 float ps_r2_ss_sunshafts_length = 1.f;
 float ps_r2_ss_sunshafts_radius = 1.f;
 
-float ps_r2_tnmp_a = .205f; // r2-only
-float ps_r2_tnmp_b = .35f; // r2-only
-float ps_r2_tnmp_c = .55f; // r2-only
-float ps_r2_tnmp_d = .20f; // r2-only
-float ps_r2_tnmp_e = .02f; // r2-only
-float ps_r2_tnmp_f = .15f; // r2-only
-float ps_r2_tnmp_w = 7.5f; // r2-only
-float ps_r2_tnmp_exposure = 7.0f; // r2-only
-float ps_r2_tnmp_gamma = .25f; // r2-only
-float ps_r2_tnmp_onoff = .0f; // r2-only
+// OWA: tnmp_* removed - unified hermite spline tonemapping now handles all cases
 
 // HDR10 parameters
 float ps_r4_hdr10_whitepoint_nits = 400.0f; // r4-only, default = 400 nits
@@ -305,54 +309,32 @@ float ps_r4_hdr10_ui_nits         = 400.0f; // r4-only, default = 400 nits
 float ps_r4_hdr10_pda_intensity   = 1.0f;   // r4-only, default = 1.0x
 int   ps_r4_hdr10_pda             = 0;	    // r4-only (NOTE: this is a hack to not double HDR tonemap the 3D PDA)
 int   ps_r4_hdr10_on              = 0;	    // r4-only, default = off
+int   ps_r4_hires_rts             = 0;      // r4-only, use 16-bit RTs in SDR (requires restart)
 int   ps_r4_hdr10_colorspace      = 2;      // r4-only, default = Rec.2020
 
-int   ps_r4_hdr10_tonemapper   		   = 0;    // r4-only, default = ACES (Narkowicz)
-int   ps_r4_hdr10_tonemap_mode 		   = 1;	   // r4-only, default = Color
-float ps_r4_hdr10_exposure     		   = 0.8f; // r4-only, default = 1.0x
-float ps_r4_hdr10_contrast     		   = 0.0f; // r4-only, default = +0%
-float ps_r4_hdr10_contrast_middle_gray = 0.5f; // r4-only, default = 0.5
-float ps_r4_hdr10_saturation   		   = 0.1f; // r4-only, default = +0%
-float ps_r4_hdr10_brightness		   = 0.0f; // r4-only, default = +0
-float ps_r4_hdr10_gamma 			   = 1.1f; // r4-only, default = 1.0
-float ps_r4_hdr10_ui_saturation        = 0.5f; // r4-only, default = +0%
-
-int   ps_r4_hdr10_bloom_on          = 0; 	  // r4-only, default = off
-int   ps_r4_hdr10_bloom_blur_passes = 20;      // r4-only, default = 8
-float ps_r4_hdr10_bloom_blur_scale 	= 1.0f;   // r4-only, default = 1.0
-float ps_r4_hdr10_bloom_intensity   = 0.06f;  // r4-only, default = 0.05
-
-int      ps_r4_hdr10_flare_on 			   = 0;	     // r4-only
-float    ps_r4_hdr10_flare_threshold       = 0.0f;   // r4-only
-float    ps_r4_hdr10_flare_power           = 0.04f;  // r4-only
-int      ps_r4_hdr10_flare_ghosts          = 1;      // r4-only
-float    ps_r4_hdr10_flare_ghost_dispersal = 0.6f;   // r4-only
-float    ps_r4_hdr10_flare_center_falloff  = 1.1f;   // r4-only
-float    ps_r4_hdr10_flare_halo_scale      = 0.47f; // r4-only
-float    ps_r4_hdr10_flare_halo_ca         = 10.0f;  // r4-only
-float    ps_r4_hdr10_flare_ghost_ca        = 3.0f;   // r4-only
-int      ps_r4_hdr10_flare_blur_passes     = 12;     // r4-only
-float    ps_r4_hdr10_flare_blur_scale      = 1.0f;   // r4-only
-float    ps_r4_hdr10_flare_ghost_intensity = 0.04f;  // r4-only
-float    ps_r4_hdr10_flare_halo_intensity  = 0.04f;  // r4-only
-Fvector3 ps_r4_hdr10_flare_lens_color      = {1.0f, 0.7f, 1.0f}; // r4-only
+// ps_r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping
+float ps_r4_hdr10_chroma_correction    = 0.6f; // r4-only, default = 0.6 (moderate correction)
+float ps_r4_hdr10_exposure     		   = 1.0f; // r4-only, default = 1.0 (no effect)
+float ps_r4_hdr10_contrast     		   = 0.0f; // r4-only, default = 0.0 (no effect, shader receives 1.0)
+float ps_r4_hdr10_contrast_middle_gray = 0.5f; // r4-only, default = 0.5 (contrast pivot point)
+float ps_r4_hdr10_saturation   		   = 0.0f; // r4-only, default = 0.0 (no effect, shader receives 1.0)
+float ps_r4_hdr10_brightness		   = 0.0f; // r4-only, default = 0.0 (no effect)
+float ps_r4_hdr10_gamma 			   = 1.0f; // r4-only, default = 1.0 (no effect)
+float ps_r4_hdr10_ui_saturation        = 0.0f; // r4-only, default = 0.0 (no effect, shader receives 1.0)
 
 int   ps_r4_hdr10_sun_on 		   = 0;
 float ps_r4_hdr10_sun_intensity    = 80.0f; // r4-only
-float ps_r4_hdr10_sun_inner_radius = 0.20f; // r4-only
-float ps_r4_hdr10_sun_outer_radius = 0.40f; // r4-only
+float ps_r4_hdr10_moon_intensity       = 5.0f;  // r4-only, subtle HDR glow for moon
 float ps_r4_hdr10_sun_dawn_begin   = 4.5f;  // r4-only, 24 hour format
 float ps_r4_hdr10_sun_dawn_end     = 6.0f;  // r4-only, 24 hour format
 float ps_r4_hdr10_sun_dusk_begin   = 18.5f; // r4-only, 24 hour format
 float ps_r4_hdr10_sun_dusk_end     = 21.0f; // r4-only, 24 hour format
+// OWA: HDR expansion tuning parameters (knee is now automatic per BT.2408)
+float ps_r4_hdr10_light_expansion    = 1.0f;  // r4-only, light HDR expansion multiplier
+float ps_r4_hdr10_particle_expansion = 1.0f;  // r4-only, particle HDR expansion multiplier
 
-float ps_r2_img_exposure = 1.0f; // r2-only
-float ps_r2_img_gamma = 1.0f; // r2-only
-float ps_r2_img_saturation = 1.0f; // r2-only
-Fvector ps_r2_img_cg = {.0f, .0f, .0f}; // r2-only
-
-Fvector4 ps_pp_bloom_thresh = { .7, .8f, .9f, .0f };
-Fvector4 ps_pp_bloom_weight = { .33f, .33f, .33f, .0f };
+// OWA: ps_r2_img_* removed - img_corrections() never called in R4
+// OWA: ps_pp_bloom_* removed - phase_pp_bloom() output (s_bloom_new) never sampled
 
 //debug
 Fvector4 ps_dev_param_1 = { .0f, .0f, .0f, .0f };
@@ -385,7 +367,6 @@ float hud_fov_aim_factor = 0;
 
 // Screen Space Shaders Stuff
 Fvector4 ps_ssfx_floravariation = { 0.025, 0.1, 0.025, 0.05 }; // Grass Int, Grass Freq, Foliage Int, Foliage Freq ( 0.025, 0.1, 0.03, 0.05 )
-Fvector4 ps_ssfx_motionblur = { 6, 0, 0, 0 }; // Samples, Intensity, Only HUD, -
 Fvector4 ps_ssfx_taa = { 1, 0.5f, 0.6f, 0 }; // Enable, Jitter, Sharpness, -
 Fvector4 ps_ssfx_fog = { 8, 1.3f, 0.1f, 0 }; // Height, Density, SunColor, -
 float ps_ssfx_fog_scattering = 0.6f; // Fog scattering intensity
@@ -393,14 +374,19 @@ float ps_ssfx_fog_scattering = 0.6f; // Fog scattering intensity
 int ps_ssfx_pom_refine = 0;
 Fvector4 ps_ssfx_pom = { 16, 12, 0.035f, 0.4f };  // Samples , Range, Height, AO
 
-int ps_ssfx_terrain_grass_align = 0; // Grass align
+int ps_ssfx_terrain_grass_align = 1; // Grass align (OWA: default ON for terrain alignment fix)
 float ps_ssfx_terrain_grass_slope = 1.0f; // Grass slope limit // Recommended 0.3f
 Fvector4 ps_ssfx_terrain_pom = { 12, 20, 0.04f, 1.0f }; // Samples, Range, Height, Water Limit
 int ps_ssfx_terrain_pom_refine = 0;
 
-int ps_ssfx_bloom_use_presets = 0;
-Fvector4 ps_ssfx_bloom_1 = { 3.5f, 3.0f, 0.0f, 0.6f }; // Threshold, Exposure, -, Sky
-Fvector4 ps_ssfx_bloom_2 = { 3.0f, 1.5f, 1.5f, 1.0f }; // Blur Radius, Vibrance, Lens, Dirt
+// OWA: Terrain quality preset
+u32 ps_r3_terrain_quality = 0;
+xr_token terrain_quality_token[] = {
+	{"st_terrain_low", 0},     // Vanilla detail splatting
+	{"st_terrain_mid", 1},     // SSFX without POM
+	{"st_terrain_high", 2},    // SSFX with full POM
+	{0, 0}
+};
 
 Fvector4 ps_ssfx_sss_quality = { 12.0f, 4.0f, 1.0f, 1.0f }; // Dir Samples, Omni Samples, Dir Enable, Omni Enable
 Fvector4 ps_ssfx_sss = { 1.0f, 1.0f, 1.0f, 0.0f }; // Dir Len, Omni Len, Grass shadows, -
@@ -411,18 +397,19 @@ int ps_ssfx_il_quality = 32; // IL Samples
 Fvector4 ps_ssfx_il = { 6.66f, 1.0f, 1.0f, 5.0f }; // Res, Int, Vibrance, Blur
 Fvector4 ps_ssfx_il_setup1 = { 150.0f, 1.0f, 0.5f, 0.0f }; // Distance, HUD, Flora, -
 
-int ps_ssfx_ao_quality = 4; // AO Samples
-Fvector4 ps_ssfx_ao = { 1.0f, 5.0f, 1.0f, 2.5f }; // Res, AO int, Blur, Radius
-Fvector4 ps_ssfx_ao_setup1 = { 150.0, 1.0, 1.0, 0.0 }; // Distance, HUD, Flora, Max OCC
+// OWA: Enhanced IL parameters
+float ps_ssfx_il_radius = 3.0f; // IL sample radius in meters
+Fvector4 ps_ssfx_il_params = { 1.0f, 0.5f, 2.0f, 0.0f }; // RadiusScale, MinRadius, MaxRadius, Reserved
+
+// OWA: Perceptual Lighting parameters (part of Perceptual GI, controlled by r3_gi)
+// PL is automatically enabled when r3_gi is enabled - no separate toggle
+Fvector4 ps_r3_gi_pl_params = { 0.9f, 1.0f, 1.0f, 0.5f }; // Intensity, Occlusion, Irradiance, Threshold
+Fvector4 ps_r3_gi_pl_params2 = { 0.65f, 0.1f, 0.75f, 0.0f }; // Radius, Saturation, Recovery, Reserved
 
 Fvector4 ps_ssfx_water = { 1.0f, 0.8f, 1.0f, 0.0f }; // Res, Blur, Blur Perlin, -
 Fvector3 ps_ssfx_water_quality = { 1.0, 2.0, 0.0 }; // SSR Quality, Parallax Quality, -
 Fvector4 ps_ssfx_water_setup1 = { 0.6f, 3.0f, 0.3f, 0.05f }; // Distortion, Turbidity, Softborder, Parallax Height
 Fvector4 ps_ssfx_water_setup2 = { 0.8f, 6.0f, 0.3f, 0.5f }; // Reflection, Specular, Caustics, Ripples
-
-int ps_ssfx_ssr_quality = 0; // Quality
-Fvector4 ps_ssfx_ssr = { 1.0f, 0.2f, 0.0f, 0.0f }; // Res, Blur, Temp, Noise
-Fvector4 ps_ssfx_ssr_2 = { 0.0f, 1.3f, 1.0f, 0.015f }; // Quality, Fade, Int, Wpn Int
 
 Fvector4 ps_ssfx_terrain_quality = { 8, 0, 0, 0 };
 Fvector4 ps_ssfx_terrain_offset = { 0, 0, 0, 0 };
@@ -432,7 +419,12 @@ Fvector4 ps_ssfx_volumetric = { 1.0f, 1.0f, 3.0f, 1.0f }; // Force Volumetric, V
 
 Fvector3 ps_ssfx_shadow_bias = { 0.4f, 0.03f, 0.0f };
 
-Fvector4 ps_ssfx_lut = { 0.0f, 0.0f, 0.0f, 0.0f };
+// OWA SSFX compile-time toggles (require restart, default OFF for low-end PC compatibility)
+int ps_r3_ssfx_fog = 0;        // r3_ssfx_fog command
+int ps_r3_ssfx_shadows = 0;    // r3_ssfx_shadows command
+int ps_r3_ssfx_water = 0;      // r3_ssfx_water command
+int ps_r3_ssfx_taa = 0;        // r3_ssfx_taa command
+int ps_r3_ssfx_il = 0;         // r3_gi command - Perceptual Global Illumination (IL + PL)
 
 Fvector4 ps_ssfx_wind_grass = { 9.5f, 1.4f, 1.5f, 0.4f };
 Fvector4 ps_ssfx_wind_trees = { 11.0f, 0.15f, 0.5f, 0.15f };
@@ -440,13 +432,7 @@ Fvector4 ps_ssfx_wind_trees = { 11.0f, 0.15f, 0.5f, 0.15f };
 Fvector4 ps_ssfx_florafixes_1 = { 0.3f, 0.21f, 0.3f, 0.21f }; // Flora fixes 1
 Fvector4 ps_ssfx_florafixes_2 = { 2.0f, 1.0f, 0.0f, 0.0f }; // Flora fixes 2
 
-Fvector4 ps_ssfx_wetsurfaces_1 = { 1.0f, 1.0f, 1.0f, 1.0f }; // Wet surfaces 1
-Fvector4 ps_ssfx_wetsurfaces_2 = { 1.0f, 1.0f, 1.0f, 1.0f }; // Wet surfaces 2
-
 int ps_ssfx_is_underground = 0;
-int ps_ssfx_gloss_method = 0;
-float ps_ssfx_gloss_factor = 0.5f;
-Fvector3 ps_ssfx_gloss_minmax = { 0.0f,0.92f,0.0f }; // Gloss
 
 Fvector4 ps_ssfx_lightsetup_1 = { 0.35f, 0.5f, 0.0f, 0.0f }; // Spec intensity
 
@@ -454,10 +440,6 @@ Fvector4 ps_ssfx_hud_drops_1 = { 1.0f, 1.0f, 1.0f, 1.0f }; // Anim Speed, Int, R
 Fvector4 ps_ssfx_hud_drops_2 = { 1.5f, 0.85f, 0.0f, 2.0f }; // Density, Size, Extra Gloss, Gloss
 
 Fvector4 ps_ssfx_blood_decals = { 0.6f, 0.6f, 0.f, 0.f };
-Fvector4 ps_ssfx_rain_1 = { 2.0f, 0.1f, 0.6f, 2.f }; // Len, Width, Speed, Quality
-Fvector4 ps_ssfx_rain_2 = { 0.5f, 0.1f, 1.0f, 0.5f }; // Alpha, Brigthness, Refraction, Reflection
-Fvector4 ps_ssfx_rain_3 = { 0.5f, 1.0f, 0.0f, 0.0f }; // Alpha, Refraction ( Splashes )
-Fvector4 ps_ssfx_rain_drops_setup = { 2500, 15, 0.0f, 0.0f };
 
 Fvector3 ps_ssfx_shadow_cascades = { 20, 40, 160 };
 Fvector4 ps_ssfx_grass_shadows = { .0f, .35f, 30.0f, .0f };
@@ -465,9 +447,6 @@ Fvector4 ps_ssfx_grass_shadows = { .0f, .35f, 30.0f, .0f };
 Fvector4 ps_ssfx_grass_interactive = { .0f, .0f, 2000.0f, 1.0f };
 Fvector4 ps_ssfx_int_grass_params_1 = { 1.0f, 1.0f, 1.0f, 25.0f };
 Fvector4 ps_ssfx_int_grass_params_2 = { 1.0f, 5.0f, 1.0f, 1.0f };
-
-Fvector4 ps_ssfx_wpn_dof_1 = { .0f, .0f, .0f, .0f };
-float ps_ssfx_wpn_dof_2 = 1.0f;
 
 //	x - min (0), y - focus (1.4), z - max (100)
 Fvector3 ps_r2_dof = { -1.25f, 0.f, 600.f };
@@ -728,65 +707,12 @@ public:
 	}
 };
 
-class CCC_SSAO_Mode : public CCC_Token
-{
-public:
-	CCC_SSAO_Mode(LPCSTR N, u32* V, xr_token* T) : CCC_Token(N, V, T)
-	{
-	} ;
-
-	virtual void Execute(LPCSTR args)
-	{
-		CCC_Token::Execute(args);
-
-		switch (*value)
-		{
-		case 0:
-			{
-				ps_r_ssao = 0;
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HBAO, 0);
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HDAO, 0);
-				break;
-			}
-		case 1:
-			{
-				if (ps_r_ssao == 0)
-				{
-					ps_r_ssao = 1;
-				}
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HBAO, 0);
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HDAO, 0);
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HALF_DATA, 0);
-				break;
-			}
-		case 2:
-			{
-				if (ps_r_ssao == 0)
-				{
-					ps_r_ssao = 1;
-				}
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HBAO, 0);
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HDAO, 1);
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_OPT_DATA, 0);
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HALF_DATA, 0);
-				break;
-			}
-		case 3:
-			{
-				if (ps_r_ssao == 0)
-				{
-					ps_r_ssao = 1;
-				}
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HBAO, 1);
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_HDAO, 0);
-				ps_r2_ls_flags_ext.set(R2FLAGEXT_SSAO_OPT_DATA, 1);
-				break;
-			}
-		}
-	}
-};
 
 //-----------------------------------------------------------------------
+// OWA: rspec file loading has been deprecated in favor of the modular
+// defaults system (options_utils.init_defaults + defaults_*.ltx files).
+// The _preset command is kept for backward compatibility but no longer
+// loads rspec files. All rendering defaults are now managed via Lua.
 class CCC_Preset : public CCC_Token
 {
 public:
@@ -797,25 +723,7 @@ public:
 	virtual void Execute(LPCSTR args)
 	{
 		CCC_Token::Execute(args);
-		string_path _cfg;
-		string_path cmd;
-
-		switch (*value)
-		{
-		case 0: xr_strcpy(_cfg, "rspec_minimum.ltx");
-			break;
-		case 1: xr_strcpy(_cfg, "rspec_low.ltx");
-			break;
-		case 2: xr_strcpy(_cfg, "rspec_default.ltx");
-			break;
-		case 3: xr_strcpy(_cfg, "rspec_high.ltx");
-			break;
-		case 4: xr_strcpy(_cfg, "rspec_extreme.ltx");
-			break;
-		}
-		FS.update_path(_cfg, "$game_config$", _cfg);
-		strconcat(sizeof(cmd), cmd, "cfg_load", " ", _cfg);
-		Console->Execute(cmd);
+		// OWA: rspec loading removed - defaults now handled by options_utils.script
 	}
 };
 
@@ -1120,7 +1028,11 @@ void xrRender_initconsole()
 	//no ram textures should be enabled by default on r3/r4
 	if (RENDER == R_R3 || RENDER == R_R4) ps_r__common_flags.set(RFLAG_NO_RAM_TEXTURES, TRUE);
 
+	// Parallel texture loading - enabled by default (significant load time improvement)
+	ps_r__common_flags.set(RFLAG_MT_TEX_LOAD, TRUE);
+
 	CMD3(CCC_Mask, "r__no_ram_textures", &ps_r__common_flags, RFLAG_NO_RAM_TEXTURES);
+	CMD3(CCC_Mask, "r__mt_tex_load", &ps_r__common_flags, RFLAG_MT_TEX_LOAD);
 	CMD2(CCC_tf_Aniso, "r__tf_aniso", &ps_r__tf_Anisotropic); //	{1..16}
 	CMD2(CCC_tf_MipBias, "r__tf_mipbias", &ps_r__tf_Mipbias); // {-3 +3}
 
@@ -1157,12 +1069,13 @@ void xrRender_initconsole()
 	CMD4(CCC_Float, "r2_tonemap_adaptation", &ps_r2_tonemap_adaptation, 0.01f, 10.0f);
 	CMD4(CCC_Float, "r2_tonemap_lowlum", &ps_r2_tonemap_low_lum, 0.0001f, 1.0f);
 	CMD4(CCC_Float, "r2_tonemap_amount", &ps_r2_tonemap_amount, 0.0000f, 1.0f);
-	CMD4(CCC_Float, "r2_ls_bloom_kernel_scale", &ps_r2_ls_bloom_kernel_scale, 0.05f, 2.f);
-	CMD4(CCC_Float, "r2_ls_bloom_kernel_g", &ps_r2_ls_bloom_kernel_g, 1.f, 7.f);
-	CMD4(CCC_Float, "r2_ls_bloom_kernel_b", &ps_r2_ls_bloom_kernel_b, 0.01f, 1.f);
-	CMD4(CCC_Float, "r2_ls_bloom_threshold", &ps_r2_ls_bloom_threshold, 0.f, 1.f);
+	// OWA Multi-Scale Bloom (5-level Kawase downsample/tent upsample pyramid)
+	// Threshold: power function - lower=more bloom, higher=only bright areas bloom
+	CMD4(CCC_Float, "r2_bloom_threshold", &ps_r2_bloom_threshold, 0.5f, 4.0f);
+	CMD4(CCC_Float, "r2_bloom_intensity", &ps_r2_bloom_intensity, 0.0f, 4.0f);
+	CMD4(CCC_Float, "r2_bloom_radius", &ps_r2_bloom_radius, 0.5f, 4.0f);
 	CMD4(CCC_Float, "r2_ls_bloom_speed", &ps_r2_ls_bloom_speed, 0.f, 100.f);
-	CMD3(CCC_Mask, "r2_ls_bloom_fast", &ps_r2_ls_flags, R2FLAG_FASTBLOOM);
+	CMD4(CCC_Float, "r2_auto_fog", &ps_r2_auto_fog, 0.f, 1.f);
 	CMD4(CCC_Float, "r2_ls_dsm_kernel", &ps_r2_ls_dsm_kernel, .1f, 3.f);
 	CMD4(CCC_Float, "r2_ls_psm_kernel", &ps_r2_ls_psm_kernel, .1f, 3.f);
 	CMD4(CCC_Float, "r2_ls_ssm_kernel", &ps_r2_ls_ssm_kernel, .1f, 3.f);
@@ -1183,7 +1096,6 @@ void xrRender_initconsole()
 
 #ifdef DEBUG
 	CMD3(CCC_Mask,		"r2_use_nvdbt",			&ps_r2_ls_flags,			R2FLAG_USE_NVDBT);
-	CMD3(CCC_Mask,		"r2_mt",				&ps_r2_ls_flags,			R2FLAG_EXP_MT_CALC);
 #endif // DEBUG
 
 	CMD3(CCC_Mask, "r2_sun", &ps_r2_ls_flags, R2FLAG_SUN);
@@ -1224,25 +1136,21 @@ void xrRender_initconsole()
 	CMD4(CCC_Float, "r2_ss_sunshafts_length", &ps_r2_ss_sunshafts_length, .2f, 1.5f);
 	CMD4(CCC_Float, "r2_ss_sunshafts_radius", &ps_r2_ss_sunshafts_radius, .5f, 2.f);
 
-	CMD4(CCC_Float, "r2_tnmp_a", &ps_r2_tnmp_a, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_b", &ps_r2_tnmp_b, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_c", &ps_r2_tnmp_c, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_d", &ps_r2_tnmp_d, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_e", &ps_r2_tnmp_e, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_f", &ps_r2_tnmp_f, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_w", &ps_r2_tnmp_w, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_exposure", &ps_r2_tnmp_exposure, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_gamma", &ps_r2_tnmp_gamma, 0.0f, 20.0f);
-	CMD4(CCC_Float, "r2_tnmp_onoff", &ps_r2_tnmp_onoff, 0.0f, 1.0f);
+	// OWA: r2_tnmp_* removed - unified hermite spline tonemapping now handles all cases
 
     CMD4(CCC_Float,   "r4_hdr10_whitepoint_nits", &ps_r4_hdr10_whitepoint_nits,  10.0f, 10000.0f);
     CMD4(CCC_Float,   "r4_hdr10_ui_nits", 		  &ps_r4_hdr10_ui_nits, 	     10.0f, 10000.0f);
     CMD4(CCC_Float,   "r4_hdr10_pda_intensity",   &ps_r4_hdr10_pda_intensity,      0.1, 2);
 	CMD4(CCC_Integer, "r4_hdr10_on", 			  &ps_r4_hdr10_on, 				     0, 1);
+	CMD4(CCC_Integer, "r4_hires_rts", 			  &ps_r4_hires_rts, 			     0, 1);  // OWA: 16-bit RTs in SDR (requires restart)
+
+	// OWA: R4 Static Lighting Mode (R1-style retro visuals) - requires restart
+	CMD3(CCC_Token, "r4_lighting_style", &ps_r4_lighting_style, lighting_style_token);
+	CMD4(CCC_Float, "r4_static_brightness", &ps_r4_static_brightness, 0.5f, 4.0f);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);
 
-    CMD4(CCC_Integer, "r4_hdr10_tonemapper", 	  		&ps_r4_hdr10_tonemapper,      	      0, 8);
-	CMD4(CCC_Integer, "r4_hdr10_tonemap_mode",    		&ps_r4_hdr10_tonemap_mode,    	      0, 1);
+    // r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping
+	CMD4(CCC_Float,   "r4_hdr10_chroma_correction",    	&ps_r4_hdr10_chroma_correction,       0.0f, 1.0f);
 	CMD4(CCC_Float,   "r4_hdr10_exposure",        		&ps_r4_hdr10_exposure, 		  	    0.1, 30);
 	CMD4(CCC_Float,   "r4_hdr10_contrast",        		&ps_r4_hdr10_contrast, 		  	     -1, 1);
 	CMD4(CCC_Float,   "r4_hdr10_contrast_middle_gray",  &ps_r4_hdr10_contrast_middle_gray,    0, 5);
@@ -1251,48 +1159,22 @@ void xrRender_initconsole()
 	CMD4(CCC_Float,   "r4_hdr10_gamma",   			    &ps_r4_hdr10_gamma,					0.1, 5);
 	CMD4(CCC_Float,   "r4_hdr10_ui_saturation",         &ps_r4_hdr10_ui_saturation,          -1, 1);
 
-	CMD4(CCC_Integer, "r4_hdr10_bloom_on",          &ps_r4_hdr10_bloom_on,          0, 1);
-	CMD4(CCC_Integer, "r4_hdr10_bloom_blur_passes", &ps_r4_hdr10_bloom_blur_passes, 1, 32);
-	CMD4(CCC_Float,   "r4_hdr10_bloom_blur_scale",  &ps_r4_hdr10_bloom_blur_scale,  0, 1);
-	CMD4(CCC_Float,   "r4_hdr10_bloom_intensity",   &ps_r4_hdr10_bloom_intensity,   0, 1);
-
-	CMD4(CCC_Integer, "r4_hdr10_flare_on",              &ps_r4_hdr10_flare_on,                   0, 1);
-	CMD4(CCC_Float,   "r4_hdr10_flare_threshold",       &ps_r4_hdr10_flare_threshold,         0.0f, 10.0f);
-	CMD4(CCC_Float,   "r4_hdr10_flare_power",           &ps_r4_hdr10_flare_power,             0.0f, 5.0f);
-	CMD4(CCC_Integer, "r4_hdr10_flare_ghosts",          &ps_r4_hdr10_flare_ghosts,               0, 10);
-	CMD4(CCC_Float,   "r4_hdr10_flare_ghost_dispersal", &ps_r4_hdr10_flare_ghost_dispersal,  0.01f, 5.0f);
-	CMD4(CCC_Float,   "r4_hdr10_flare_center_falloff",  &ps_r4_hdr10_flare_center_falloff,    0.1f, 10.0f);
-	CMD4(CCC_Float,   "r4_hdr10_flare_halo_scale",      &ps_r4_hdr10_flare_halo_scale,       0.01f, 5.0f);
-	CMD4(CCC_Float,   "r4_hdr10_flare_halo_ca",         &ps_r4_hdr10_flare_halo_ca,           0.0f, 20.0f);
-	CMD4(CCC_Float,   "r4_hdr10_flare_ghost_ca",        &ps_r4_hdr10_flare_ghost_ca,          0.0f, 20.0f);
-	CMD4(CCC_Integer, "r4_hdr10_flare_blur_passes",     &ps_r4_hdr10_flare_blur_passes,          1, 32);
-	CMD4(CCC_Float,   "r4_hdr10_flare_blur_scale",      &ps_r4_hdr10_flare_blur_scale,        0.0f, 1.0f);
-	CMD4(CCC_Float,   "r4_hdr10_flare_ghost_intensity", &ps_r4_hdr10_flare_ghost_intensity,   0.0f, 1.0f);
-	CMD4(CCC_Float,   "r4_hdr10_flare_halo_intensity",  &ps_r4_hdr10_flare_halo_intensity,    0.0f, 1.0f);
-	CMD4(CCC_Vector3, "r4_hdr10_flare_lens_color",      &ps_r4_hdr10_flare_lens_color, Fvector3().set(0,0,0), Fvector3().set(1,1,1));
+	// OWA: HDR10 bloom and lens flare removed - unified multi-scale bloom handles both SDR and HDR
 
 	CMD4(CCC_Integer, "r4_hdr10_sun_on",           &ps_r4_hdr10_sun_on,               0, 1);
 	CMD4(CCC_Float,   "r4_hdr10_sun_intensity",    &ps_r4_hdr10_sun_intensity,     1.0f, 100.0f);
-	CMD4(CCC_Float,   "r4_hdr10_sun_inner_radius", &ps_r4_hdr10_sun_inner_radius, 0.01f, 1.0f);
-	CMD4(CCC_Float,   "r4_hdr10_sun_outer_radius", &ps_r4_hdr10_sun_outer_radius, 0.01f, 1.0f);
+	CMD4(CCC_Float,   "r4_hdr10_moon_intensity",       &ps_r4_hdr10_moon_intensity,       1.0f, 20.0f);
 	CMD4(CCC_Float,   "r4_hdr10_sun_dawn_begin",   &ps_r4_hdr10_sun_dawn_begin,    0.0f, 24.0f);
 	CMD4(CCC_Float,   "r4_hdr10_sun_dawn_end",     &ps_r4_hdr10_sun_dawn_end,      0.0f, 24.0f);
 	CMD4(CCC_Float,   "r4_hdr10_sun_dusk_begin",   &ps_r4_hdr10_sun_dusk_begin,    0.0f, 24.0f);
 	CMD4(CCC_Float,   "r4_hdr10_sun_dusk_end",     &ps_r4_hdr10_sun_dusk_end,      0.0f, 24.0f);
+	// OWA: HDR expansion tuning (knee is now automatic per BT.2408)
+	CMD4(CCC_Float,   "r4_hdr10_light_expansion",    &ps_r4_hdr10_light_expansion,    0.0f, 4.0f);
+	CMD4(CCC_Float,   "r4_hdr10_particle_expansion", &ps_r4_hdr10_particle_expansion, 0.0f, 4.0f);
 
-	CMD4(CCC_Float, "r__exposure", &ps_r2_img_exposure, 0.5f, 4.0f);
-	CMD4(CCC_Float, "r__gamma", &ps_r2_img_gamma, 0.5f, 2.2f);
-	CMD4(CCC_Float, "r__saturation", &ps_r2_img_saturation, 0.0f, 2.0f);
+	// OWA: r__exposure/gamma/saturation/color_grading removed - img_corrections() never called in R4
+	// OWA: r__bloom_weight/thresh removed - phase_pp_bloom() output (s_bloom_new) never sampled
 
-	tw_min.set(0, 0, 0);
-	tw_max.set(1, 1, 1);
-	CMD4(CCC_Vector3, "r__color_grading", &ps_r2_img_cg, tw_min, tw_max);
-
-	//Refactor
-	Fvector4 twb_min = { 0.f, 0.f, 0.f, 0.f };
-	Fvector4 twb_max = { 1.f, 1.f, 1.f, 1.f };
-	CMD4(CCC_Vector4, "r__bloom_weight", &ps_pp_bloom_weight, twb_min, twb_max);
-	CMD4(CCC_Vector4, "r__bloom_thresh", &ps_pp_bloom_thresh, twb_min, twb_max);
 	CMD4(CCC_Integer, "r__nightvision", &ps_r2_nightvision, 0, 3); //For beef's nightvision shader or other stuff
 
 	CMD4(CCC_Integer, "r__fakescope", &scope_fake_enabled, 0, 1); //crookr for fake scope
@@ -1306,12 +1188,8 @@ void xrRender_initconsole()
 	CMD3(CCC_Mask, "r2_mblur_enabled", &ps_r2_anomaly_flags, R2_AN_FLAG_MBLUR);
 	CMD3(CCC_Mask, "r__lens_flares", &ps_r2_anomaly_flags, R2_AN_FLAG_FLARES);
 	CMD3(CCC_Token, "r2_smaa", &ps_smaa_quality, smaa_quality_token);
-	CMD3(CCC_Mask,		"r2_gi",				&ps_r2_ls_flags,			R2FLAG_GI);
-	CMD4(CCC_Float,		"r2_gi_clip",			&ps_r2_GI_clip,				EPS,	0.1f	);
-	CMD4(CCC_Integer,	"r2_gi_depth",			&ps_r2_GI_depth,			1,		5		);
-	CMD4(CCC_Integer,	"r2_gi_photons",		&ps_r2_GI_photons,			8,		256		);
-	CMD4(CCC_Float,		"r2_gi_refl",			&ps_r2_GI_refl,				EPS_L,	0.99f	);
-	
+	// OWA: Legacy r2_gi commands removed - use r3_gi instead for modern perceptual GI
+
 	//Shader param stuff
 	Fvector4 tw2_min = { -100.f, -100.f, -100.f, -100.f };
 	Fvector4 tw2_max = { 100.f, 100.f, 100.f, 100.f };
@@ -1340,9 +1218,15 @@ void xrRender_initconsole()
 	// Screen Space Shaders
 	CMD4(CCC_Vector4, "ssfx_floravariation", &ps_ssfx_floravariation, Fvector4().set(0, 0, 0, 0), Fvector4().set(10, 1, 10, 1));
 	CMD4(CCC_Vector4, "ssfx_taa", &ps_ssfx_taa, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 1, 2, 1));
-	CMD4(CCC_Vector4, "ssfx_motionblur", &ps_ssfx_motionblur, Fvector4().set(1, 0, 0, 0), Fvector4().set(16, 2, 1, 100));
 	CMD4(CCC_Float, "ssfx_fog_scattering", &ps_ssfx_fog_scattering, 0, 1);
 	CMD4(CCC_Vector4, "ssfx_fog", &ps_ssfx_fog, Fvector4().set(0, 0, 0, 0), Fvector4().set(20, 5, 1, 100));
+
+	// OWA SSFX feature toggles (requires restart for shader recompilation)
+	CMD4(CCC_Integer, "r3_ssfx_fog", &ps_r3_ssfx_fog, 0, 1);
+	CMD4(CCC_Integer, "r3_ssfx_shadows", &ps_r3_ssfx_shadows, 0, 1);
+	CMD4(CCC_Integer, "r3_ssfx_water", &ps_r3_ssfx_water, 0, 1);
+	CMD4(CCC_Integer, "r3_ssfx_taa", &ps_r3_ssfx_taa, 0, 1);
+	CMD4(CCC_Integer, "r3_gi", &ps_r3_ssfx_il, 0, 1);
 
 	CMD4(CCC_Integer, "ssfx_pom_refine", &ps_ssfx_pom_refine, 0, 1);
 	CMD4(CCC_Vector4, "ssfx_pom", &ps_ssfx_pom, Fvector4().set(0, 0, 0, 0), Fvector4().set(36, 60, 1, 1));
@@ -1351,10 +1235,8 @@ void xrRender_initconsole()
 	CMD4(CCC_Integer, "ssfx_terrain_grass_align", &ps_ssfx_terrain_grass_align, 0, 1);
 	CMD4(CCC_Float, "ssfx_terrain_grass_slope", &ps_ssfx_terrain_grass_slope, 0, 1);
 	CMD4(CCC_Vector4, "ssfx_terrain_pom", &ps_ssfx_terrain_pom, Fvector4().set(0, 0, 0, 0), Fvector4().set(36, 60, 1, 2));
+	CMD3(CCC_Token, "r3_terrain_quality", &ps_r3_terrain_quality, terrain_quality_token);
 
-	CMD4(CCC_Integer, "ssfx_bloom_use_presets", &ps_ssfx_bloom_use_presets, 0, 1);
-	CMD4(CCC_Vector4, "ssfx_bloom_1", &ps_ssfx_bloom_1, Fvector4().set(1, 1, 0, 0), Fvector4().set(10, 100, 100, 10));
-	CMD4(CCC_Vector4, "ssfx_bloom_2", &ps_ssfx_bloom_2, Fvector4().set(1, 0, 0, 0), Fvector4().set(5, 10, 10, 10));
 	CMD4(CCC_Vector4, "ssfx_sss_quality", &ps_ssfx_sss_quality, Fvector4().set(1, 1, 0, 0), Fvector4().set(24, 12, 1, 1));
 	CMD4(CCC_Vector4, "ssfx_sss", &ps_ssfx_sss, Fvector4().set(0, 0, 0, 0), Fvector4().set(3, 3, 1, 1));
 
@@ -1364,19 +1246,21 @@ void xrRender_initconsole()
 	CMD4(CCC_Vector4, "ssfx_il", &ps_ssfx_il, Fvector4().set(0, 0, 0, 0), Fvector4().set(8, 10, 3, 6));
 	CMD4(CCC_Vector4, "ssfx_il_setup1", &ps_ssfx_il_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(300, 1, 1, 1));
 
-	CMD4(CCC_Integer, "ssfx_ao_quality", &ps_ssfx_ao_quality, 2, 8);
-	CMD4(CCC_Vector4, "ssfx_ao", &ps_ssfx_ao, Fvector4().set(0, 0, 0, 0), Fvector4().set(8, 10, 1, 10));
-	CMD4(CCC_Vector4, "ssfx_ao_setup1", &ps_ssfx_ao_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(300, 1, 1, 1));
+	// OWA: IL radius and distance-adaptive parameters
+	CMD4(CCC_Float, "ssfx_il_radius", &ps_ssfx_il_radius, 0.5f, 10.0f);
+	CMD4(CCC_Vector4, "ssfx_il_params", &ps_ssfx_il_params, Fvector4().set(0.1, 0.1, 0.5, 0), Fvector4().set(3, 5, 10, 1));
+
+	// OWA: Perceptual Lighting parameters (part of Perceptual GI, controlled by r3_gi)
+	// x = Intensity, y = Occlusion, z = Irradiance, w = Threshold
+	CMD4(CCC_Vector4, "r3_gi_pl_params", &ps_r3_gi_pl_params, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 2, 2, 1));
+	// x = Radius (unused), y = Saturation, z = Recovery, w = Reserved
+	CMD4(CCC_Vector4, "r3_gi_pl_params2", &ps_r3_gi_pl_params2, Fvector4().set(0.25, 0, 0, 0), Fvector4().set(1, 1, 1, 1));
 
 	CMD4(CCC_Vector4, "ssfx_water", &ps_ssfx_water, Fvector4().set(1, 0, 0, 0), Fvector4().set(8, 1, 1, 0));
 	CMD4(CCC_Vector3, "ssfx_water_quality", &ps_ssfx_water_quality, Fvector3().set(0, 0, 0), Fvector3().set(4, 3, 0));
 	CMD4(CCC_Vector4, "ssfx_water_setup1", &ps_ssfx_water_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(2, 10, 1, 0.1));
 	CMD4(CCC_Vector4, "ssfx_water_setup2", &ps_ssfx_water_setup2, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 10, 1, 1));
 
-	CMD4(CCC_Integer, "ssfx_ssr_quality", &ps_ssfx_ssr_quality, 0, 5);
-	CMD4(CCC_Vector4, "ssfx_ssr", &ps_ssfx_ssr, Fvector4().set(1, 0, 0, 0), Fvector4().set(2, 1, 1, 1));
-	CMD4(CCC_Vector4, "ssfx_ssr_2", &ps_ssfx_ssr_2, Fvector4().set(0, 0, 0, 0), Fvector4().set(2, 2, 2, 2));
-	
 	CMD4(CCC_Vector4, "ssfx_terrain_quality", &ps_ssfx_terrain_quality, Fvector4().set(0, 0, 0, 0), Fvector4().set(40, 0, 0, 0));
 	CMD4(CCC_Vector4, "ssfx_terrain_offset", &ps_ssfx_terrain_offset, Fvector4().set(-1, -1, -1, -1), Fvector4().set(1, 1, 1, 1));
 
@@ -1385,21 +1269,13 @@ void xrRender_initconsole()
 
 	CMD4(CCC_Vector3, "ssfx_shadow_bias", &ps_ssfx_shadow_bias, Fvector3().set(0, 0, 0), Fvector3().set(1.0, 1.0, 1.0));
 
-	CMD4(CCC_Vector4, "ssfx_lut", &ps_ssfx_lut, Fvector4().set(0.0, 0.0, 0.0, 0.0), tw2_max);
-
 	CMD4(CCC_Vector4, "ssfx_wind_grass", &ps_ssfx_wind_grass, Fvector4().set(0.0, 0.0, 0.0, 0.0), Fvector4().set(20.0, 5.0, 5.0, 5.0));
 	CMD4(CCC_Vector4, "ssfx_wind_trees", &ps_ssfx_wind_trees, Fvector4().set(0.0, 0.0, 0.0, 0.0), Fvector4().set(20.0, 5.0, 5.0, 1.0));
 
 	CMD4(CCC_Vector4, "ssfx_florafixes_1", &ps_ssfx_florafixes_1, Fvector4().set(0.0, 0.0, 0.0, 0.0), Fvector4().set(1.0, 1.0, 1.0, 1.0));
 	CMD4(CCC_Vector4, "ssfx_florafixes_2", &ps_ssfx_florafixes_2, Fvector4().set(0.0, 0.0, 0.0, 0.0), Fvector4().set(10.0, 1.0, 1.0, 1.0));
 
-	CMD4(CCC_Vector4, "ssfx_wetsurfaces_1", &ps_ssfx_wetsurfaces_1, Fvector4().set(0.01, 0.01, 0.01, 0.01), Fvector4().set(2.0, 2.0, 2.0, 2.0));
-	CMD4(CCC_Vector4, "ssfx_wetsurfaces_2", &ps_ssfx_wetsurfaces_2, Fvector4().set(0.01, 0.01, 0.01, 0.01), Fvector4().set(2.0, 2.0, 2.0, 2.0));
-
 	CMD4(CCC_Integer, "ssfx_is_underground", &ps_ssfx_is_underground, 0, 1);
-	CMD4(CCC_Integer, "ssfx_gloss_method", &ps_ssfx_gloss_method, 0, 1);
-	CMD4(CCC_Vector3, "ssfx_gloss_minmax", &ps_ssfx_gloss_minmax, Fvector3().set(0, 0, 0), Fvector3().set(1.0, 1.0, 1.0));
-	CMD4(CCC_Float, "ssfx_gloss_factor", &ps_ssfx_gloss_factor, 0.0f, 1.0f);
 
 	CMD4(CCC_Vector4, "ssfx_lightsetup_1", &ps_ssfx_lightsetup_1, Fvector4().set(0, 0, 0, 0), Fvector4().set(1.0, 1.0, 1.0, 1.0));
 
@@ -1408,20 +1284,12 @@ void xrRender_initconsole()
 
 	CMD4(CCC_Vector4, "ssfx_blood_decals", &ps_ssfx_blood_decals, Fvector4().set(0, 0, 0, 0), Fvector4().set(5, 5, 0, 0));
 
-	CMD4(CCC_Vector4, "ssfx_rain_drops_setup", &ps_ssfx_rain_drops_setup, Fvector4().set(1000, 10, 0, 0), Fvector4().set(5000, 30, 0, 0));
-	CMD4(CCC_Vector4, "ssfx_rain_1", &ps_ssfx_rain_1, Fvector4().set(0, 0, 0, 0), Fvector4().set(10, 5, 5, 2));
-	CMD4(CCC_Vector4, "ssfx_rain_2", &ps_ssfx_rain_2, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 10, 10, 10));
-	CMD4(CCC_Vector4, "ssfx_rain_3", &ps_ssfx_rain_3, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 10, 10, 10));
-
 	CMD4(CCC_Vector4, "ssfx_grass_shadows", &ps_ssfx_grass_shadows, Fvector4().set(0, 0, 0, 0), Fvector4().set(3, 1, 100, 100));
 	CMD4(CCC_ssfx_cascades, "ssfx_shadow_cascades", &ps_ssfx_shadow_cascades, Fvector3().set(1.0f, 1.0f, 1.0f), Fvector3().set(300, 300, 300));
 	
 	CMD4(CCC_Vector4, "ssfx_grass_interactive", &ps_ssfx_grass_interactive, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 15, 5000, 1));
 	CMD4(CCC_Vector4, "ssfx_int_grass_params_1", &ps_ssfx_int_grass_params_1, Fvector4().set(0, 0, 0, 0), Fvector4().set(5, 5, 5, 60));
 	CMD4(CCC_Vector4, "ssfx_int_grass_params_2", &ps_ssfx_int_grass_params_2, Fvector4().set(0, 0, 0, 0), Fvector4().set(5, 20, 1, 5));
-	
-	CMD4(CCC_Vector4, "ssfx_wpn_dof_1", &ps_ssfx_wpn_dof_1, tw2_min, tw2_max);
-	CMD4(CCC_Float, "ssfx_wpn_dof_2", &ps_ssfx_wpn_dof_2, 0, 1);
 
 	//--DSR-- SilencerOverheat_start
 	CMD4(CCC_Float, "sil_glow_max_temp", &sil_glow_max_temp, 0.f, 1.f);
@@ -1468,7 +1336,12 @@ void xrRender_initconsole()
 #endif // DEBUG
 
 	CMD3(CCC_Mask,		"r2_shadow_cascede_old", &ps_r2_ls_flags_ext,		R2FLAGEXT_SUN_OLD);
-	
+	CMD3(CCC_Mask,		"r2_soc_shadows", &ps_r2_ls_flags_ext,		R2FLAGEXT_SOC_SHADOWS);  // OWA - classic SoC jittered shadows (requires restart)
+	// r2_specular_rgb removed - colored specular now always on in shaders
+	// r2_gamma_22 removed - unified pipeline now works in linear throughout
+	// r2_sky_stretch removed - base game skybox rendering preferred
+	CMD3(CCC_Mask,		"r2_dyn_glows", &ps_r2_ls_flags_ext,		R2FLAGEXT_DYN_GLOWS);
+
 	CMD4(CCC_Float, "r2_ls_depth_scale", &ps_r2_ls_depth_scale, 0.5, 1.5);
 	CMD4(CCC_Float, "r2_ls_depth_bias", &ps_r2_ls_depth_bias, -0.5, +0.5);
 
@@ -1505,13 +1378,8 @@ void xrRender_initconsole()
 	CMD3(CCC_Mask, "r2_volumetric_lights", &ps_r2_ls_flags, R2FLAG_VOLUMETRIC_LIGHTS);
 	//	CMD3(CCC_Mask,		"r2_sun_shafts",				&ps_r2_ls_flags,			R2FLAG_SUN_SHAFTS);
 	CMD3(CCC_Token, "r2_sunshafts_quality", &ps_r_sun_shafts, qsun_shafts_token);
-	CMD3(CCC_SSAO_Mode, "r2_ssao_mode", &ps_r_ssao_mode, qssao_mode_token);
+	CMD3(CCC_Token, "r2_ssao_mode", &ps_r_ssao_mode, qssao_mode_token);  // OWA: GTAO or SSDO (requires restart)
 	CMD3(CCC_Token, "r2_ssao", &ps_r_ssao, qssao_token);
-	CMD3(CCC_Mask, "r2_ssao_blur", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_BLUR); //Need restart
-	CMD3(CCC_Mask, "r2_ssao_opt_data", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_OPT_DATA); //Need restart
-	CMD3(CCC_Mask, "r2_ssao_half_data", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HALF_DATA); //Need restart
-	CMD3(CCC_Mask, "r2_ssao_hbao", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HBAO); //Need restart
-	CMD3(CCC_Mask, "r2_ssao_hdao", &ps_r2_ls_flags_ext, R2FLAGEXT_SSAO_HDAO); //Need restart
 	CMD3(CCC_Mask, "r4_enable_tessellation", &ps_r2_ls_flags_ext, R2FLAGEXT_ENABLE_TESSELLATION); //Need restart
 	CMD3(CCC_Mask, "r4_wireframe", &ps_r2_ls_flags_ext, R2FLAGEXT_WIREFRAME); //Need restart
 	CMD3(CCC_Mask, "r2_steep_parallax", &ps_r2_ls_flags, R2FLAG_STEEP_PARALLAX);

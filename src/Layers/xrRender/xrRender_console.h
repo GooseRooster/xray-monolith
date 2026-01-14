@@ -4,40 +4,41 @@
 
 // Common
 extern ECORE_API float ps_ssfx_fog_scattering;
-extern ECORE_API Fvector4 ps_ssfx_motionblur;
 extern ECORE_API Fvector4 ps_ssfx_taa;
-
-extern ECORE_API Fvector4 ps_ssfx_rain_drops_setup;
 extern ECORE_API int ps_ssfx_terrain_grass_align;
 extern ECORE_API int ps_ssfx_terrain_pom_refine;
 extern ECORE_API int ps_ssfx_pom_refine;
 extern ECORE_API int ps_ssfx_terrain_grass_align;
 extern ECORE_API float ps_ssfx_terrain_grass_slope;
-extern ECORE_API int ps_ssfx_bloom_use_presets;
-extern ECORE_API Fvector4 ps_ssfx_bloom_2;
 extern ECORE_API Fvector4 ps_ssfx_sss_quality;
 extern ECORE_API Fvector4 ps_ssfx_sss;
 
 extern ECORE_API int ps_ssfx_il_quality;
-extern ECORE_API int ps_ssfx_ao_quality;
 extern ECORE_API Fvector3 ps_ssfx_water_quality;
 extern ECORE_API Fvector4 ps_ssfx_il;
-extern ECORE_API Fvector4 ps_ssfx_ao;
 extern ECORE_API Fvector4 ps_ssfx_water;
 
-extern ECORE_API int ps_ssfx_ssr_quality;
-extern ECORE_API Fvector4 ps_ssfx_ssr;
-extern ECORE_API Fvector4 ps_ssfx_ssr_2;
 extern ECORE_API Fvector4 ps_ssfx_terrain_quality;
 extern ECORE_API Fvector3 ps_ssfx_shadows;
 extern ECORE_API Fvector4 ps_ssfx_volumetric;
 
+// OWA SSFX compile-time toggles (r3_ssfx_* commands, require restart)
+extern ECORE_API int ps_r3_ssfx_fog;        // r3-only - SSFX height fog
+extern ECORE_API int ps_r3_ssfx_shadows;    // r3-only - SSFX shadow biasing
+extern ECORE_API int ps_r3_ssfx_water;      // r3-only - SSFX water
+extern ECORE_API int ps_r3_ssfx_taa;        // r3-only - SSFX TAA
+// OWA Perceptual Global Illumination (r3_gi command) - enables both IL and PL
+extern ECORE_API int ps_r3_ssfx_il;         // r3-only - Perceptual GI toggle (IL + PL)
+extern ECORE_API float ps_ssfx_il_radius; // OWA: IL sample radius in meters
+extern ECORE_API Fvector4 ps_ssfx_il_params; // OWA: IL params - RadiusScale, MinRadius, MaxRadius, Reserved
+// OWA: Perceptual Lighting parameters (part of r3_gi, no separate toggle)
+extern ECORE_API Fvector4 ps_r3_gi_pl_params;      // Intensity, Occlusion, Irradiance, Threshold
+extern ECORE_API Fvector4 ps_r3_gi_pl_params2;     // Radius, Saturation, Recovery, Reserved
+extern ECORE_API u32 ps_r3_terrain_quality; // r3-only - OWA terrain quality (0=low, 1=mid, 2=high)
+
 extern ECORE_API Fvector4 ps_ssfx_wind_grass;
 extern ECORE_API Fvector4 ps_ssfx_wind_trees;
 
-extern ECORE_API Fvector4 ps_ssfx_rain_1;
-extern ECORE_API Fvector4 ps_ssfx_rain_2;
-extern ECORE_API Fvector4 ps_ssfx_rain_3;
 extern ECORE_API Fvector4 ps_ssfx_grass_shadows;
 extern ECORE_API Fvector3 ps_ssfx_shadow_cascades;
 extern ECORE_API Fvector4 ps_ssfx_grass_interactive;
@@ -50,8 +51,25 @@ extern ECORE_API xr_token qsun_shafts_token[];
 extern ECORE_API u32 ps_r_ssao; //	=	0;
 extern ECORE_API xr_token qssao_token[];
 
+// OWA: AO mode enum (matching OGSR's approach)
+enum : u32
+{
+	AO_MODE_GTAO,
+	AO_MODE_SSDO
+};
 extern ECORE_API u32 ps_r_ssao_mode;
 extern ECORE_API xr_token qssao_mode_token[];
+
+// OWA: R4 Lighting style tokens (static vs dynamic)
+// Static mode uses R1-style lightmaps for retro visuals and better performance
+enum eLightingStyle : u32
+{
+	st_opt_dynamic = 0,   // Default R4 deferred lighting with cascade shadows
+	st_opt_static  = 1,   // R1-style static lightmap lighting
+};
+extern ECORE_API u32 ps_r4_lighting_style;
+extern ECORE_API xr_token lighting_style_token[];
+extern ECORE_API float ps_r4_static_brightness;  // Static lighting brightness multiplier (default 2.0)
 
 extern ECORE_API u32 ps_r_sun_quality; //	=	0;
 extern ECORE_API xr_token qsun_quality_token[];
@@ -99,6 +117,7 @@ extern ECORE_API float ps_r__tf_Mipbias;
 enum
 {
 	RFLAG_NO_RAM_TEXTURES = (1 << 0),
+	RFLAG_MT_TEX_LOAD     = (1 << 1),  // Parallel texture loading during level load
 };
 
 extern ECORE_API Flags32 ps_r__common_flags;
@@ -138,11 +157,13 @@ extern ECORE_API float ps_r2_tonemap_middlegray; // r2-only
 extern ECORE_API float ps_r2_tonemap_adaptation; // r2-only
 extern ECORE_API float ps_r2_tonemap_low_lum; // r2-only
 extern ECORE_API float ps_r2_tonemap_amount; // r2-only
-extern ECORE_API float ps_r2_ls_bloom_kernel_scale; // r2-only	// gauss
-extern ECORE_API float ps_r2_ls_bloom_kernel_g; // r2-only	// gauss
-extern ECORE_API float ps_r2_ls_bloom_kernel_b; // r2-only	// bilinear
-extern ECORE_API float ps_r2_ls_bloom_threshold; // r2-only
-extern ECORE_API float ps_r2_ls_bloom_speed; // r2-only
+// OWA Multi-Scale Bloom (replaces old gaussian bloom)
+extern ECORE_API float ps_r2_bloom_threshold; // r2-only - luminance threshold for bloom extraction
+extern ECORE_API float ps_r2_bloom_intensity; // r2-only - bloom strength
+extern ECORE_API float ps_r2_bloom_radius;    // r2-only - sample radius multiplier
+extern ECORE_API float ps_r2_ls_bloom_speed;  // r2-only - eye adaptation speed (kept for luminance)
+
+extern ECORE_API float ps_r2_auto_fog; // r2-only - OWA auto fog (0=weather fog_color, 1=environment-derived)
 extern ECORE_API float ps_r2_ls_dsm_kernel; // r2-only
 extern ECORE_API float ps_r2_ls_psm_kernel; // r2-only
 extern ECORE_API float ps_r2_ls_ssm_kernel; // r2-only
@@ -150,6 +171,7 @@ extern ECORE_API Fvector ps_r2_aa_barier; // r2-only
 extern ECORE_API Fvector ps_r2_aa_weight; // r2-only
 extern ECORE_API float ps_r2_aa_kernel; // r2-only
 extern ECORE_API float ps_r2_mblur; // .5f
+// OWA: Legacy r2_gi - console commands removed, use r3_gi instead
 extern ECORE_API int ps_r2_GI_depth; // 1..5
 extern ECORE_API int ps_r2_GI_photons; // 8..256
 extern ECORE_API float ps_r2_GI_clip; // EPS
@@ -204,26 +226,18 @@ extern ECORE_API Fvector dsr_test;
 extern ECORE_API Fvector dsr_test1;
 extern ECORE_API Fvector dsr_test2;
 
-extern ECORE_API float ps_r2_tnmp_a; // r2-only
-extern ECORE_API float ps_r2_tnmp_b; // r2-only
-extern ECORE_API float ps_r2_tnmp_c; // r2-only
-extern ECORE_API float ps_r2_tnmp_d; // r2-only
-extern ECORE_API float ps_r2_tnmp_e; // r2-only
-extern ECORE_API float ps_r2_tnmp_f; // r2-only
-extern ECORE_API float ps_r2_tnmp_w; // r2-only
-extern ECORE_API float ps_r2_tnmp_exposure; // r2-only
-extern ECORE_API float ps_r2_tnmp_gamma; // r2-only
-extern ECORE_API float ps_r2_tnmp_onoff; // r2-only
+// OWA: ps_r2_tnmp_* removed - unified hermite spline tonemapping now handles all cases
 
 /* --- HDR10 parameters --- */
 extern ECORE_API float ps_r4_hdr10_whitepoint_nits; // r4-only
 extern ECORE_API float ps_r4_hdr10_ui_nits; 		// r4-only
 extern ECORE_API int   ps_r4_hdr10_pda;  			// r4-only (NOTE: this is a hack to not double HDR tonemap the 3D PDA)
 extern ECORE_API int   ps_r4_hdr10_on; 			  	// r4-only
+extern ECORE_API int   ps_r4_hires_rts;				// r4-only - use 16-bit render targets even in SDR (better gradients)
 extern ECORE_API float ps_r4_hdr10_pda_intensity; 	// r4-only
 
-extern ECORE_API int   ps_r4_hdr10_tonemapper;    		 // r4-only
-extern ECORE_API int   ps_r4_hdr10_tonemap_mode;  		 // r4-only
+// ps_r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping
+extern ECORE_API float ps_r4_hdr10_chroma_correction;    // r4-only, chroma correction scaling (default 0.6)
 extern ECORE_API float ps_r4_hdr10_exposure;      		 // r4-only
 extern ECORE_API float ps_r4_hdr10_contrast;      		 // r4-only
 extern ECORE_API float ps_r4_hdr10_contrast_middle_gray; // r4-only
@@ -232,40 +246,19 @@ extern ECORE_API float ps_r4_hdr10_brightness;			 // r4-only
 extern ECORE_API float ps_r4_hdr10_gamma;				 // r4-only
 extern ECORE_API float ps_r4_hdr10_ui_saturation;		 // r4-only
 
-extern ECORE_API int   ps_r4_hdr10_bloom_on;		  // r4-only
-extern ECORE_API int   ps_r4_hdr10_bloom_blur_passes; // r4-only
-extern ECORE_API float ps_r4_hdr10_bloom_blur_scale;       // r4-only
-extern ECORE_API float ps_r4_hdr10_bloom_intensity;   // r4-only
-
-extern ECORE_API int      ps_r4_hdr10_flare_on; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_threshold; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_power; // r4-only
-extern ECORE_API int      ps_r4_hdr10_flare_ghosts; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_ghost_dispersal; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_center_falloff; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_halo_scale; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_halo_ca; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_ghost_ca; // r4-only
-extern ECORE_API int      ps_r4_hdr10_flare_blur_passes; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_blur_scale; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_ghost_intensity; // r4-only
-extern ECORE_API float    ps_r4_hdr10_flare_halo_intensity; // r4-only
-extern ECORE_API Fvector3 ps_r4_hdr10_flare_lens_color; // r4-only
-
 extern ECORE_API int   ps_r4_hdr10_sun_on; // r4-only
 extern ECORE_API float ps_r4_hdr10_sun_intensity;  // r4-only
-extern ECORE_API float ps_r4_hdr10_sun_inner_radius; // r4-only
-extern ECORE_API float ps_r4_hdr10_sun_outer_radius; // r4-only
+extern ECORE_API float ps_r4_hdr10_moon_intensity; // r4-only
 extern ECORE_API float ps_r4_hdr10_sun_dawn_begin; // r4-only
 extern ECORE_API float ps_r4_hdr10_sun_dawn_end;   // r4-only
 extern ECORE_API float ps_r4_hdr10_sun_dusk_begin; // r4-only
 extern ECORE_API float ps_r4_hdr10_sun_dusk_end;   // r4-only
+// OWA: HDR expansion tuning parameters
+extern ECORE_API float ps_r4_hdr10_light_expansion;    // r4-only, light HDR expansion multiplier (default 1.0)
+extern ECORE_API float ps_r4_hdr10_particle_expansion; // r4-only, particle HDR expansion multiplier (default 1.0)
 /* --- HDR10 parameters --- */
 
-extern ECORE_API float ps_r2_img_exposure; // r2-only
-extern ECORE_API float ps_r2_img_gamma; // r2-only
-extern ECORE_API float ps_r2_img_saturation; // r2-only
-extern ECORE_API Fvector ps_r2_img_cg; // r2-only
+// OWA: ps_r2_img_* removed - img_corrections() never called in R4
 
 ////
 
@@ -290,7 +283,7 @@ enum
 	R2FLAG_TONEMAP = (1 << 4),
 	R2FLAG_AA = (1 << 5),
 	R2FLAG_GI = (1 << 6),
-	R2FLAG_FASTBLOOM = (1 << 7),
+	// R2FLAG_FASTBLOOM removed - OWA multi-scale bloom uses fixed pipeline
 	R2FLAG_GLOBALMATERIAL = (1 << 8),
 	R2FLAG_ZFILL = (1 << 9),
 	R2FLAG_R1LIGHTS = (1 << 10),
@@ -325,21 +318,19 @@ enum
 	R3FLAG_MSAA_OPT = (1 << 28),
 	R2FLAG_TERRAIN_PREPASS = (1 << 29),
 	R3FLAG_USE_DX10_1 = (1 << 30),
-	//R3FLAG_MSAA_ALPHATEST		= (1<<31),
 };
 
 enum
 {
-	R2FLAGEXT_SSAO_BLUR = (1 << 0),
-	R2FLAGEXT_SSAO_OPT_DATA = (1 << 1),
-	R2FLAGEXT_SSAO_HALF_DATA = (1 << 2),
-	R2FLAGEXT_SSAO_HBAO = (1 << 3),
-	R2FLAGEXT_SSAO_HDAO = (1 << 4),
 	R2FLAGEXT_ENABLE_TESSELLATION = (1 << 5),
 	R2FLAGEXT_WIREFRAME = (1 << 6),
 	R_FLAGEXT_HOM_DEPTH_DRAW = (1 << 7),
 	R2FLAGEXT_SUN_ZCULLING = (1 << 8),
 	R2FLAGEXT_SUN_OLD = (1 << 9),
+	// R2FLAGEXT_SPECULAR_RGB removed - colored specular now always on in shaders
+	// R2FLAGEXT_GAMMA_22 removed - unified pipeline now works in linear throughout
+	R2FLAGEXT_SOC_SHADOWS = (1 << 12),   // OWA - classic SoC jittered shadows
+	R2FLAGEXT_DYN_GLOWS = (1 << 17),     // OWA - dynamic glows
 };
 
 enum

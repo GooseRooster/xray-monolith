@@ -86,3 +86,78 @@ xrCriticalSection::raii::~raii()
 {
 	critical_section->Leave();
 }
+
+//-----------------------------------------------------------------------------
+// xrSRWLock - Slim Reader/Writer Lock implementation
+//-----------------------------------------------------------------------------
+
+xrSRWLock::xrSRWLock()
+{
+	InitializeSRWLock(&m_lock);
+}
+
+xrSRWLock::~xrSRWLock()
+{
+	// SRWLOCK does not require explicit destruction
+}
+
+void xrSRWLock::AcquireExclusive()
+{
+	AcquireSRWLockExclusive(&m_lock);
+}
+
+void xrSRWLock::ReleaseExclusive()
+{
+	ReleaseSRWLockExclusive(&m_lock);
+}
+
+BOOL xrSRWLock::TryAcquireExclusive()
+{
+	return TryAcquireSRWLockExclusive(&m_lock);
+}
+
+void xrSRWLock::AcquireShared()
+{
+	AcquireSRWLockShared(&m_lock);
+}
+
+void xrSRWLock::ReleaseShared()
+{
+	ReleaseSRWLockShared(&m_lock);
+}
+
+BOOL xrSRWLock::TryAcquireShared()
+{
+	return TryAcquireSRWLockShared(&m_lock);
+}
+
+//-----------------------------------------------------------------------------
+// xrSRWLockGuard - RAII wrapper for xrSRWLock
+//-----------------------------------------------------------------------------
+
+xrSRWLockGuard::xrSRWLockGuard(xrSRWLock& lock, bool shared)
+	: m_lock(&lock), m_shared(shared)
+{
+	if (m_shared)
+		m_lock->AcquireShared();
+	else
+		m_lock->AcquireExclusive();
+}
+
+xrSRWLockGuard::xrSRWLockGuard(xrSRWLock* lock, bool shared)
+	: m_lock(lock), m_shared(shared)
+{
+	VERIFY(m_lock);
+	if (m_shared)
+		m_lock->AcquireShared();
+	else
+		m_lock->AcquireExclusive();
+}
+
+xrSRWLockGuard::~xrSRWLockGuard()
+{
+	if (m_shared)
+		m_lock->ReleaseShared();
+	else
+		m_lock->ReleaseExclusive();
+}

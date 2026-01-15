@@ -26,6 +26,7 @@ enum
 	AF_FIREDIR_THIRD_PERSON = (1 << 22),
 	AF_AIMPOS = (1 << 23),
 	AF_AIMPOS_ZOOM = (1 << 24),
+	AF_3D_BALLISTICS = (1 << 25),  // Hybrid 3D ballistics: fire from barrel, aim center-screen with deviation
 };
 
 extern Flags32 psActorFlags;

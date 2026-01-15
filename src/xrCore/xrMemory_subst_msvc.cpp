@@ -4,6 +4,10 @@
 #include "xrMemory_align.h"
 #include "xrMemory_pure.h"
 
+#ifdef USE_MIMALLOC
+#include <mimalloc.h>
+#endif
+
 #ifndef __BORLANDC__
 
 #ifndef DEBUG_MEMORY_MANAGER
@@ -53,12 +57,16 @@ void* xrMemory::mem_alloc(size_t size
 #ifdef PURE_ALLOC
 	if (g_use_pure_alloc)
 	{
-		//void* result = malloc(size);
+#ifdef USE_MIMALLOC
+		// mimalloc: mi_zalloc_aligned returns zero-filled memory, saving a memset pass
+		void* result = mi_zalloc_aligned(size, PURE_MEMORY_ALIGNMENT);
+#else
 		void* result = _aligned_malloc(size, PURE_MEMORY_ALIGNMENT);
 #ifdef PURE_MEMORY_FILL_ZERO
 		if (result)
 			memset(result, 0, size);
 #endif // PURE_MEMORY_FILL_ZERO
+#endif // USE_MIMALLOC
 
 #ifdef USE_MEMORY_MONITOR
         memory_monitor::monitor_alloc(result, size, _name);
@@ -141,8 +149,11 @@ void xrMemory::mem_free(void* P)
 #ifdef PURE_ALLOC
 	if (g_use_pure_alloc)
 	{
-		//free(P);
+#ifdef USE_MIMALLOC
+		mi_free(P);
+#else
 		_aligned_free(P);
+#endif // USE_MIMALLOC
 		return;
 	}
 #endif // PURE_ALLOC
@@ -196,17 +207,24 @@ void* xrMemory::mem_realloc(void* P, size_t size
 #ifdef PURE_ALLOC
 	if (g_use_pure_alloc)
 	{
+#ifdef USE_MIMALLOC
+		// mimalloc: get old size and realloc, then zero-fill new portion
+		size_t old_size = P ? mi_usable_size(P) : 0;
+		void* result = mi_realloc_aligned(P, size, PURE_MEMORY_ALIGNMENT);
+		if (result && size > old_size)
+			memset((u8*)result + old_size, 0, size - old_size);
+#else
 #ifdef PURE_MEMORY_FILL_ZERO
 		size_t old_size = P ? _aligned_msize(P, PURE_MEMORY_ALIGNMENT, 0) : 0;
 #endif // PURE_MEMORY_FILL_ZERO
 
-		//void* result = realloc(P, size);
 		void* result = _aligned_realloc(P, size, PURE_MEMORY_ALIGNMENT);
 
 #ifdef PURE_MEMORY_FILL_ZERO
 		if (result && size > old_size)
 			memset((u8*)result + old_size, 0, size - old_size);
 #endif // PURE_MEMORY_FILL_ZERO
+#endif // USE_MIMALLOC
 
 # ifdef USE_MEMORY_MONITOR
         memory_monitor::monitor_free(P);

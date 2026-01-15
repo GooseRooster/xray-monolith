@@ -74,4 +74,42 @@ public:
 	~xrCriticalSectionGuard() { Leave(); }
 };
 
+// Slim Reader/Writer Lock - high-performance lock for read-heavy workloads
+// Multiple readers can hold the lock simultaneously, but writers get exclusive access
+// Use AcquireShared/ReleaseShared for read operations
+// Use AcquireExclusive/ReleaseExclusive for write operations
+class XRCORE_API xrSRWLock : xray::noncopyable
+{
+private:
+	SRWLOCK m_lock;
+
+public:
+	xrSRWLock();
+	~xrSRWLock();
+
+	// Exclusive (write) access - blocks all other readers and writers
+	void AcquireExclusive();
+	void ReleaseExclusive();
+	BOOL TryAcquireExclusive();
+
+	// Shared (read) access - allows multiple concurrent readers
+	void AcquireShared();
+	void ReleaseShared();
+	BOOL TryAcquireShared();
+};
+
+// RAII guard for xrSRWLock
+// Usage for writes: xrSRWLockGuard guard(lock);           // exclusive by default
+// Usage for reads:  xrSRWLockGuard guard(lock, true);     // shared access
+class xrSRWLockGuard : xray::noncopyable
+{
+private:
+	xrSRWLock* m_lock;
+	bool m_shared;
+
+public:
+	xrSRWLockGuard(xrSRWLock& lock, bool shared = false);
+	xrSRWLockGuard(xrSRWLock* lock, bool shared = false);
+	~xrSRWLockGuard();
+};
 

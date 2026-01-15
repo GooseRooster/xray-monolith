@@ -14,6 +14,14 @@
 #include "igame_level.h"
 #include "../xrcdb/xr_area.h"
 #include "xr_object.h"
+#include "../xrGame/ai_space.h"
+#include "../xrServerEntities/script_engine.h"  // OWA: Fixed path - script_engine.h is in xrServerEntities
+
+// OWA: Luabind includes for Lua callback functionality
+#pragma warning(push)
+#pragma warning(disable:4995)
+#include "../3rd party/luabind/luabind.hpp"
+#pragma warning(pop)
 #endif
 
 SThunderboltDesc::SThunderboltDesc() :
@@ -237,6 +245,26 @@ void CEffect_Thunderbolt::Bolt(shared_str id, float period, float lt)
 
 
 	current_direction.invert(); // for env-sun
+
+#ifndef _EDITOR
+	// OWA: Call Lua callback for lightning strike with magnitude
+	if (g_pGameLevel)
+	{
+		luabind::functor<void> funct;
+		if (ai().script_engine().functor("level_weathers.on_lightning_strike", funct))
+		{
+			try
+			{
+				// Pass lightning size as magnitude indicator
+				funct(lightning_size, current_direction.x, current_direction.y, current_direction.z);
+			}
+			catch (...)
+			{
+				Msg("! [OWA] Error calling level_weathers.on_lightning_strike callback");
+			}
+		}
+	}
+#endif
 }
 
 void CEffect_Thunderbolt::OnFrame(shared_str id, float period, float duration)

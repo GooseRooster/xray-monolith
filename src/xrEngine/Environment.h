@@ -200,6 +200,9 @@ public:
 	float bloom_exposure;
 	float bloom_sky_intensity;
 
+	float m_fTexContrast;  // OWA: Weather-driven texture contrast (0=off, 1=full)
+	float m_fFogAutoBlend; // OWA: Blend between fog_color (0) and auto-calculated fog (1)
+
 	// int lens_flare_id;
 	// int tb_id;
 	shared_str lens_flare_id;
@@ -240,6 +243,12 @@ public:
 
 	float fog_near;
 	float fog_far;
+
+	// OWA: Store individual sky rotations for fog shader sampling
+	// sky_rotation (inherited) contains the interpolated value
+	// These store the raw values from states A and B for per-cubemap sampling
+	float sky_rotation_0;  // Rotation for sky_s0 (state A / "from" state)
+	float sky_rotation_1;  // Rotation for sky_s1 (state B / "to" state)
 public:
 	CEnvDescriptorMixer(shared_str const& identifier);
 	INGAME_EDITOR_VIRTUAL void lerp(CEnvironment* parent, CEnvDescriptor& A, CEnvDescriptor& B, float f,
@@ -389,6 +398,7 @@ public:
 # endif // #ifdef INGAME_EDITOR
 
 	bool m_paused;
+	bool m_lerp_paused; // OWA: Pause engine-side lerping for scripted lighting control
 
 	float GetGameTime() { return fGameTime; }
 

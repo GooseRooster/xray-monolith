@@ -16,6 +16,9 @@ extern float ps_r2_sun_shafts_min;
 extern float ps_r2_sun_shafts_value;
 extern Fvector3 ssfx_wetness_multiplier;
 
+// OWA: HDR10 mode flag for conditional clamping
+extern int ps_r4_hdr10_on;
+
 void CEnvModifier::load(IReader* fs, u32 version)
 {
 	use_flags.one();
@@ -253,6 +256,9 @@ CEnvDescriptor::CEnvDescriptor(shared_str const& identifier) :
 	bloom_exposure = 3.f;
 	bloom_sky_intensity = 0.6f;
 
+	m_fTexContrast = 0.f;  // OWA: Default off for backwards compatibility
+	m_fFogAutoBlend = 1.f; // OWA: Default to full auto fog for backwards compatibility
+
 	lens_flare_id = "";
 	tb_id = "";
 
@@ -346,6 +352,14 @@ void CEnvDescriptor::load(CEnvironment& environment, CInifile& config)
 	bloom_sky_intensity = config.line_exist(m_identifier.c_str(), "bloom_sky_intensity") ?
 		config.r_float(m_identifier.c_str(), "bloom_sky_intensity") : 0.6f;
 
+	// OWA: Weather-driven texture contrast (0=off, 1=full effect)
+	m_fTexContrast = config.line_exist(m_identifier.c_str(), "tex_contrast") ?
+		config.r_float(m_identifier.c_str(), "tex_contrast") : 0.f;
+
+	// OWA: Fog auto blend (0=weather fog_color, 1=auto-calculated fog color)
+	m_fFogAutoBlend = config.line_exist(m_identifier.c_str(), "fog_auto_blend") ?
+		config.r_float(m_identifier.c_str(), "fog_auto_blend") : 1.f;
+
 	C_CHECK(clouds_color);
 	C_CHECK(sky_color);
 	C_CHECK(fog_color);
@@ -434,6 +448,10 @@ int get_ref_count(IUnknown* ii);
 void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescriptor& B, float f, CEnvModifier& Mdf,
                                float modifier_power)
 {
+	// OWA: Skip engine-side lerping if paused (for scripted lighting control)
+	if (env->m_lerp_paused)
+		return;
+
 	float modif_power = 1.f / (modifier_power + 1); // the environment itself
 	float fi = 1 - f;
 	m_pDescriptorMixer->lerp(&*A.m_pDescriptor, &*B.m_pDescriptor);
@@ -443,6 +461,10 @@ void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescrip
 	clouds_color.lerp(A.clouds_color, B.clouds_color, f);
 
 	sky_rotation = (fi * A.sky_rotation + f * B.sky_rotation);
+
+	// OWA: Store individual rotations for fog shader per-cubemap sampling
+	sky_rotation_0 = A.sky_rotation;
+	sky_rotation_1 = B.sky_rotation;
 
 	if (Mdf.use_flags.test(eViewDist))
 		far_plane = (fi * A.far_plane + f * B.far_plane + Mdf.far_plane) * psVisDistance * modif_power;
@@ -472,7 +494,9 @@ void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescrip
 	bolt_duration = fi * A.bolt_duration + f * B.bolt_duration;
 
 	wind_velocity = fi * A.wind_velocity + f * B.wind_velocity;
-	wind_direction = fi * A.wind_direction + f * B.wind_direction;
+	// OWA: Use angle_lerp for wind_direction to handle 360° wraparound properly
+	// Prevents cloud shadows from jumping when wind direction crosses 0°/360° boundary
+	wind_direction = angle_lerp(A.wind_direction, B.wind_direction, f);
 
 	m_fSunShaftsIntensity = fi * A.m_fSunShaftsIntensity + f * B.m_fSunShaftsIntensity;
 	m_fWaterIntensity = fi * A.m_fWaterIntensity + f * B.m_fWaterIntensity;
@@ -496,6 +520,12 @@ void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescrip
 	bloom_threshold = fi * A.bloom_threshold + f * B.bloom_threshold;
 	bloom_exposure = fi * A.bloom_exposure + f * B.bloom_exposure;
 	bloom_sky_intensity = fi * A.bloom_sky_intensity + f * B.bloom_sky_intensity;
+
+	// OWA: Weather-driven texture contrast
+	m_fTexContrast = fi * A.m_fTexContrast + f * B.m_fTexContrast;
+
+	// OWA: Fog auto blend
+	m_fFogAutoBlend = fi * A.m_fFogAutoBlend + f * B.m_fFogAutoBlend;
 
 	// colors
 	sky_color.lerp(A.sky_color, B.sky_color, f);
@@ -533,25 +563,35 @@ void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescrip
 
 void CEnvDescriptorMixer::boost(CEnvironment* env)
 {
+	// OWA: In HDR mode, allow environment colors to exceed 1.0 for HDR headroom
+	// In SDR mode, clamp to [0,1] to prevent issues
+	const bool hdr_enabled = (ps_r4_hdr10_on != 0);
+	const Fvector3 sdr_max = {1.f, 1.f, 1.f};
+	const Fvector3 hdr_max = {10.f, 10.f, 10.f};  // Allow HDR values up to 10x
+	const Fvector3& max_color = hdr_enabled ? hdr_max : sdr_max;
+
 	//Sky color brightness adjustment
 	if (env->env_boost.sky_color != 0.f)
 	{
 		sky_color.add(env->env_boost.sky_color);
-		sky_color.clamp({0.f, 0.f, 0.f}, {1.f, 1.f, 1.f});
+		sky_color.clamp({0.f, 0.f, 0.f}, max_color);
 	}
-	
+
 	//Clouds color brightness adjustment
 	if (env->env_boost.clouds_color != 0.f)
 	{
 		clouds_color.add(env->env_boost.clouds_color);
-		clouds_color.clamp({0.f, 0.f, 0.f,0.f}, {1.f, 1.f, 1.f, 1.f});
+		if (hdr_enabled)
+			clouds_color.clamp({0.f, 0.f, 0.f, 0.f}, {10.f, 10.f, 10.f, 1.f});
+		else
+			clouds_color.clamp({0.f, 0.f, 0.f, 0.f}, {1.f, 1.f, 1.f, 1.f});
 	}
 
 	//Ambient color brightness adjustment
 	if (env->env_boost.ambient != 0.f)
 	{
 		ambient.add(env->env_boost.ambient);
-		ambient.clamp({0.f, 0.f, 0.f}, {1.f, 1.f, 1.f});
+		ambient.clamp({0.f, 0.f, 0.f}, max_color);
 	}
 
 	//Hemi color brightness adjustment
@@ -560,32 +600,38 @@ void CEnvDescriptorMixer::boost(CEnvironment* env)
 		float adj = hemi_color.w;
 		hemi_color.add(env->env_boost.hemi);
 		hemi_color.w = adj;
-		clamp(hemi_color.x, 0.f, 1.f);
-		clamp(hemi_color.y, 0.f, 1.f);
-		clamp(hemi_color.z, 0.f, 1.f);
+		if (hdr_enabled) {
+			clamp(hemi_color.x, 0.f, 10.f);
+			clamp(hemi_color.y, 0.f, 10.f);
+			clamp(hemi_color.z, 0.f, 10.f);
+		} else {
+			clamp(hemi_color.x, 0.f, 1.f);
+			clamp(hemi_color.y, 0.f, 1.f);
+			clamp(hemi_color.z, 0.f, 1.f);
+		}
 	}
 
 	//Sun color brightness adjustment
 	if (env->env_boost.sun_color != 0.f)
 	{
 		sun_color.add(env->env_boost.sun_color);
-		sun_color.clamp({0.f, 0.f, 0.f}, {1.f, 1.f, 1.f});
+		sun_color.clamp({0.f, 0.f, 0.f}, max_color);
 	}
 
 	//Rain color brightness adjustment
 	if (env->env_boost.rain_color != 0.f)
 	{
 		rain_color.add(env->env_boost.rain_color);
-		rain_color.clamp({0.f, 0.f, 0.f}, {1.f, 1.f, 1.f});
+		rain_color.clamp({0.f, 0.f, 0.f}, max_color);
 	}
 
 	//Fog color brightness adjustment
 	if (env->env_boost.fog_color != 0.f)
 	{
 		fog_color.add(env->env_boost.fog_color);
-		fog_color.clamp({0.f, 0.f, 0.f}, {1.f, 1.f, 1.f});
+		fog_color.clamp({0.f, 0.f, 0.f}, max_color);
 	}
-	
+
 }
 
 //-----------------------------------------------------------------------------

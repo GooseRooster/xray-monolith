@@ -68,6 +68,7 @@ CEnvironment::CEnvironment() :
 
 #ifndef _EDITOR
 	m_paused = false;
+	m_lerp_paused = false; // OWA: Initialize lerp pause flag
 #endif
 
 	fGameTime = 0.f;

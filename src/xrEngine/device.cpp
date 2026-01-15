@@ -119,7 +119,7 @@ void CRenderDevice::End(void)
             load_finished = true;
 #endif // #ifdef INGAME_EDITOR
 
-			m_pRender->updateGamma();
+			// OWA: updateGamma() removed - hardware gamma redundant with HDR pipeline
 
 			if (precache_light)
 			{

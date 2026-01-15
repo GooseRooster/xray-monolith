@@ -18,45 +18,16 @@
 
 #include "D3DX10Core.h"
 
+
+
+// OWA: SSFX compile-time toggles
+extern int ps_r3_ssfx_fog;
+extern int ps_r3_ssfx_shadows;
+extern int ps_r3_ssfx_water;
+extern int ps_r3_ssfx_taa;
+extern int ps_r3_ssfx_il;
+
 CRender RImplementation;
-
-//////////////////////////////////////////////////////////////////////////
-class CGlow : public IRender_Glow
-{
-public:
-	bool bActive;
-public:
-	CGlow() : bActive(false)
-	{
-	}
-
-	virtual void set_active(bool b) { bActive = b; }
-	virtual bool get_active() { return bActive; }
-
-	virtual void set_position(const Fvector& P)
-	{
-	}
-
-	virtual void set_direction(const Fvector& D)
-	{
-	}
-
-	virtual void set_radius(float R)
-	{
-	}
-
-	virtual void set_texture(LPCSTR name)
-	{
-	}
-
-	virtual void set_color(const Fcolor& C)
-	{
-	}
-
-	virtual void set_color(float r, float g, float b)
-	{
-	}
-};
 
 bool CRender::is_sun()
 {
@@ -66,6 +37,8 @@ bool CRender::is_sun()
 }
 
 float r_dtex_range = 50.f;
+//////////////////////////////////////////////////////////////////////////
+// Legacy shader selection using global RImplementation.phase
 //////////////////////////////////////////////////////////////////////////
 ShaderElement* CRender::rimp_select_sh_dynamic(dxRender_Visual* pVisual, float cdist_sq)
 {
@@ -77,17 +50,16 @@ ShaderElement* CRender::rimp_select_sh_dynamic(dxRender_Visual* pVisual, float c
 	return pVisual->shader->E[id]._get();
 }
 
-//////////////////////////////////////////////////////////////////////////
-ShaderElement* CRender::rimp_select_sh_static(dxRender_Visual* pVisual, float cdist_sq)
+ShaderElement* CRender::rimp_select_sh_static(dxRender_Visual* pVisual, float cdist_sq, u32 ctx_phase)
 {
 	int id = SE_R2_SHADOW;
-	if (CRender::PHASE_NORMAL == RImplementation.phase)
+	if (CRender::PHASE_NORMAL == ctx_phase)
 	{
 		if (pVisual->shader->E[0]->flags.isLandscape)
 		{
 			float sec_dist = _sqrt(cdist_sq) - pVisual->vis.sphere.R;
 			id = (sec_dist < ps_ssfx_terrain_quality.x * 10) ? SE_R2_NORMAL_HQ : SE_R2_NORMAL_LQ;
-			
+
 			// Very low shader variation
 			if (sec_dist > 240)
 				id = 3;
@@ -191,6 +163,21 @@ static class cl_meatchunks_stuff : public R_constant_setup
     }
 } binder_meatchunks_stuff;
 
+// OWA: Bent Normal Hemisphere Parameters
+// Uses XeGTAO bent normals to sample environment cubemap in unoccluded direction
+// x = diffuse bent influence (0.5 = 50% blend toward bent normal)
+// y = specular bent influence (usually less to preserve sharp reflections)
+// z = reserved, w = reserved
+static class cl_hmodel_bent_params : public R_constant_setup
+{
+    virtual void setup(R_constant* C) override
+    {
+        // Default values - can be exposed via console/MCM later
+        float diffuse_bent = 0.5f;   // Moderate diffuse influence
+        float specular_bent = 0.15f; // Subtle specular influence
+        RCache.set_c(C, diffuse_bent, specular_bent, 0.f, 0.f);
+    }
+} binder_hmodel_bent_params;
 
 extern ENGINE_API BOOL r2_sun_static;
 extern ENGINE_API BOOL r2_advanced_pp; //	advanced post process and effects
@@ -370,35 +357,23 @@ void CRender::create()
 	else
 		o.noshadows = FALSE;
 	o.Tshadows = (strstr(Core.Params, "-tsh")) ? TRUE : FALSE;
+	o.soc_shadows = ps_r2_ls_flags_ext.test(R2FLAGEXT_SOC_SHADOWS);  // OWA - classic SoC jittered shadows
+	o.staticlighting = (ps_r4_lighting_style == st_opt_static);      // OWA - R1-style static lightmaps (retro mode)
 
 	o.distortion_enabled = (strstr(Core.Params, "-nodistort")) ? FALSE : TRUE;
 	o.distortion = o.distortion_enabled;
 	o.disasm = (strstr(Core.Params, "-disasm")) ? TRUE : FALSE;
 	o.forceskinw = (strstr(Core.Params, "-skinw")) ? TRUE : FALSE;
 
-	o.ssao_blur_on = ps_r2_ls_flags_ext.test(R2FLAGEXT_SSAO_BLUR) && (ps_r_ssao != 0);
-	o.ssao_opt_data = ps_r2_ls_flags_ext.test(R2FLAGEXT_SSAO_OPT_DATA) && (ps_r_ssao != 0);
-	o.ssao_half_data = ps_r2_ls_flags_ext.test(R2FLAGEXT_SSAO_HALF_DATA) && o.ssao_opt_data && (ps_r_ssao != 0);
-	o.ssao_hdao = ps_r2_ls_flags_ext.test(R2FLAGEXT_SSAO_HDAO) && (ps_r_ssao != 0);
-	o.ssao_hbao = !o.ssao_hdao && ps_r2_ls_flags_ext.test(R2FLAGEXT_SSAO_HBAO) && (ps_r_ssao != 0);
-
-	//	TODO: fix hbao shader to allow to perform per-subsample effect!
-	o.hbao_vectorized = false;
-	if (o.ssao_hbao)
-	{
-		if (HW.Caps.id_vendor == 0x1002)
-			o.hbao_vectorized = true;
-		o.ssao_opt_data = true;
-	}
-
-	if (o.ssao_hdao)
-		o.ssao_opt_data = false;
+	// OWA: GTAO/SSDO - simple direct check like OGSR (no legacy flags needed)
+	o.ssao_gtao = (ps_r_ssao_mode == AO_MODE_GTAO) && (ps_r_ssao != 0);
 
 	o.dx10_sm4_1 = ps_r2_ls_flags.test((u32)R3FLAG_USE_DX10_1);
 	o.dx10_sm4_1 = o.dx10_sm4_1 && (HW.FeatureLevel >= D3D_FEATURE_LEVEL_10_1);
 
-	// HDR10
+	// HDR10 and high-precision render targets
 	o.dx11_hdr10 = !!ps_r4_hdr10_on;
+	o.hires_rts = !!ps_r4_hires_rts;  // OWA: 16-bit RTs in SDR (better gradients)
 
 	//	MSAA option dependencies
 	o.dx10_msaa = ps_r3_msaa && !o.dx11_hdr10;
@@ -475,43 +450,22 @@ void CRender::create()
 	// Check if SSS shaders exist
 	string_path fn;
 	o.ssfx_core = FS.exist(fn, "$game_shaders$", "r3\\screenspace_common", ".h") ? 1 : 0;
-	o.ssfx_rain = FS.exist(fn, "$game_shaders$", "r3\\effects_rain_splash", ".ps") ? 1 : 0;
 	o.ssfx_blood = FS.exist(fn, "$game_shaders$", "r3\\effects_wallmark_blood", ".ps") ? 1 : 0;
 	o.ssfx_branches = FS.exist(fn, "$game_shaders$", "r3\\deffer_tree_branch_aref_bump-hq", ".ps") ? 1 : 0;
-	o.ssfx_hud_raindrops = FS.exist(fn, "$game_shaders$", "r3\\deffer_base_hud_bump", ".ps") ? 1 : 0;
-	o.ssfx_ssr = FS.exist(fn, "$game_shaders$", "r3\\ssfx_ssr", ".ps") ? 1 : 0;
 	o.ssfx_terrain = FS.exist(fn, "$game_shaders$", "r3\\deffer_terrain_high_flat_d", ".ps") ? 1 : 0;
 	o.ssfx_volumetric = FS.exist(fn, "$game_shaders$", "r3\\ssfx_volumetric_blur", ".ps") ? 1 : 0;
-	o.ssfx_water = FS.exist(fn, "$game_shaders$", "r3\\ssfx_water", ".ps") ? 1 : 0;
-	o.ssfx_ao = FS.exist(fn, "$game_shaders$", "r3\\ssfx_ao", ".ps") ? 1 : 0;
-	o.ssfx_il = FS.exist(fn, "$game_shaders$", "r3\\ssfx_il", ".ps") ? 1 : 0;
-	o.ssfx_sss = FS.exist(fn, "$game_shaders$", "r3\\ssfx_sss", ".ps") ? 1 : 0;
-	o.ssfx_bloom = FS.exist(fn, "$game_shaders$", "r3\\ssfx_bloom", ".ps") ? 1 : 0;
-	o.ssfx_taa = FS.exist(fn, "$game_shaders$", "r3\\ssfx_taa", ".ps") ? 1 : 0;
-	o.ssfx_fog = FS.exist(fn, "$game_shaders$", "r3\\ssfx_fog_scattering", ".ps") ? 1 : 0;
-	o.ssfx_motionblur = FS.exist(fn, "$game_shaders$", "r3\\ssfx_motion_blur", ".ps") ? 1 : 0;
+	o.ssfx_water = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_water", ".ps") && ps_r3_ssfx_water) ? 1 : 0;
+	o.ssfx_il = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_il", ".ps") && ps_r3_ssfx_il) ? 1 : 0;
+	// OWA: Perceptual Lighting - disabled for now, will revisit later
+	// o.ssfx_pl = (FS.exist(fn, "$game_shaders$", "r3\\pp_perceptual_lighting", ".ps") && ps_r3_ssfx_il) ? 1 : 0;
+	o.ssfx_pl = 0;
+	o.ssfx_sss = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_sss", ".ps") && ps_r3_ssfx_shadows) ? 1 : 0;
+	o.ssfx_taa = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_taa", ".ps") && ps_r3_ssfx_taa) ? 1 : 0;
+	o.ssfx_fog = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_fog_scattering", ".ps") && ps_r3_ssfx_fog) ? 1 : 0;
 	o.ssfx_motionvectors = FS.exist(fn, "$game_shaders$", "r3\\screenspace_mvectors", ".h") ? 1 : 0;
-	o.ssfx_glass = FS.exist(fn, "$game_shaders$", "r3\\ssfx_glass", ".ps") ? 1 : 0; 
+	o.ssfx_glass = FS.exist(fn, "$game_shaders$", "r3\\ssfx_glass", ".ps") ? 1 : 0;
 
-	Msg("- Supports SSS UPDATE 23");
-	Msg("- SSS CORE INSTALLED %i", o.ssfx_core);
-	Msg("- SSS HUD SHADER INSTALLED %i", o.ssfx_hud_raindrops);
-	Msg("- SSS MOTION VECTORS SHADER INSTALLED %i", o.ssfx_motionvectors);
-	Msg("- SSS RAIN SHADER INSTALLED %i", o.ssfx_rain);
-	Msg("- SSS BLOOD SHADER INSTALLED %i", o.ssfx_blood);
-	Msg("- SSS BRANCHES SHADER INSTALLED %i", o.ssfx_branches);
-	Msg("- SSS SSR SHADER INSTALLED %i", o.ssfx_ssr);
-	Msg("- SSS TERRAIN SHADER INSTALLED %i", o.ssfx_terrain);
-	Msg("- SSS VOLUMETRIC SHADER INSTALLED %i", o.ssfx_volumetric);
-	Msg("- SSS WATER SHADER INSTALLED %i", o.ssfx_water);
-	Msg("- SSS AO SHADER INSTALLED %i", o.ssfx_ao);
-	Msg("- SSS IL SHADER INSTALLED %i", o.ssfx_il);
-	Msg("- SSS SSS SHADER INSTALLED %i", o.ssfx_sss);
-	Msg("- SSS BLOOM SHADER INSTALLED %i", o.ssfx_bloom);
-	Msg("- SSS FOG SHADER INSTALLED %i", o.ssfx_fog);
-	Msg("- SSS GLASS SHADER INSTALLED %i", o.ssfx_glass);
-	Msg("- SSS MOTION BLUR SHADER INSTALLED %i", o.ssfx_motionblur);
-	Msg("- SSS TAA SHADER INSTALLED %i", o.ssfx_taa);
+	
 
 	// constants
 	CResourceManager* RM = dxRenderDeviceRender::Instance().Resources;
@@ -523,6 +477,7 @@ void CRender::create()
 	RM->RegisterConstantSetup("pos_decompression_params2", &binder_pos_decompress_params2);
 	RM->RegisterConstantSetup("triLOD", &binder_LOD);
 	RM->RegisterConstantSetup("hmodel_stuff", &binder_meatchunks_stuff);
+	RM->RegisterConstantSetup("hmodel_bent_params", &binder_hmodel_bent_params);
 
 	c_lmaterial = "L_material";
 	c_sbase = "s_base";
@@ -587,7 +542,8 @@ void CRender::reset_begin()
 			if (0 == Lights_LastFrame[it]) continue ;
 			try
 			{
-				Lights_LastFrame[it]->svis.resetoccq();
+				for (auto& svi : Lights_LastFrame[it]->svis)
+					svi.resetoccq();
 			}
 			catch (...)
 			{
@@ -1297,11 +1253,8 @@ HRESULT CRender::shader_compile(
 	char c_ssfx_terrain_pom_refine[32];
 	char c_ssfx_pom_refine[32];
 	char c_ssfx_il[32];
-	char c_ssfx_ao[32];
 	char c_ssfx_water[32];
 	char c_ssfx_water_parallax[32];
-	char c_ssr_quality[32];
-	char c_rain_quality[32];
 	char c_inter_grass[32];
 
 	char sh_name[MAX_PATH] = "";
@@ -1422,13 +1375,44 @@ HRESULT CRender::shader_compile(
 	sh_name[len] = '0' + char(o.sunfilter);
 	++len;
 
-	if (o.sunstatic)
+	// OWA: Classic SoC jittered shadows
+	if (o.soc_shadows)
+	{
+		defines[def_it].Name = "SOC_SHADOWS";
+		defines[def_it].Definition = "1";
+		def_it ++;
+	}
+	sh_name[len] = '0' + char(o.soc_shadows);
+	++len;
+
+	// OWA: MT Sun Cascades - shadow map is Texture2DArray, shader must sample accordingly
+	if (o.mt_sun_cascades)
+	{
+		defines[def_it].Name = "USE_MT_SUN_CASCADES";
+		defines[def_it].Definition = "1";
+		def_it ++;
+	}
+	sh_name[len] = '0' + char(o.mt_sun_cascades);
+	++len;
+
+	if (o.staticlighting || o.sunstatic)
 	{
 		defines[def_it].Name = "USE_R2_STATIC_SUN";
 		defines[def_it].Definition = "1";
 		def_it ++;
 	}
 	sh_name[len] = '0' + char(o.sunstatic);
+	++len;
+
+	// OWA: Static lighting mode (R1-style lightmaps) - derived from r4_lighting_style
+	// When enabled, shaders will use lightmap sampling instead of deferred sun lighting
+	if (o.staticlighting)
+	{
+		defines[def_it].Name = "USE_STATIC_LIGHTING";
+		defines[def_it].Definition = "1";
+		def_it ++;
+	}
+	sh_name[len] = '0' + char(o.staticlighting);
 	++len;
 
 	if (o.forceskinw)
@@ -1449,50 +1433,19 @@ HRESULT CRender::shader_compile(
 	sh_name[len] = '0' + char(o.ssao_blur_on);
 	++len;
 
-	if (o.ssao_hdao)
+	// OWA: GTAO shader define 
+	if (o.ssao_gtao && !o.staticlighting)
 	{
-		defines[def_it].Name = "HDAO";
+		defines[def_it].Name = "USE_GTAO";
 		defines[def_it].Definition = "1";
 		def_it ++;
 		sh_name[len] = '1';
-		++len;
-		sh_name[len] = '0';
-		++len;
-		sh_name[len] = '0';
 		++len;
 	}
 	else
 	{
 		sh_name[len] = '0';
 		++len;
-		sh_name[len] = '0' + char(o.ssao_hbao);
-		++len;
-		sh_name[len] = '0' + char(o.ssao_half_data);
-		++len;
-		if (o.ssao_hbao)
-		{
-			defines[def_it].Name = "SSAO_OPT_DATA";
-			if (o.ssao_half_data)
-			{
-				defines[def_it].Definition = "2";
-			}
-			else
-			{
-				defines[def_it].Definition = "1";
-			}
-			def_it ++;
-
-			if (o.hbao_vectorized)
-			{
-				defines[def_it].Name = "VECTORIZED_CODE";
-				defines[def_it].Definition = "1";
-				def_it ++;
-			}
-
-			defines[def_it].Name = "USE_HBAO";
-			defines[def_it].Definition = "1";
-			def_it ++;
-		}
 	}
 
 	if (o.dx10_msaa)
@@ -1582,7 +1535,8 @@ HRESULT CRender::shader_compile(
 	++len;
 
 	//	Igor: need restart options
-	if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_SOFT_WATER))
+	// OWA: Also enable soft water when SSFX water is enabled (SSFX water depends on it)
+	if ((RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_SOFT_WATER)) || ps_r3_ssfx_water)
 	{
 		defines[def_it].Name = "USE_SOFT_WATER";
 		defines[def_it].Definition = "1";
@@ -1639,7 +1593,8 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	if (RImplementation.o.advancedpp && ps_r_ssao)
+	// Skip in static lighting mode (R1 aesthetic - no screen-space AO)
+	if (ps_r_ssao && !o.staticlighting)
 	{
 		xr_sprintf(c_ssao, "%d", ps_r_ssao);
 		defines[def_it].Name = "SSAO_QUALITY";
@@ -1761,21 +1716,6 @@ HRESULT CRender::shader_compile(
 	sh_name[len] = '0' + char(o.dx10_minmax_sm != 0);
 	++len;
 	
-	if (ps_ssfx_rain_1.w > 0)
-	{
-		xr_sprintf(c_rain_quality, "%d", u8(ps_ssfx_rain_1.w));
-		defines[def_it].Name = "SSFX_RAIN_QUALITY";
-		defines[def_it].Definition = c_rain_quality;
-		def_it++;
-		xr_strcat(sh_name, c_rain_quality);
-		len += xr_strlen(c_rain_quality);
-	}
-	else
-	{
-		sh_name[len] = '0';
-		++len;
-	}
-
 	if (ps_ssfx_grass_interactive.y > 0)
 	{
 		xr_sprintf(c_inter_grass, "%d", u8(ps_ssfx_grass_interactive.y));
@@ -1790,13 +1730,6 @@ HRESULT CRender::shader_compile(
 		sh_name[len] = '0';
 		++len;
 	}
-
-	xr_sprintf(c_ssr_quality, "%d", u8(std::min(std::max(ps_ssfx_ssr_quality, 0), 5)));
-	defines[def_it].Name = "SSFX_SSR_QUALITY";
-	defines[def_it].Definition = c_ssr_quality;
-	def_it++;
-	xr_strcat(sh_name, c_ssr_quality);
-	len += xr_strlen(c_ssr_quality);
 
 	xr_sprintf(c_ssfx_water, "%d", u8(std::min(std::max(ps_ssfx_water_quality.x, 0.0f), 4.0f)));
 	defines[def_it].Name = "SSFX_WATER_QUALITY";
@@ -1818,13 +1751,6 @@ HRESULT CRender::shader_compile(
 	def_it++;
 	xr_strcat(sh_name, c_ssfx_il);
 	len += xr_strlen(c_ssfx_il);
-
-	xr_sprintf(c_ssfx_ao, "%d", u8(std::min(std::max(ps_ssfx_ao_quality, 2), 8)));
-	defines[def_it].Name = "SSFX_AO_QUALITY";
-	defines[def_it].Definition = c_ssfx_ao;
-	def_it++;
-	xr_strcat(sh_name, c_ssfx_ao);
-	len += xr_strlen(c_ssfx_ao);
 
 	xr_sprintf(c_ssfx_pom_refine, "%d", u8(std::min(std::max(ps_ssfx_pom_refine, 0), 1)));
 	defines[def_it].Name = "SSFX_POM_REFINE";
@@ -1946,6 +1872,83 @@ HRESULT CRender::shader_compile(
 		++len;
 		sh_name[len] = '0';
 		++len;
+		sh_name[len] = '0';
+		++len;
+	}
+
+
+
+	// OWA: SSFX compile-time defines (controlled by r3_ssfx_* console commands)
+	// These replace the static defines in check_screenspace_*.h files for smaller compiled shaders
+	if (ps_r3_ssfx_fog)
+	{
+		defines[def_it].Name = "SSFX_FOG";
+		defines[def_it].Definition = "1";
+		def_it++;
+		sh_name[len] = '1';
+		++len;
+	}
+	else
+	{
+		sh_name[len] = '0';
+		++len;
+	}
+
+	if (ps_r3_ssfx_shadows)
+	{
+		// OWA: Define SSFX_SSS for Screen Space Shadows effect
+		// SSFX_SHADOWS is always on (defined in shader header) for shadow quality fixes
+		defines[def_it].Name = "SSFX_SSS";
+		defines[def_it].Definition = "1";
+		def_it++;
+		sh_name[len] = '1';
+		++len;
+	}
+	else
+	{
+		sh_name[len] = '0';
+		++len;
+	}
+
+	if (ps_r3_ssfx_water)
+	{
+		defines[def_it].Name = "SSFX_WATER";
+		defines[def_it].Definition = "1";
+		def_it++;
+		sh_name[len] = '1';
+		++len;
+	}
+	else
+	{
+		sh_name[len] = '0';
+		++len;
+	}
+
+	if (ps_r3_ssfx_taa)
+	{
+		defines[def_it].Name = "SSFX_TAA";
+		defines[def_it].Definition = "1";
+		def_it++;
+		sh_name[len] = '1';
+		++len;
+	}
+	else
+	{
+		sh_name[len] = '0';
+		++len;
+	}
+
+	// OWA: Skip IL in static lighting mode (R1 aesthetic - no screen-space bounce)
+	if (ps_r3_ssfx_il && !o.staticlighting)
+	{
+		defines[def_it].Name = "SSFX_INDIRECT_LIGHT";
+		defines[def_it].Definition = "1";
+		def_it++;
+		sh_name[len] = '1';
+		++len;
+	}
+	else
+	{
 		sh_name[len] = '0';
 		++len;
 	}
@@ -2086,6 +2089,12 @@ HRESULT CRender::shader_compile(
 			else
 				Msg("Can't compile shader hr=0x%08x", _result);
 		}
+
+		// Release D3D blobs to prevent resource exhaustion
+		if (pShaderBuf)
+			pShaderBuf->Release();
+		if (pErrorBuf)
+			pErrorBuf->Release();
 	}
 
 	return _result;

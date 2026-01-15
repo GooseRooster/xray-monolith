@@ -22,6 +22,9 @@
 #include "../../xrEngine/irenderable.h"
 #include "../../xrEngine/fmesh.h"
 
+#include "../xrRenderPC_R1/GlowManager.h"
+
+
 class dxRender_Visual;
 
 // definition
@@ -59,19 +62,14 @@ public:
 	{
 		u32 ssfx_branches : 1;
 		u32 ssfx_blood : 1;
-		u32 ssfx_rain : 1;
-		u32 ssfx_hud_raindrops : 1;
-		u32 ssfx_ssr : 1;
 		u32 ssfx_terrain : 1;
 		u32 ssfx_volumetric : 1;
 		u32 ssfx_water : 1;
-		u32 ssfx_ao : 1;
 		u32 ssfx_il : 1;
+		u32 ssfx_pl : 1;  // OWA: Perceptual Lighting (part of r3_gi, compile-time flag)
 		u32 ssfx_core : 1;
-		u32 ssfx_bloom : 1;
 		u32 ssfx_sss : 1;
 		u32 ssfx_fog : 1;
-		u32 ssfx_motionblur : 1;
 		u32 ssfx_taa : 1;
 		u32 ssfx_motionvectors : 1;
 		u32 ssfx_glass : 1;
@@ -81,10 +79,8 @@ public:
 		u32 ssao_blur_on : 1;
 		u32 ssao_opt_data : 1;
 		u32 ssao_half_data : 1;
-		u32 ssao_hbao : 1;
-		u32 ssao_hdao : 1;
+		u32 ssao_gtao : 1;     // OWA: Ground Truth Ambient Occlusion
 		u32 ssao_ultra : 1;
-		u32 hbao_vectorized : 1;
 
 		u32 smapsize : 16;
 		u32 depth16 : 1;
@@ -113,6 +109,8 @@ public:
 		u32 sjitter : 1;
 		u32 noshadows : 1;
 		u32 Tshadows : 1; // transluent shadows
+		u32 soc_shadows : 1; // OWA - classic SoC jittered shadows
+		u32 staticlighting : 1; // OWA - R1-style static lightmap rendering (derived from r4_lighting_style)
 		u32 disasm : 1;
 		u32 advancedpp : 1; //	advanced post process (DOF, SSAO, volumetrics, etc.)
 		u32 volumetricfog : 1;
@@ -134,7 +132,10 @@ public:
 		
 		// HDR10
 		u32 dx11_hdr10 : 1;
-		
+		u32 hires_rts : 1;  // OWA: Use 16-bit render targets in SDR (better gradients, less banding)
+
+
+
 		float forcegloss_v;
 	} o;
 
@@ -173,6 +174,7 @@ public:
 	CDetailManager* Details;
 	CModelPool* Models;
 	CWallmarksEngine* Wallmarks;
+	CGlowManager* Glows;
 
 	CRenderTarget* Target; // Render-target
 
@@ -215,6 +217,12 @@ private:
 public:
 	IRender_Sector* rimp_detectSector(Fvector& P, Fvector& D);
 	void render_main(Fmatrix& mCombined, bool _fportals);
+
+	// Async scene graph building methods (Phase 2)
+	// These extract the scene graph building from render_main for async execution
+	void main_pass_static(Fmatrix& m_ViewProjection);   // Portal traversal + static geometry
+	void main_pass_dynamic(bool fill_lights);            // Dynamic objects + lights
+
 	void render_forward();
 	void render_Reticle();
 	void render_smap_direct(Fmatrix& mCombined);
@@ -230,9 +238,26 @@ public:
 	void init_cacades();
 	void render_sun_cascades();
 
+	// Async particle/bone calculation methods
+	void calculate_particles_async();
+	void calculate_particles_wait();
+	void calculate_bones_async();
+	void calculate_bones_wait();
+
+	// OGSR pattern: Get the largest sector ID (typically the outdoor sector)
+	// Pre-computed during level load for efficiency
+	// Used by sun shadow rendering for proper portal-based visibility
+	ICF IRender_Sector::sector_id_t get_largest_sector() const { return largest_sector_id; }
+
 public:
+	// Legacy versions using global RImplementation.phase (for backwards compatibility)
 	ShaderElement* rimp_select_sh_static(dxRender_Visual* pVisual, float cdist_sq);
 	ShaderElement* rimp_select_sh_dynamic(dxRender_Visual* pVisual, float cdist_sq);
+
+	// Per-context versions: use explicit phase for MT rendering thread safety
+	// When rendering to per-context dsgraphs, the phase may differ from RImplementation.phase
+	ShaderElement* rimp_select_sh_static(dxRender_Visual* pVisual, float cdist_sq, u32 ctx_phase);
+	ShaderElement* rimp_select_sh_dynamic(dxRender_Visual* pVisual, float cdist_sq, u32 ctx_phase);
 	D3DVERTEXELEMENT9* getVB_Format(int id, BOOL _alt = FALSE);
 	ID3DVertexBuffer* getVB(int id, BOOL _alt = FALSE);
 	ID3DIndexBuffer* getIB(int id, BOOL _alt = FALSE);
@@ -247,6 +272,9 @@ public:
 	IC u32 occq_begin(u32& ID) { return HWOCC.occq_begin(ID); }
 	IC void occq_end(u32& ID) { HWOCC.occq_end(ID); }
 	IC R_occlusion::occq_result occq_get(u32& ID) { return HWOCC.occq_get(ID); }
+	// Per-context overloads for MT rendering
+	IC u32 occq_begin(u32& ID, u32 context_id) { return HWOCC.occq_begin(ID, context_id); }
+	IC void occq_end(u32& ID, u32 context_id) { HWOCC.occq_end(ID, context_id); }
 
 	ICF void apply_object(IRenderable* O)
 	{
@@ -260,17 +288,39 @@ public:
 		//--DSR-- HeatVision_start
 		RCache.hemi.set_hotness(O->GetHotness(), O->GetTransparency(), 0.f, 0.f);			//--DSR-- HeatVision
 		RCache.hemi.set_glowing(															//--DSR-- SilencerOverheat
-			sil_glow_color.x, 
+			sil_glow_color.x,
 			sil_glow_color.y,
 			sil_glow_color.z, O->GetGlowing());
 		//--DSR-- HeatVision_end
 		CopyMemory(o_hemi_cube, LT.get_hemi_cube(), CROS_impl::NUM_FACES*sizeof(float));
 	}
+
+	//-------------------------------------------------------------------------
+	// Thread-safe apply_object() that writes to per-context CBackend
+	// Used by parallel sun shadow rendering where each cascade has its own context
+	//-------------------------------------------------------------------------
+	ICF void apply_object(CBackend& cmd_list, IRenderable* O)
+	{
+		if (0 == O) return;
+		if (0 == O->renderable_ROS()) return;
+		CROS_impl& LT = *((CROS_impl*)O->renderable_ROS());
+		LT.update_smooth(O);
+		cmd_list.o_hemi = 0.75f * LT.get_hemi();
+		cmd_list.o_sun = 0.75f * LT.get_sun();
+		//--DSR-- HeatVision
+		cmd_list.hemi.set_hotness(O->GetHotness(), O->GetTransparency(), 0.f, 0.f);
+		cmd_list.hemi.set_glowing(
+			sil_glow_color.x,
+			sil_glow_color.y,
+			sil_glow_color.z, O->GetGlowing());
+		CopyMemory(cmd_list.o_hemi_cube, LT.get_hemi_cube(), CROS_impl::NUM_FACES*sizeof(float));
+	}
 	
 	IC void apply_lmaterial()
 	{
-		R_constant* C = &*RCache.get_c(c_sbase); // get sampler
-		if (0 == C) return;
+		// Use ._get() for safe null check (OGSR pattern) - avoids crash if ctable is null
+		R_constant* C = RCache.get_c(c_sbase)._get();
+		if (!C) return;
 		VERIFY(RC_dest_sampler == C->destination);
 		VERIFY(RC_dx10texture == C->type);
 		CTexture* T = RCache.get_ActiveTexture(u32(C->samp.index));

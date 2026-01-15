@@ -43,6 +43,13 @@ public:
 	CUIProgressBar* m_ui_psy_bar;
 	CUIStatic* m_radia_damage;
 
+	// Radiation meter (circular gauge)
+	CUIStatic* m_rad_back;
+	CUIProgressShape* m_progress_self;
+	UI_Arrow* m_arrow;
+	UI_Arrow* m_arrow_shadow;
+	CUIStatic* m_back_over_arrow;
+
 	// Tronex
 	bool m_ui_health_bar_show;
 	bool m_ui_stamina_bar_show;

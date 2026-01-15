@@ -69,6 +69,20 @@ public:
 	static bool InitTrackBar(CUIXml& xml_doc, LPCSTR path, int index, CUITrackBar* pWnd);
 	static Frect GetFRect(CUIXml& xml_doc, LPCSTR path, int index);
 	static u32 GetColor(CUIXml& xml_doc, LPCSTR path, int index, u32 def_clr);
+
+	// Optional init functions - log warning and return false instead of crashing if node not found
+	static bool TryInitWindow(CUIXml& xml_doc, LPCSTR path, int index, CUIWindow* pWnd);
+	static bool TryInitStatic(CUIXml& xml_doc, LPCSTR path, int index, CUIStatic* pWnd);
+	static bool TryInitTextWnd(CUIXml& xml_doc, LPCSTR path, int index, CUITextWnd* pWnd);
+	static bool TryInitProgressBar(CUIXml& xml_doc, LPCSTR path, int index, CUIProgressBar* pWnd);
+	static bool TryInitProgressShape(CUIXml& xml_doc, LPCSTR path, int index, CUIProgressShape* pWnd);
+	static bool TryInit3tButton(CUIXml& xml_doc, LPCSTR path, int index, CUI3tButton* pWnd);
+	static bool TryInitFrameLine(CUIXml& xml_doc, LPCSTR path, int index, CUIFrameLineWnd* pWnd);
+	static bool TryInitFrameWindow(CUIXml& xml_doc, LPCSTR path, int index, CUIFrameWindow* pWnd);
+	static bool TryInitEditBox(CUIXml& xml_doc, LPCSTR path, int index, CUIEditBox* pWnd);
+	static bool TryInitCheck(CUIXml& xml_doc, LPCSTR path, int index, CUICheckButton* pWnd);
+	static bool TryInitDragDropListEx(CUIXml& xml_doc, LPCSTR path, int index, CUIDragDropListEx* pWnd);
+
 public:
 
 	static bool InitAlignment(CUIXml& xml_doc, const char* path,

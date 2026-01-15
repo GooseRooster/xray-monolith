@@ -45,6 +45,14 @@ public:
 	static UIHint* CreateHint(CUIXml& xml, LPCSTR ui_path /*, CUIWindow* parent*/);
 	static CUIDragDropListEx* CreateDragDropListEx(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent);
 	static CUIDragDropReferenceList* CreateDragDropReferenceList(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent);
+
+	// Optional creation functions - return nullptr if XML node not found (logs warning instead of crash)
+	static CUIStatic* CreateStaticOptional(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent);
+	static CUITextWnd* CreateTextWndOptional(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent);
+	static CUIProgressBar* CreateProgressBarOptional(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent);
+	static CUI3tButton* Create3tButtonOptional(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent);
+	static CUIFrameLineWnd* CreateFrameLineOptional(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent);
+	static CUIEditBox* CreateEditBoxOptional(CUIXml& xml, LPCSTR ui_path, CUIWindow* parent);
 }; // class UIHelper
 
 #endif // UI_HELPER_H_INCLUDED

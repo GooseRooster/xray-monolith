@@ -589,6 +589,22 @@ class cl_hemi_color : public R_constant_setup
 
 static cl_hemi_color binder_hemi_color;
 
+
+// OWA: Expose lumscale console variables to shaders
+// x = ps_r2_sun_lumscale (sun brightness)
+// y = ps_r2_sun_lumscale_hemi (hemisphere/ambient brightness)
+// z = ps_r2_sun_lumscale_amb (ambient brightness)
+// w = reserved
+class cl_lumscale : public R_constant_setup
+{
+	virtual void setup(R_constant* C) override
+	{
+		RCache.set_c(C, ps_r2_sun_lumscale, ps_r2_sun_lumscale_hemi, ps_r2_sun_lumscale_amb, 0.0f);
+	}
+};
+
+static cl_lumscale binder_lumscale;
+
 class cl_sky_color : public R_constant_setup
 {
 	u32 marker;
@@ -1407,6 +1423,7 @@ void CBlender_Compile::SetMapping()
 	r_Constant("L_sun_dir_w", &binder_sun0_dir_w);
 	r_Constant("L_sun_dir_e", &binder_sun0_dir_e);
 	//	r_Constant				("L_lmap_color",	&binder_lm_color);
+	r_Constant("L_lumscale", &binder_lumscale);  // OWA: x=sun, y=hemi, z=amb
 	r_Constant("L_hemi_color", &binder_hemi_color);
 	r_Constant("L_ambient", &binder_amb_color);
 #endif

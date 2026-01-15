@@ -617,24 +617,48 @@ bool CUIXmlInit::InitProgressShape(CUIXml& xml_doc, LPCSTR path, int index, CUIP
 {
 	R_ASSERT4(xml_doc.NavigateToNode(path,index), "XML node not found", path, xml_doc.m_xml_file_name);
 
-	InitStatic(xml_doc, path, index, pWnd);
+	string256 _path;
+
+	// Check if <front> node exists (Snowy/CS style with child statics)
+	strconcat(sizeof(_path), _path, path, ":front");
+	if (xml_doc.NavigateToNode(_path, index))
+	{
+		// Snowy/CS style: use child statics for layered rendering
+		pWnd->m_bUseChildTexture = true;
+
+		// Initialize parent window (position/size only, no texture)
+		InitWindow(xml_doc, path, index, pWnd);
+
+		// Create and initialize foreground texture as child static
+		pWnd->m_pTexture = xr_new<CUIStatic>();
+		pWnd->AttachChild(pWnd->m_pTexture);
+		InitStatic(xml_doc, _path, index, pWnd->m_pTexture);
+
+		// Child statics must be at 0,0 relative to parent and match parent size
+		Fvector2 zero_pos;
+		zero_pos.set(0.f, 0.f);
+		pWnd->m_pTexture->SetWndPos(zero_pos);
+		pWnd->m_pTexture->SetWndSize(pWnd->GetWndSize());
+
+		// Initialize background static (optional - drawn behind the progress sectors)
+		if (xml_doc.NavigateToNode(strconcat(sizeof(_path), _path, path, ":back"), index))
+		{
+			pWnd->m_pBackground = xr_new<CUIStatic>();
+			pWnd->AttachChild(pWnd->m_pBackground);
+			InitStatic(xml_doc, _path, index, pWnd->m_pBackground);
+			pWnd->m_pBackground->SetWndPos(zero_pos);
+			pWnd->m_pBackground->SetWndSize(pWnd->GetWndSize());
+		}
+	}
+	else
+	{
+		// CUIProgressShape inherits from CUIStatic, so InitStatic works directly on it
+		pWnd->m_bUseChildTexture = false;
+		InitStatic(xml_doc, path, index, pWnd);
+	}
 
 	if (xml_doc.ReadAttribInt(path, index, "text"))
 		pWnd->SetTextVisible(true);
-
-	string256 _path;
-
-	if (xml_doc.NavigateToNode(strconcat(sizeof(_path), _path, path, ":back"), index))
-	{
-		R_ASSERT2(0, "unused <back> node in progress shape ");
-	}
-
-
-	if (xml_doc.NavigateToNode(strconcat(sizeof(_path), _path, path, ":front"), index))
-	{
-		R_ASSERT2(0, "unused <front> node in progress shape ");
-	}
-	//    InitStatic(xml_doc, strconcat(sizeof(_path),_path, path, ":front"), index, pWnd->m_pTexture);
 
 	pWnd->m_sectorCount = xml_doc.ReadAttribInt(path, index, "sector_count", 8);
 	pWnd->m_bClockwise = xml_doc.ReadAttribInt(path, index, "clockwise") ? true : false;
@@ -1320,4 +1344,119 @@ u32 CUIXmlInit::GetColor(CUIXml& xml_doc, LPCSTR path, int index, u32 def_clr)
 		int a = xml_doc.ReadAttribInt(path, index, "a", 0xff);
 		return color_argb(a, r, g, b);
 	}
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Optional init functions - log warning and return false instead of crashing
+// Use these when a UI element is optional and the game should continue without it
+//////////////////////////////////////////////////////////////////////////
+
+bool CUIXmlInit::TryInitWindow(CUIXml& xml_doc, LPCSTR path, int index, CUIWindow* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitWindow(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitStatic(CUIXml& xml_doc, LPCSTR path, int index, CUIStatic* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitStatic(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitTextWnd(CUIXml& xml_doc, LPCSTR path, int index, CUITextWnd* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitTextWnd(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitProgressBar(CUIXml& xml_doc, LPCSTR path, int index, CUIProgressBar* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitProgressBar(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitProgressShape(CUIXml& xml_doc, LPCSTR path, int index, CUIProgressShape* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitProgressShape(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInit3tButton(CUIXml& xml_doc, LPCSTR path, int index, CUI3tButton* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return Init3tButton(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitFrameLine(CUIXml& xml_doc, LPCSTR path, int index, CUIFrameLineWnd* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitFrameLine(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitFrameWindow(CUIXml& xml_doc, LPCSTR path, int index, CUIFrameWindow* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitFrameWindow(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitCheck(CUIXml& xml_doc, LPCSTR path, int index, CUICheckButton* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitCheck(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitEditBox(CUIXml& xml_doc, LPCSTR path, int index, CUIEditBox* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitEditBox(xml_doc, path, index, pWnd);
+}
+
+bool CUIXmlInit::TryInitDragDropListEx(CUIXml& xml_doc, LPCSTR path, int index, CUIDragDropListEx* pWnd)
+{
+	if (!xml_doc.NavigateToNode(path, index))
+	{
+		Msg("! UI XML Warning: Node not found [%s] in [%s]", path, xml_doc.m_xml_file_name);
+		return false;
+	}
+	return InitDragDropListEx(xml_doc, path, index, pWnd);
 }

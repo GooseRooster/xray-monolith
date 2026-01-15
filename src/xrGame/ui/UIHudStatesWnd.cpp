@@ -26,7 +26,12 @@ CUIHudStatesWnd::CUIHudStatesWnd()
 	  m_timer_1sec(0),
 	  m_last_health(0.0f),
 	  m_radia_self(0.0f),
-	  m_radia_hit(0.0f)
+	  m_radia_hit(0.0f),
+	  m_rad_back(nullptr),
+	  m_progress_self(nullptr),
+	  m_arrow(nullptr),
+	  m_arrow_shadow(nullptr),
+	  m_back_over_arrow(nullptr)
 {
 	for (int i = 0; i < ALife::infl_max_count; ++i)
 	{
@@ -51,6 +56,8 @@ CUIHudStatesWnd::CUIHudStatesWnd()
 
 CUIHudStatesWnd::~CUIHudStatesWnd()
 {
+	xr_delete(m_arrow);
+	xr_delete(m_arrow_shadow);
 }
 
 void CUIHudStatesWnd::reset_ui()
@@ -147,18 +154,40 @@ void CUIHudStatesWnd::InitFromXml(CUIXml& xml, LPCSTR path)
 
 	//	m_ui_armor_bar    = UIHelper::CreateProgressBar( xml, "progress_bar_armor", this );
 
-	//	m_progress_self = xr_new<CUIProgressShape>();
-	//	m_progress_self->SetAutoDelete(true);
-	//	AttachChild( m_progress_self );
-	//	CUIXmlInit::InitProgressShape( xml, "progress", 0, m_progress_self );
+	// Radiation meter (circular gauge) - optional
+	// Background static for radiation gauge
+	m_rad_back = UIHelper::CreateStatic(xml, "rad_back", this);
 
-	//	m_arrow				= xr_new<UI_Arrow>();
-	//	m_arrow_shadow		= xr_new<UI_Arrow>();
+	// Progress shape (arc that fills based on accumulated radiation)
+	m_progress_self = xr_new<CUIProgressShape>();
+	AttachChild(m_progress_self);
+	if (!CUIXmlInit::TryInitProgressShape(xml, "rad_progress", 0, m_progress_self))
+	{
+		DetachChild(m_progress_self);
+		xr_delete(m_progress_self);
+		m_progress_self = nullptr;
+	}
+	else
+	{
+		// Only set AutoDelete after successful initialization
+		// DetachChild auto-deletes if AutoDelete is true, causing double-free
+		m_progress_self->SetAutoDelete(true);
+	}
 
-	//	m_arrow->init_from_xml( xml, "arrow", this );
-	//	m_arrow_shadow->init_from_xml( xml, "arrow_shadow", this );
+	// Arrow gauge needles - optional
+	if (xml.NavigateToNode("rad_arrow", 0))
+	{
+		m_arrow = xr_new<UI_Arrow>();
+		m_arrow->init_from_xml(xml, "rad_arrow", this);
+	}
+	if (xml.NavigateToNode("rad_arrow_shadow", 0))
+	{
+		m_arrow_shadow = xr_new<UI_Arrow>();
+		m_arrow_shadow->init_from_xml(xml, "rad_arrow_shadow", this);
+	}
 
-	//	m_back_over_arrow = UIHelper::CreateStatic( xml, "back_over_arrow", this );
+	// Back over arrow static - optional (UIHelper::CreateStatic returns nullptr if not found)
+	m_back_over_arrow = UIHelper::CreateStatic(xml, "rad_over", this);
 
 	/*
 		m_bleeding_lev1 = UIHelper::CreateStatic( xml, "bleeding_level_1", this );
@@ -484,10 +513,11 @@ void CUIHudStatesWnd::SetAmmoIcon(const shared_str& sect_name)
 	else
 		m_ui_weapon_icon->SetShader(InventoryUtilities::GetEquipmentIconsShader());
 
+	// Scale icon to 80% of texture size
 	float h = texture_rect.height() * 0.8f;
 	float w = texture_rect.width() * 0.8f;
 
-	// now perform only width scale for ammo, which (W)size >2
+	// Clamp width for large icons (weapons) - if wider than 2 grid cells, limit to 1.5 cells
 	if (texture_rect.width() > 2.01f * INV_GRID_WIDTH)
 		w = INV_GRID_WIDTH * 1.5f;
 
@@ -548,8 +578,16 @@ void CUIHudStatesWnd::UpdateZones()
 			Msg(" self = %.2f   hit = %.2f", m_radia_self, m_radia_hit );
 		}*/
 
-	//	m_arrow->SetNewValue( m_radia_hit );
-	//	m_arrow_shadow->SetPos( m_arrow->GetPos() );
+	// Update radiation meter if it exists
+	if (m_progress_self)
+		m_progress_self->SetPos(m_radia_self);
+
+	if (m_arrow)
+	{
+		m_arrow->SetNewValue(m_radia_hit);
+		if (m_arrow_shadow)
+			m_arrow_shadow->SetPos(m_arrow->GetPos());
+	}
 	/*
 		power = actor->conditions().GetPsy();
 		clamp( power, 0.0f, 1.1f );

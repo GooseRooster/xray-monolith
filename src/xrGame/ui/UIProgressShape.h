@@ -22,6 +22,9 @@ public:
 protected:
 	bool m_bClockwise;
 	u32 m_sectorCount;
+	CUIStatic* m_pTexture;      // Foreground texture (sectors drawn with this) - Snowy/CS style
+	CUIStatic* m_pBackground;   // Background texture (drawn behind sectors) - Snowy/CS style
+	bool m_bUseChildTexture;    // true = use m_pTexture (Snowy/CS style), false = use parent's own texture (OWA style)
 	bool m_bText;
 	bool m_blend;
 

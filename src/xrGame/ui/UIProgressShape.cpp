@@ -7,9 +7,10 @@
 
 CUIProgressShape::CUIProgressShape()
 {
+	m_pBackground = NULL;
+	m_pTexture = NULL;
 	m_bText = false;
-	//	m_pTexture		= xr_new<CUIStatic>();
-	//	AttachChild		(m_pTexture);	
+	m_bUseChildTexture = false;  // Default to OWA style (use parent's own texture)
 	m_blend = true;
 	m_angle_begin = 0.0f;
 	m_angle_end = PI_MUL_2;
@@ -18,7 +19,11 @@ CUIProgressShape::CUIProgressShape()
 
 CUIProgressShape::~CUIProgressShape()
 {
-	//	xr_delete		(m_pTexture);
+	// Only delete if they were created (Snowy/CS style)
+	if (m_pTexture)
+		xr_delete(m_pTexture);
+	if (m_pBackground)
+		xr_delete(m_pBackground);
 }
 
 void CUIProgressShape::SetPos(float pos)
@@ -32,7 +37,12 @@ void CUIProgressShape::SetPos(int pos, int max)
 	if (m_bText)
 	{
 		string256 _buff;
-		TextItemControl()->SetText(itoa(pos, _buff, 10));
+		// Use child static's text (Snowy/CS style) or parent's text (OWA style)
+		CUILines* pLines = m_bUseChildTexture
+			? m_pTexture->TextItemControl()
+			: TextItemControl();
+		if (pLines)
+			pLines->SetText(itoa(pos, _buff, 10));
 	}
 }
 
@@ -54,6 +64,12 @@ void _make_rot_tex(Fvector2& pt, float src, float sin_a, float cos_a)
 	pt.y = src * cos_a;
 }
 
+void _make_rot(Fvector2& pt, const Fvector2& src, float sin_a, float cos_a, float angle)
+{
+	pt.x = src.x * cos_a + src.y * sin_a;
+	pt.y = src.y * cos_a - src.x * sin_a;
+}
+
 float calc_color(u32 idx, u32 total, float stage, float max_stage, bool blend)
 {
 	float kk = (stage / max_stage) * (float(total + 1));
@@ -71,10 +87,24 @@ float calc_color(u32 idx, u32 total, float stage, float max_stage, bool blend)
 
 void CUIProgressShape::Draw()
 {
-	if (m_bText)
-		DrawText();
+	// Draw background first (Snowy/CS style only)
+	if (m_bUseChildTexture && m_pBackground)
+		m_pBackground->Draw();
 
-	UIRender->SetShader(*GetShader());
+	if (m_bText)
+	{
+		if (m_bUseChildTexture)
+			m_pTexture->DrawText();
+		else
+			DrawText();
+	}
+
+	// Use child static (Snowy/CS style) or parent's own texture (OWA style)
+	if (m_bUseChildTexture)
+		UIRender->SetShader(*m_pTexture->GetShader());
+	else
+		UIRender->SetShader(*GetShader());
+
 	Fvector2 tsize;
 	UIRender->GetActiveTextureResolution(tsize);
 
@@ -82,14 +112,19 @@ void CUIProgressShape::Draw()
 	UIRender->StartPrimitive(m_sectorCount * 3, IUIRender::ptTriList, UI().m_currentPointType);
 
 	Frect pos_rect;
-	GetAbsoluteRect(pos_rect);
+	if (m_bUseChildTexture)
+		m_pTexture->GetAbsoluteRect(pos_rect);
+	else
+		GetAbsoluteRect(pos_rect);
 	UI().ClientToScreenScaled(pos_rect.lt, pos_rect.x1, pos_rect.y1);
 	UI().ClientToScreenScaled(pos_rect.rb, pos_rect.x2, pos_rect.y2);
 
 	Fvector2 center_pos;
 	pos_rect.getcenter(center_pos);
 
-	Frect tex_rect = GetUIStaticItem().GetTextureRect();
+	Frect tex_rect = m_bUseChildTexture
+		? m_pTexture->GetUIStaticItem().GetTextureRect()
+		: GetUIStaticItem().GetTextureRect();
 
 	tex_rect.lt.x /= tsize.x;
 	tex_rect.lt.y /= tsize.y;
@@ -115,8 +150,8 @@ void CUIProgressShape::Draw()
 	start_tex_pt.set(0.0f, -radius_tex);
 	prev_tex_pt = start_tex_pt;
 
-	_make_rot_tex(prev_pos_pt, start_pos_pt.y, sin_a, cos_a);
-	_make_rot_tex(prev_tex_pt, start_tex_pt.y, sin_a, cos_a);
+	_make_rot(prev_pos_pt, start_pos_pt, sin_a, cos_a, curr_angle);
+	_make_rot(prev_tex_pt, start_tex_pt, sin_a, cos_a, curr_angle);
 
 	float angle_range = PI_MUL_2;
 	if (m_bClockwise)
@@ -153,8 +188,8 @@ void CUIProgressShape::Draw()
 		sin_a = _sin(curr_angle);
 		cos_a = _cos(curr_angle);
 
-		_make_rot_tex(prev_pos_pt, start_pos_pt.y, sin_a, cos_a);
-		_make_rot_tex(prev_tex_pt, start_tex_pt.y, sin_a, cos_a);
+		_make_rot(prev_pos_pt, start_pos_pt, sin_a, cos_a, curr_angle);
+		_make_rot(prev_tex_pt, start_tex_pt, sin_a, cos_a, curr_angle);
 
 		tp.set(prev_pos_pt);
 		tp.add(center_pos);

@@ -19,6 +19,9 @@
     <Filter Include="Math\Extensions\buffer_vector">
       <UniqueIdentifier>{efdb5722-6fc6-4934-8e4a-249478d675fb}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Math\Collision">
+      <UniqueIdentifier>{a8b3c4d5-e6f7-4890-ab12-cd34ef567890}</UniqueIdentifier>
+    </Filter>
     <Filter Include="FS">
       <UniqueIdentifier>{fbb5a226-8454-4405-aaf5-aee45b8090a4}</UniqueIdentifier>
     </Filter>
@@ -30,6 +33,9 @@
     </Filter>
     <Filter Include="Memory manager">
       <UniqueIdentifier>{11d9158f-7330-4434-81b2-684eebee4c83}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Memory manager\mimalloc">
+      <UniqueIdentifier>{b1c2d3e4-f5a6-4789-0123-456789abcdef}</UniqueIdentifier>
     </Filter>
     <Filter Include="Debug core">
       <UniqueIdentifier>{fb17db11-1c85-43ab-9226-0c82ece07b51}</UniqueIdentifier>
@@ -188,6 +194,9 @@
     </ClCompile>
     <ClCompile Include="xrMemory_subst_msvc.cpp">
       <Filter>Memory manager</Filter>
+    </ClCompile>
+    <ClCompile Include="..\3rd party\mimalloc\src\static.c">
+      <Filter>Memory manager\mimalloc</Filter>
     </ClCompile>
     <ClCompile Include="xrDebug.cpp">
       <Filter>Debug core</Filter>
@@ -419,6 +428,12 @@
     <ClInclude Include="buffer_vector_inline.h">
       <Filter>Math\Extensions\buffer_vector</Filter>
     </ClInclude>
+    <ClInclude Include="Collision\sse_intersect.h">
+      <Filter>Math\Collision</Filter>
+    </ClInclude>
+    <ClInclude Include="_thread_types.h">
+      <Filter>Threading</Filter>
+    </ClInclude>
     <ClInclude Include="FS.h">
       <Filter>FS</Filter>
     </ClInclude>
@@ -513,6 +528,9 @@
       <Filter>shared memory/string library</Filter>
     </ClInclude>
     <ClInclude Include="xrstring.h">
+      <Filter>shared memory/string library</Filter>
+    </ClInclude>
+    <ClInclude Include="stack_string.h">
       <Filter>shared memory/string library</Filter>
     </ClInclude>
     <ClInclude Include="intrusive_ptr.h">

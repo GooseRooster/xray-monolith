@@ -33,6 +33,7 @@
 #include "ActorNightVision.h"
 #include "HUDManager.h"
 #include "WeaponMagazinedWGrenade.h"
+#include "Actor_Flags.h"
 #include "../xrEngine/GameMtlLib.h"
 #include "../Layers/xrRender/xrRender_console.h"
 #include "pch_script.h"
@@ -3050,6 +3051,7 @@ BOOL CWeapon::ParentMayHaveAimBullet()
 }
 
 extern u32 hud_adj_mode;
+extern int g_3d_ballistics_debug;  // Debug visualization for 3D ballistics
 
 void CWeapon::debug_draw_firedeps()
 {
@@ -3068,6 +3070,44 @@ void CWeapon::debug_draw_firedeps()
             render.draw_aabb(get_LastSP(),		0.005f,0.005f,0.005f,D3DCOLOR_XRGB(0,255,0));
     }
 #endif // DEBUG
+
+    // 3D Ballistics debug visualization (Smoothed Baseline System)
+    // Uses RayTransform() to get the actual fire matrix after ApplyAimModifiers
+    // This shows exactly what the ballistics system produces
+    //
+    // BLUE = Center-screen direction from camera (where crosshair points)
+    // WHITE = Actual fire direction (from RayTransform - includes deviation)
+    // YELLOW = Barrel position marker
+    // CYAN = Camera position marker
+    if (g_3d_ballistics_debug && psActorFlags.test(AF_3D_BALLISTICS) && HudItemData())
+    {
+        CDebugRenderer& render = Level().debug_renderer();
+        const SPickParam& hud_pick = HUD().GetPick();
+        const float line_length = 10.0f;
+
+        // Get the actual fire matrix (after ApplyAimModifiers processes deviation)
+        Fmatrix fire_matrix = RayTransform();
+        Fvector barrel_pos = fire_matrix.c;
+        Fvector fire_dir = fire_matrix.k;
+        fire_dir.normalize();
+
+        // Camera origin
+        Fvector origin = hud_pick.defs.start;
+
+        // BLUE: Center-screen direction from camera (where crosshair points)
+        Fvector blue_end = Fvector().mad(origin, hud_pick.defs.dir, line_length);
+        render.draw_line(Fidentity, origin, blue_end, D3DCOLOR_XRGB(0, 128, 255), true);
+
+        // WHITE: Actual fire direction from barrel (includes deviation from animations)
+        Fvector white_end = Fvector().mad(barrel_pos, fire_dir, line_length);
+        render.draw_line(Fidentity, barrel_pos, white_end, D3DCOLOR_XRGB(255, 255, 255), true);
+
+        // YELLOW: Barrel position marker
+        render.draw_aabb(barrel_pos, 0.02f, 0.02f, 0.02f, D3DCOLOR_XRGB(255, 255, 0), true);
+
+        // CYAN: Camera position marker
+        render.draw_aabb(origin, 0.02f, 0.02f, 0.02f, D3DCOLOR_XRGB(0, 255, 255), true);
+    }
 }
 
 const float& CWeapon::hit_probability() const
@@ -3294,6 +3334,46 @@ Fmatrix CWeapon::RayTransform()
 	ApplyAimModifiers(matrix);
 
 	return matrix;
+}
+
+void CWeapon::g_fireParams(SPickParam& pp)
+{
+	// Get the fire transform (includes ApplyAimModifiers with 3D ballistics deviation)
+	Fmatrix matrix = RayTransform();
+
+	if (psActorFlags.test(AF_3D_BALLISTICS))
+	{
+		// For 3D ballistics:
+		// - Fire from barrel position (converted to world space)
+		// - Fire direction comes from ApplyAimModifiers (includes deviation)
+		//
+		// ApplyAimModifiers already sets matrix.k to point toward center-screen
+		// with deviation applied. We just need to transform to world space.
+
+		// Convert the full matrix to world space
+		Fmatrix world_matrix = matrix;
+		Device.hud_to_world(world_matrix);
+
+		// Position: barrel fire point in world space
+		Fvector barrel_world = world_matrix.c;
+
+		// Direction: from ApplyAimModifiers, already includes:
+		// - Center-screen targeting (no parallax - negligible at distance)
+		// - Deviation from baseline (recoil, sway, inertia effects)
+		Fvector fire_dir = world_matrix.k;
+
+		pp.defs.start = barrel_world;
+		pp.defs.dir = fire_dir;
+
+		return;
+	}
+
+	// Legacy path: apply full hud_to_world transform
+	Device.hud_to_world(matrix);
+
+	// Set the fire position and direction
+	pp.defs.start = matrix.c;
+	pp.defs.dir = matrix.k;
 }
 
 // v2v3v4: fix ctd when zooming into about to be destroyed object with detector scopes

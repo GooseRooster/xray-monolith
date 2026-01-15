@@ -1163,6 +1163,12 @@ float get_weather_value_numric(LPCSTR name)
 		return E.bloom_exposure;
 	else if (0 == xr_strcmp(name, "bloom_sky_intensity"))
 		return E.bloom_sky_intensity;
+	else if (0 == xr_strcmp(name, "hemi_vibrance"))
+		return E.m_fHemiVibrance;
+	else if (0 == xr_strcmp(name, "tex_contrast"))
+		return E.m_fTexContrast;
+	else if (0 == xr_strcmp(name, "fog_auto_blend"))
+		return E.m_fFogAutoBlend;
 
 	return (0);
 }
@@ -1219,6 +1225,12 @@ void set_weather_value_numric(LPCSTR name, float val)
 		E.bloom_exposure = val;
 	else if (0 == xr_strcmp(name, "bloom_sky_intensity"))
 		E.bloom_sky_intensity = val;
+	else if (0 == xr_strcmp(name, "tex_contrast"))
+		E.m_fTexContrast = val;
+	else if (0 == xr_strcmp(name, "fog_auto_blend"))
+		E.m_fFogAutoBlend = val;
+	else if (0 == xr_strcmp(name, "hemi_vibrance"))
+		E.m_fHemiVibrance = val;
 	else
 		Msg("~xrGame\level_script.cpp (set_weather_value_numric) | [%s] is not a valid numric weather parameter to set", name);
 }
@@ -1257,6 +1269,32 @@ Fvector3 get_weather_value_vector(LPCSTR name)
 	return vec;
 }
 
+// OWA: Return Fvector4 for parameters that have 4 components (clouds_color, hemisphere_color)
+Fvector4 get_weather_value_vector4(LPCSTR name)
+{
+	CEnvDescriptor& E = *environment()->CurrentEnv;
+
+	if (0 == xr_strcmp(name, "clouds_color"))
+		return E.clouds_color;
+	else if (0 == xr_strcmp(name, "hemisphere_color"))
+		return E.hemi_color;
+
+	Fvector4 vec;
+	vec.set(0, 0, 0, 0);
+	return vec;
+}
+
+// OWA: Pause engine-side lerping for scripted lighting control
+void pause_weather_lerp(bool pause)
+{
+	environment()->m_lerp_paused = pause;
+}
+
+bool is_weather_lerp_paused()
+{
+	return environment()->m_lerp_paused;
+}
+
 void set_weather_value_vector(LPCSTR name, float x, float y, float z, float w = 0)
 {
 	CEnvDescriptor& E = *environment()->CurrentEnv;
@@ -1277,6 +1315,19 @@ void set_weather_value_vector(LPCSTR name, float x, float y, float z, float w = 
 		E.hemi_color.set(x, y, z, w);
 	else
 		Msg("~xrGame\level_script.cpp (set_weather_value_vector) | [%s] is not a valid vector weather parameter to set", name);
+}
+
+// OWA: Set Fvector4 values for parameters that have 4 components (clouds_color, hemisphere_color)
+void set_weather_value_vector4(LPCSTR name, float x, float y, float z, float w)
+{
+	CEnvDescriptor& E = *environment()->CurrentEnv;
+
+	if (0 == xr_strcmp(name, "clouds_color"))
+		E.clouds_color.set(x, y, z, w);
+	else if (0 == xr_strcmp(name, "hemisphere_color"))
+		E.hemi_color.set(x, y, z, w);
+	else
+		Msg("~xrGame\level_script.cpp (set_weather_value_vector4) | [%s] is not a valid vector4 weather parameter to set", name);
 }
 
 LPCSTR get_weather_value_string(LPCSTR name)
@@ -2564,11 +2615,15 @@ void CLevel::script_register(lua_State* L)
 	[
 		def("get_value_numric", get_weather_value_numric),
 		def("get_value_vector", get_weather_value_vector),
+		def("get_value_vector4", get_weather_value_vector4), // OWA: Get Fvector4 values (clouds_color, hemisphere_color)
 		def("get_value_string", get_weather_value_string),
 		def("pause", pause_weather),
 		def("is_paused",is_weather_paused),
+		def("pause_lerp", pause_weather_lerp), // OWA: Pause engine-side lerping for scripted lighting
+		def("is_lerp_paused", is_weather_lerp_paused), // OWA: Check if lerping is paused
 		def("set_value_numric", set_weather_value_numric),
 		def("set_value_vector", set_weather_value_vector),
+		def("set_value_vector4", set_weather_value_vector4), // OWA: Set Fvector4 values (clouds_color, hemisphere_color)
 		def("set_value_string", set_weather_value_string),
 		def("reload", reload_weather),
 		def("boost_value", boost_weather_value),

@@ -22,6 +22,7 @@
 #include "map_manager.h"
 #include "player_hud.h"
 #include "script_attachment_manager.h"
+#include "Actor_Flags.h"
 
 extern CUIGameCustom* CurrentGameUI()
 {
@@ -182,7 +183,8 @@ void CHUDManager::Render_First()
 	// only shadow
 	::Render->set_Invisible(TRUE);
 	::Render->set_Object(O->H_Root());
-	O->renderable_Render();
+	// HUD rendering uses immediate context (main thread)
+	O->renderable_Render(R__IMM_CTX_ID, O);
 	::Render->set_Invisible(FALSE);
 }
 
@@ -310,12 +312,16 @@ void CHUDManager::OnEvent(EVENT E, u64 P1, u64 P2)
 
 bool CHUDManager::FireposActive()
 {
-	// If we have an actor...
+	// 3D Ballistics mode: firepos is always effectively "on"
+	// (we always fire from the barrel in this mode)
+	if (psActorFlags.test(AF_3D_BALLISTICS))
+		return true;
+
+	// Legacy mode: check the traditional flags
 	CActor* pActor = smart_cast<CActor*>(Level().CurrentEntity());
 	if (!pActor)
 		return psActorFlags.test(AF_FIREPOS);
 
-	// And a weapon...
 	CWeapon* pWeapon = smart_cast<CWeapon*>(pActor->inventory().ActiveItem());
 	if (!pWeapon)
 		return psActorFlags.test(AF_FIREPOS);
@@ -331,12 +337,17 @@ bool CHUDManager::FireposActive()
 
 bool CHUDManager::AimposActive()
 {
-	// If we have an actor...
+	// 3D Ballistics mode: aimpos is handled differently (hybrid mode)
+	// Return false to indicate we're NOT using raw barrel direction
+	// (the deviation is computed from idle reference instead)
+	if (psActorFlags.test(AF_3D_BALLISTICS))
+		return false;
+
+	// Legacy mode: check the traditional flags
 	CActor* pActor = smart_cast<CActor*>(Level().CurrentEntity());
 	if (!pActor)
 		return psActorFlags.test(AF_AIMPOS);
 
-	// And a weapon...
 	CWeapon* pWeapon = smart_cast<CWeapon*>(pActor->inventory().ActiveItem());
 	if (!pWeapon)
 		return psActorFlags.test(AF_AIMPOS);
@@ -344,7 +355,7 @@ bool CHUDManager::AimposActive()
 	if (!pWeapon->GetAimpos())
 		return false;
 
-	// Firepos is active if a setting matches its respective zoom state
+	// Aimpos is active if a setting matches its respective zoom state
 	float zFac = pWeapon->GetZRotatingFactor();
 	return (psActorFlags.test(AF_AIMPOS) && zFac < 1.f)
 		|| (psActorFlags.test(AF_AIMPOS_ZOOM) && zFac >= 1.f);

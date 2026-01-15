@@ -544,6 +544,7 @@ public:
 
 public:
 	Fmatrix RayTransform();
+	virtual void g_fireParams(SPickParam& pp) override;
 
 protected:
 	virtual void UpdateFireDependencies_internal();

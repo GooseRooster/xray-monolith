@@ -21,10 +21,13 @@
 #include "clsid_game.h"
 #include "weaponpistol.h"
 #include "HUDManager.h"
+#include "Weapon.h"
+#include "Actor_Flags.h"
 
 ENGINE_API extern float psHUD_FOV_def;
 int g_nearwall = NW_FOV;
 int g_nearwall_trace = NT_CAM;
+int g_3d_ballistics_debug = 0;  // Debug visualization for 3D ballistics system
 
 CHudItem::CHudItem()
 {
@@ -47,6 +50,11 @@ CHudItem::CHudItem()
 	script_ui_funct = nullptr;
 	script_ui_bone = nullptr;
 	script_ui_matrix.identity();
+
+	// 3D Ballistics initialization
+	m_baseline_offset_h = 0.f;
+	m_baseline_offset_p = 0.f;
+	m_baseline_initialized = false;
 }
 
 DLL_Pure* CHudItem::_construct()
@@ -656,6 +664,35 @@ void CHudItem::on_a_hud_attach()
 		else
 			Msg("[%s]: Script UI functor [%s] does not exist!", object().cNameSect_str(), script_ui_funct);
 	}
+
+	// 3D Ballistics: Reset baseline for fresh adaptation on weapon equip
+	if (psActorFlags.test(AF_3D_BALLISTICS))
+	{
+		ResetBallisticsBaseline();
+	}
+}
+
+//-----------------------------------------------------------------------------
+// 3D Ballistics System - Smoothed Baseline
+//-----------------------------------------------------------------------------
+// The smoothed baseline approach continuously adapts to the barrel direction,
+// slowly absorbing constant offsets (model misalignment) while capturing
+// sudden changes (recoil, sway) as deviation.
+//
+// Core concept:
+//   - Baseline slowly lerps toward current barrel direction each frame
+//   - Model misalignment is constant, so it gets absorbed into baseline
+//   - Recoil/sway are sudden, so they appear as deviation from baseline
+//   - Final direction = center-screen + deviation
+//
+// All comparisons done in HUD space (camera-relative).
+//-----------------------------------------------------------------------------
+
+void CHudItem::ResetBallisticsBaseline()
+{
+	m_baseline_initialized = false;
+	m_baseline_offset_h = 0.f;
+	m_baseline_offset_p = 0.f;
 }
 
 void CHudItem::render_item_3d_ui()
@@ -988,11 +1025,140 @@ void CHudItem::ApplyAimModifiers(Fmatrix& matrix)
 {
 	// Fetch actor
 	const CActor* pActor = Actor();
+	if (!pActor)
+		return;
 
 	// Fetch HUD pick
 	const SPickParam& hud_pick = HUD().GetPick();
 
-	// If firepos is disabled, use the eye position
+	//=============================================================================
+	// HYBRID 3D BALLISTICS MODE - Smoothed Baseline Approach
+	//=============================================================================
+	// The smoothed baseline continuously adapts to absorb model misalignment
+	// while allowing sudden movements (recoil, sway) to cause deviation.
+	//
+	// Algorithm:
+	// 1. Get current barrel direction (HUD space)
+	// 2. Update baseline with slow lerp toward current
+	// 3. Compute deviation = current - baseline (angular difference)
+	// 4. Apply deviation to center-screen direction
+	//=============================================================================
+	if (psActorFlags.test(AF_3D_BALLISTICS))
+	{
+		// Keep the barrel position - bullets originate here
+		Fvector barrel_pos = matrix.c;
+
+		// Current barrel direction in HUD space
+		Fvector current_barrel_dir = matrix.k;
+		current_barrel_dir.normalize();
+
+		//---------------------------------------------------------------------
+		// CAMERA-RELATIVE OFFSET CALCULATION
+		//---------------------------------------------------------------------
+		// Compare barrel direction to camera direction directly.
+		// This gives us the barrel's offset from where the camera looks.
+		//---------------------------------------------------------------------
+
+		// Get camera forward direction
+		Fvector cam_dir = Device.vCameraDirection;
+
+		// Compute barrel offset relative to camera using angle difference
+		// This avoids mView.transform_dir() which may have coordinate issues
+		float barrel_h, barrel_p;
+		current_barrel_dir.getHP(barrel_h, barrel_p);
+
+		float cam_h, cam_p;
+		cam_dir.getHP(cam_h, cam_p);
+
+		// Offset = how much barrel differs from camera direction
+		float current_offset_h = angle_normalize_signed(barrel_h - cam_h);
+		float current_offset_p = barrel_p - cam_p;
+
+		//---------------------------------------------------------------------
+		// BASELINE UPDATE (in camera-space angles)
+		//---------------------------------------------------------------------
+		// The baseline slowly adapts to the current offset, absorbing constant
+		// offsets (model misalignment, stance differences) over time.
+		// Sudden changes (recoil) appear as deviation from baseline.
+		//---------------------------------------------------------------------
+
+		if (!m_baseline_initialized)
+		{
+			// First frame: initialize baseline to current offset
+			m_baseline_offset_h = current_offset_h;
+			m_baseline_offset_p = current_offset_p;
+			m_baseline_initialized = true;
+		}
+		else
+		{
+			// Slowly adapt baseline toward current offset
+			// 0.02 = ~2% per frame at 60fps, full adaptation in ~2-3 seconds
+			const float adaptation_rate = 0.02f;
+
+			m_baseline_offset_h += (current_offset_h - m_baseline_offset_h) * adaptation_rate;
+			m_baseline_offset_p += (current_offset_p - m_baseline_offset_p) * adaptation_rate;
+		}
+
+		//---------------------------------------------------------------------
+		// DEVIATION CALCULATION
+		//---------------------------------------------------------------------
+		// Deviation = how much current offset differs from baseline offset
+		// Since both are camera-space angles, camera rotation cancels out!
+		//---------------------------------------------------------------------
+
+		float dev_h = angle_normalize_signed(current_offset_h - m_baseline_offset_h);
+		float dev_p = current_offset_p - m_baseline_offset_p;
+
+		//---------------------------------------------------------------------
+		// FINAL DIRECTION
+		//---------------------------------------------------------------------
+		// Start with center-screen direction and apply deviation
+		//---------------------------------------------------------------------
+
+		// Base aim: use camera direction directly (world space)
+		// We skip the barrel-to-target calculation because it mixes HUD/world space.
+		// The tiny parallax from barrel offset is negligible at typical distances.
+		Fvector base_aim_dir = Device.vCameraDirection;
+
+		// Get base aim angles
+		float aim_h, aim_p;
+		base_aim_dir.getHP(aim_h, aim_p);
+
+		// Apply deviation to center-screen direction
+		float final_h = aim_h + dev_h;
+		float final_p = aim_p + dev_p;
+
+		// Get roll from inverse view matrix (matches legacy behavior)
+		float _h, _p, b;
+		Device.mInvView.getHPB(_h, _p, b);
+
+		// Handle freelook offset (same as legacy aimpos code)
+		if (pActor->cam_freelook != eflDisabled)
+		{
+			float cam_h, cam_p, cam_b;
+			Device.mView.getHPB(cam_h, cam_p, cam_b);
+
+			float pc = final_p;
+			clamp(pc, 0.f, pc);
+
+			final_h -= angle_normalize_signed(pActor->old_torso_yaw) - cam_h;
+			final_p -= pc;
+		}
+
+		// Apply the final direction while preserving barrel position
+		matrix.setHPB(final_h, final_p, b);
+		matrix.c = barrel_pos;
+
+		return;
+	}
+
+	//=============================================================================
+	// LEGACY MODE (backwards compatibility)
+	//=============================================================================
+	// The original 4-flag system: firepos, firepos_zoom, aimpos, aimpos_zoom
+	//=============================================================================
+
+	// If firepos is disabled, use the eye position instead of barrel
 	bool firepos = HUD().FireposActive();
 	if (!firepos)
 	{
@@ -1008,7 +1174,7 @@ void CHudItem::ApplyAimModifiers(Fmatrix& matrix)
 		}
 	}
 
-	// If aim position is disabled...
+	// If aimpos is disabled, rotate to aim at center-screen
 	bool aimpos = HUD().AimposActive();
 	if (!aimpos)
 	{

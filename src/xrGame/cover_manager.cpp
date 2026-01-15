@@ -16,6 +16,7 @@
 #include "smart_cover_loophole.h"
 #include "smart_cover_storage.h"
 #include "smart_cover_object.h"
+#include "../xrCore/_thread_types.h"  // For xr_parallel_for
 
 #define MIN_COVER_VALUE 16
 
@@ -85,33 +86,66 @@ void CCoverManager::compute_static_cover()
 {
 	clear();
 	xr_delete(m_covers);
-	m_covers = xr_new<CPointQuadTree>(ai().level_graph().header().box(), ai().level_graph().header().cell_size() * .5f,
-	                                  8 * 65536, 4 * 65536);
-	m_temp.resize(ai().level_graph().header().vertex_count());
+	m_covers = xr_new<CPointQuadTree>(
+		ai().level_graph().header().box(),
+		ai().level_graph().header().cell_size() * .5f,
+		8 * 65536,
+		4 * 65536
+	);
 
-	CLevelGraph const& graph = ai().level_graph();
-	u32 n = ai().level_graph().header().vertex_count();
-	for (u32 i = 0; i < n; ++i)
+	const u32 LevelVertexCount = ai().level_graph().header().vertex_count();
+
+	// Pre-size temp vector before parallel execution
+	m_temp.resize(LevelVertexCount);
+
+	// Early exit for empty graphs
+	if (LevelVertexCount == 0)
 	{
-		CLevelGraph::CVertex const& vertex = *graph.vertex(i);
-		if (vertex.high_cover(0) + vertex.high_cover(1) + vertex.high_cover(2) + vertex.high_cover(3))
+		VERIFY(!m_smart_covers_storage);
+		m_smart_covers_storage = xr_new<smart_cover::storage>();
+		return;
+	}
+
+	// Cache graph reference for lambda capture
+	const CLevelGraph& Graph = ai().level_graph();
+
+	// PHASE 1: Parallel vertex evaluation
+	// Each thread writes to its own m_temp[i] index - no synchronization needed
+	xr_parallel_for(0u, LevelVertexCount, [this, &Graph](u32 i)
+	{
+		const CLevelGraph::CVertex& vertex = *Graph.vertex(i);
+
+		// Check high cover values
+		if (vertex.high_cover(0) + vertex.high_cover(1) +
+			vertex.high_cover(2) + vertex.high_cover(3))
 		{
 			m_temp[i] = edge_vertex(i);
-			continue;
+			return;
 		}
 
-		if (vertex.low_cover(0) + vertex.low_cover(1) + vertex.low_cover(2) + vertex.low_cover(3))
+		// Check low cover values
+		if (vertex.low_cover(0) + vertex.low_cover(1) +
+			vertex.low_cover(2) + vertex.low_cover(3))
 		{
 			m_temp[i] = edge_vertex(i);
-			continue;
+			return;
 		}
 
 		m_temp[i] = false;
-	}
+	});
 
-	for (u32 i = 0; i < n; ++i)
+	// PHASE 2: Sequential quad-tree insertion
+	// Quad-tree is NOT thread-safe - must remain sequential
+	for (u32 i = 0; i < LevelVertexCount; ++i)
+	{
 		if (m_temp[i] && critical_cover(i))
-			m_covers->insert(xr_new<CCoverPoint>(ai().level_graph().vertex_position(ai().level_graph().vertex(i)), i));
+		{
+			m_covers->insert(xr_new<CCoverPoint>(
+				ai().level_graph().vertex_position(ai().level_graph().vertex(i)),
+				i
+			));
+		}
+	}
 
 	VERIFY(!m_smart_covers_storage);
 	m_smart_covers_storage = xr_new<smart_cover::storage>();

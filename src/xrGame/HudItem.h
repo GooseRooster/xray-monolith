@@ -123,6 +123,14 @@ protected:
 	Fvector script_ui_offset[2]; //pos, rot
 	Fmatrix script_ui_matrix;
 
+	// 3D Ballistics: Smoothed baseline as camera-space angular offset
+	// Stores how much the barrel deviates from "forward" in camera space.
+	// This is invariant to camera rotation - only barrel movement relative
+	// to camera (recoil, inertia) changes these values.
+	float m_baseline_offset_h;          // Baseline heading offset (camera space)
+	float m_baseline_offset_p;          // Baseline pitch offset (camera space)
+	bool  m_baseline_initialized;       // Whether baseline has been initialized
+
 public:
 	virtual void Load(LPCSTR section);
 	virtual BOOL net_Spawn(CSE_Abstract* DC) { return TRUE; };
@@ -214,6 +222,10 @@ public:
 	virtual void on_outfit_changed();
 	virtual void on_a_hud_attach();
 	virtual void on_b_hud_detach();
+
+	// 3D Ballistics system methods
+	void ResetBallisticsBaseline();
+	bool HasBaseline() const { return m_baseline_initialized; }
 	IC BOOL HudInertionEnabled() const { return m_huditem_flags.test(fl_inertion_enable); }
 	IC BOOL HudInertionAllowed() const { return m_huditem_flags.test(fl_inertion_allow); }
 	virtual float GetInertionAimFactor() { return 1.f; }; //--#SM+#--

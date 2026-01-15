@@ -155,6 +155,7 @@ extern BOOL g_freelook_while_reloading;
 extern BOOL useSeparateUBGLKeybind;
 extern int g_nearwall;
 extern int g_nearwall_trace;
+extern int g_3d_ballistics_debug;
 extern BOOL drawPickupItemNames;
 extern BOOL fun_allowed;
 extern BOOL progressiveStaminaCost;
@@ -2578,6 +2579,8 @@ void CCC_RegisterCommands()
 	CMD3(CCC_Mask, "g_firedir_third_person", &psActorFlags, AF_FIREDIR_THIRD_PERSON);
 	CMD3(CCC_Mask, "g_aimpos", &psActorFlags, AF_AIMPOS);
 	CMD3(CCC_Mask, "g_aimpos_zoom", &psActorFlags, AF_AIMPOS_ZOOM);
+	CMD3(CCC_Mask, "g_3d_ballistics", &psActorFlags, AF_3D_BALLISTICS);  // Hybrid 3D ballistics system
+	CMD4(CCC_Integer, "g_3d_ballistics_debug", &g_3d_ballistics_debug, 0, 1);  // Debug visualization for 3D ballistics
 	CMD4(CCC_Integer, "g_nearwall", &g_nearwall, 0, 2);
 	CMD4(CCC_Integer, "g_nearwall_trace", &g_nearwall_trace, 0, 1);
 

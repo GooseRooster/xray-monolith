@@ -304,6 +304,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\xrRenderPC_R1\GlowManager.h" />
     <ClInclude Include="..\..\Include\xrRender\ApplicationRender.h" />
     <ClInclude Include="..\..\Include\xrRender\ConsoleRender.h" />
     <ClInclude Include="..\..\Include\xrRender\DebugRender.h" />
@@ -470,8 +471,6 @@
     <ClInclude Include="blender_deffer_flat.h" />
     <ClInclude Include="blender_deffer_model.h" />
     <ClInclude Include="blender_dof.h" />
-    <ClInclude Include="blender_hdr10_bloom.h" />
-    <ClInclude Include="blender_hdr10_lens_flare.h" />
     <ClInclude Include="blender_lut.h" />
     <ClInclude Include="blender_nightvision.h" />
     <ClInclude Include="blender_gasmask_drops.h" />
@@ -483,9 +482,10 @@
     <ClInclude Include="blender_light_reflected.h" />
     <ClInclude Include="blender_light_spot.h" />
     <ClInclude Include="blender_luminance.h" />
-    <ClInclude Include="blender_pp_bloom.h" />
+    <ClInclude Include="blender_bloom_multiscale.h" />
     <ClInclude Include="blender_smaa.h" />
     <ClInclude Include="blender_ssao.h" />
+    <ClInclude Include="blender_xegtao.h" />
     <ClInclude Include="blender_ss_sunshafts.h" />
     <ClInclude Include="..\..\xrEngine\cl_intersect.h" />
     <ClInclude Include="ComputeShader.h" />
@@ -508,6 +508,7 @@
     <ClInclude Include="..\xrRenderDX10\dx10EventWrapper.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\xrRenderPC_R1\GlowManager.cpp" />
     <ClCompile Include="..\..\xrEngine\ai_script_lua_debug.cpp" />
     <ClCompile Include="..\..\xrEngine\ai_script_lua_extension.cpp" />
     <ClCompile Include="..\xrRenderDX10\3DFluid\dx103DFluidBlenders.cpp" />
@@ -614,11 +615,9 @@
     <ClCompile Include="..\xrRender\PSLibrary.cpp" />
     <ClCompile Include="..\xrRender\rendertarget_phase_blur.cpp" />
     <ClCompile Include="..\xrRender\rendertarget_phase_dof.cpp" />
-    <ClCompile Include="..\xrRender\rendertarget_phase_lut.cpp" />
     <ClCompile Include="..\xrRender\rendertarget_phase_nightvision.cpp" />
     <ClCompile Include="..\xrRender\rendertarget_phase_gasmask_drops.cpp" />
     <ClCompile Include="..\xrRender\rendertarget_phase_gasmask_dudv.cpp" />
-    <ClCompile Include="..\xrRender\rendertarget_phase_pp_bloom.cpp" />
     <ClCompile Include="..\xrRender\rendertarget_phase_smaa.cpp" />
     <ClCompile Include="..\xrRender\rendertarget_phase_sunshafts.cpp" />
     <ClCompile Include="..\xrRender\ResourceManager.cpp" />
@@ -666,8 +665,6 @@
     <ClCompile Include="blender_deffer_flat.cpp" />
     <ClCompile Include="blender_deffer_model.cpp" />
     <ClCompile Include="blender_dof.cpp" />
-    <ClCompile Include="blender_hdr10_bloom.cpp" />
-    <ClCompile Include="blender_hdr10_lens_flare.cpp" />
     <ClCompile Include="blender_lut.cpp" />
     <ClCompile Include="blender_nightvision.cpp" />
     <ClCompile Include="blender_gasmask_drops.cpp" />
@@ -679,9 +676,10 @@
     <ClCompile Include="blender_light_reflected.cpp" />
     <ClCompile Include="blender_light_spot.cpp" />
     <ClCompile Include="blender_luminance.cpp" />
-    <ClCompile Include="blender_pp_bloom.cpp" />
+    <ClCompile Include="blender_bloom_multiscale.cpp" />
     <ClCompile Include="blender_smaa.cpp" />
     <ClCompile Include="blender_ssao.cpp" />
+    <ClCompile Include="blender_xegtao.cpp" />
     <ClCompile Include="blender_ss_sunshafts.cpp" />
     <ClCompile Include="ComputeShader.cpp" />
     <ClCompile Include="CSCompiler.cpp" />
@@ -717,8 +715,6 @@
     <ClCompile Include="r4_rendertarget_phase_bloom.cpp" />
     <ClCompile Include="r4_rendertarget_phase_combine.cpp" />
     <ClCompile Include="r4_rendertarget_phase_hdao.cpp" />
-    <ClCompile Include="r4_rendertarget_phase_hdr10_bloom.cpp" />
-    <ClCompile Include="r4_rendertarget_phase_hdr10_lens_flare.cpp" />
     <ClCompile Include="r4_rendertarget_phase_luminance.cpp" />
     <ClCompile Include="r4_rendertarget_phase_occq.cpp" />
     <ClCompile Include="r4_rendertarget_phase_PP.cpp" />
@@ -727,6 +723,7 @@
     <ClCompile Include="r4_rendertarget_phase_smap_D.cpp" />
     <ClCompile Include="r4_rendertarget_phase_smap_S.cpp" />
     <ClCompile Include="r4_rendertarget_phase_ssao.cpp" />
+    <ClCompile Include="r4_rendertarget_phase_xegtao.cpp" />
     <ClCompile Include="r4_R_rain.cpp" />
     <ClCompile Include="r4_R_render.cpp" />
     <ClCompile Include="r4_R_sun_support.cpp" />

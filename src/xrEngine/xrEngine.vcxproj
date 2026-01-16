@@ -194,7 +194,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR4|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX11</TargetName>
+    <TargetName>OldWorldDX11</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
@@ -218,7 +218,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseR4-AVX|x64'">
     <OutDir>$(xrGameDir)bin_dbg\</OutDir>
-    <TargetName>AnomalyDX11AVX</TargetName>
+    <TargetName>OldWorldDX11AVX</TargetName>
     <IntDir>$(xrIntDir)$(ProjectName)\</IntDir>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>

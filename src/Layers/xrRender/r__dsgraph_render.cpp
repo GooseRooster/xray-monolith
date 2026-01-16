@@ -28,7 +28,7 @@ IC bool cmp_normal_items(const _NormalItem& N1, const _NormalItem& N2)
 
 void __fastcall mapNormal_Render(mapNormalItems& N)
 {
-	// *** DIRECT ***
+	// *** DIRECT - Regular items ***
 	std::sort(N.begin(), N.end(), cmp_normal_items);
 	_NormalItem *I = &*N.begin(), *E = &*N.end();
 	for (; I != E; I++)
@@ -40,6 +40,23 @@ void __fastcall mapNormal_Render(mapNormalItems& N)
 #endif
 		Ni.pVisual->Render(LOD);
 	}
+
+#ifdef USE_DX11
+	// *** INSTANCED - Trees grouped by CRC ***
+	// Trees use GPU instancing for batch rendering (DrawIndexedInstanced)
+	if (N.trees && !N.trees->empty())
+	{
+		// Use fixed LOD of 1.0 for instanced trees
+		// (actual LOD selection was done during insertion for PM trees)
+		RCache.LOD.set_LOD(1.f);
+
+		for (auto& tree_entry : *N.trees)
+		{
+			_TreeItem& tree = tree_entry.second;
+			tree.pVisual->RenderInstanced(tree.data);
+		}
+	}
+#endif
 }
 
 // Matrix

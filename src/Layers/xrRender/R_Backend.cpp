@@ -5,6 +5,10 @@
 #include "../xrRenderDX10/dx10BufferUtils.h"
 #endif	//	USE_DX11
 
+#ifdef USE_DX11
+#include "FBasicVisual.h"  // For FloraVertData struct
+#endif
+
 CBackend RCache;
 
 // Create Quad-IB
@@ -122,6 +126,25 @@ void CBackend::OnDeviceCreate()
 
 	InitDebugDraw();
 
+#ifdef USE_DX11
+	// Create flora/tree instancing vertex buffers
+	// Pre-allocate buffers of various sizes for GPU instancing
+	for (const auto& size : FloraVbufSizes)
+	{
+		D3D11_BUFFER_DESC buff_desc{};
+		buff_desc.ByteWidth = size * sizeof(FloraVertData);
+		buff_desc.Usage = D3D_USAGE_DYNAMIC;
+		buff_desc.BindFlags = D3D_BIND_VERTEX_BUFFER;
+		buff_desc.CPUAccessFlags = D3D_CPU_ACCESS_WRITE;
+		buff_desc.MiscFlags = 0;
+		buff_desc.StructureByteStride = sizeof(FloraVertData);
+
+		ID3DVertexBuffer* buff{};
+		R_CHK(HW.pDevice->CreateBuffer(&buff_desc, nullptr, &buff));
+		FloraVbuffers.emplace(size, buff);
+	}
+#endif
+
 	// invalidate caching
 	Invalidate();
 }
@@ -134,7 +157,35 @@ void CBackend::OnDeviceDestroy()
 
 	DestroyDebugDraw();
 
+#ifdef USE_DX11
+	// Release flora instancing buffers
+	for (auto& it : FloraVbuffers)
+		_RELEASE(it.second);
+	FloraVbuffers.clear();
+#endif
+
 	// Quad
 	HW.stats_manager.decrement_stats_ib(QuadIB);
 	_RELEASE(QuadIB);
 }
+
+#ifdef USE_DX11
+//-----------------------------------------------------------------------------
+// GetFloraVbuff - Returns a pre-allocated vertex buffer for flora instancing
+// The buffer can hold at least 'size' instances of FloraVertData.
+// The size parameter is updated to the actual buffer capacity.
+//-----------------------------------------------------------------------------
+ID3DVertexBuffer* CBackend::GetFloraVbuff(u32& size)
+{
+	auto it = FloraVbuffers.lower_bound(size);
+	if (it == FloraVbuffers.end())
+	{
+		// Requested size exceeds our largest buffer - use the max
+		constexpr u32 max_buf = FloraVbufSizes[std::size(FloraVbufSizes) - 1];
+		it = FloraVbuffers.find(max_buf);
+	}
+
+	size = it->first;
+	return it->second;
+}
+#endif

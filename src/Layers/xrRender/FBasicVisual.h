@@ -8,6 +8,20 @@
 
 #define VLOAD_NOVERTICES		(1<<0)
 
+//-----------------------------------------------------------------------------
+// FloraVertData - Per-instance data for tree/flora GPU instancing
+// Layout (80 bytes total, GPU reads first 64 bytes via vertex declaration):
+//   data[0-3]:   Transform row 0 (xform._11, _21, _31, _41)
+//   data[4-7]:   Transform row 1 (xform._12, _22, _32, _42)
+//   data[8-11]:  Transform row 2 (xform._13, _23, _33, _43)
+//   data[12-15]: Scale (x, y), hemi scale, hemi bias
+//   data[16-19]: Reserved for future use
+//-----------------------------------------------------------------------------
+struct FloraVertData
+{
+	float data[20];
+};
+
 // The class itself
 class CKinematicsAnimated;
 class CKinematics;
@@ -68,9 +82,22 @@ public:
 	ref_shader shader; // pipe state, shared
 	s32 skinning;
 
+	//-------------------------------------------------------------------------
+	// Tree/Flora Instancing Support (for GPU instancing)
+	// These members enable batching of identical trees into single draw calls.
+	//-------------------------------------------------------------------------
+	u32 crc{};                    // Hash for identifying visuals with identical geometry
+	FloraVertData tree_data{};    // Pre-computed instance data (transform + lighting)
+
 	virtual void Render(float LOD)
 	{
 	}; // LOD - Level Of Detail  [0..1], Ignored
+
+	// Instanced rendering for flora/trees - override in FTreeVisual subclasses
+	virtual void RenderInstanced(const xr_vector<FloraVertData*>& data)
+	{
+	};
+
 	virtual void Load(const char* N, IReader* data, u32 dwFlags);
 	virtual void Release(); // Shared memory release
 	virtual void Copy(dxRender_Visual* from);

@@ -486,8 +486,44 @@ void R_dsgraph_structure::r_dsgraph_insert_static(dxRender_Visual* pVisual)
 		mapNormalStates::TNode* Nstate = Ncs->val.insert(pass.state->state);
 		mapNormalTextures::TNode* Ntex = Nstate->val.insert(pass.T._get());
 		mapNormalItems& items = Ntex->val;
-		_NormalItem item = {SSA, pVisual};
-		items.push_back(item);
+
+#ifdef USE_DX11
+		// Tree instancing: Group trees by CRC for batch rendering with DrawIndexedInstanced
+		const bool is_tree = (pVisual->Type == MT_TREE_PM || pVisual->Type == MT_TREE_ST);
+		if (is_tree)
+		{
+			// For progressive mesh trees, compute and store LOD based on SSA
+			if (pVisual->Type == MT_TREE_PM)
+			{
+				const float lod = _sqrt(clampr((SSA - r_ssaGLOD_end) / (r_ssaGLOD_start - r_ssaGLOD_end), 0.f, 1.f));
+				// Cast to access pSWI and last_lod (FTreeVisual_PM specific)
+				FTreeVisual_PM* tree_pm = static_cast<FTreeVisual_PM*>(pVisual);
+				tree_pm->last_lod = iFloor((1.f - lod) * float(tree_pm->pSWI->count - 1) + 0.5f);
+			}
+
+			// Add to trees collection grouped by CRC (lazy allocation via get_trees())
+			auto& trees_map = items.get_trees();
+			auto it = trees_map.find(pVisual->crc);
+			if (it != trees_map.end())
+			{
+				// Add this tree's instance data to existing batch
+				it->second.data.push_back(&pVisual->tree_data);
+			}
+			else
+			{
+				// Create new batch for this CRC
+				_TreeItem new_tree;
+				new_tree.pVisual = pVisual;
+				new_tree.data.push_back(&pVisual->tree_data);
+				trees_map[pVisual->crc] = std::move(new_tree);
+			}
+		}
+		else
+#endif
+		{
+			_NormalItem item = {SSA, pVisual};
+			items.push_back(item);
+		}
 
 		// Need to sort for HZB efficient use
 		if (SSA > Ntex->val.ssa)

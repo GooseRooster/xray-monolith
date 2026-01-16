@@ -327,6 +327,47 @@ IC void CBackend::Render(D3DPRIMITIVETYPE T, u32 baseV, u32 startV, u32 countV, 
 	PGO(Msg("PGO:DIP:%dv/%df",countV,PC));
 }
 
+#ifdef USE_DX11
+// Draws multiple instances with a single DrawIndexedInstanced call
+// Used for GPU instancing (e.g., trees/flora batching)
+IC void CBackend::Render(D3DPRIMITIVETYPE T, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC, u32 instance_count)
+{
+	D3D_PRIMITIVE_TOPOLOGY Topology = TranslateTopology(T);
+	u32 iIndexCount = GetIndexCount(T, PC);
+
+	if (hs != 0 || ds != 0)
+	{
+		R_ASSERT(Topology == D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		Topology = D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST;
+	}
+
+	stat.calls++;
+	stat.verts += countV * instance_count;
+	stat.polys += PC * instance_count;
+
+	ApplyPrimitieTopology(Topology);
+	SRVSManager.Apply();
+	ApplyRTandZB();
+	ApplyVertexLayout();
+	StateManager.Apply();
+	constants.flush();
+
+	HW.pContext->DrawIndexedInstanced(iIndexCount, instance_count, startI, baseV, 0);
+
+	PGO(Msg("PGO:DIP_INST:%dv/%df x %d instances", countV, PC, instance_count));
+}
+
+// Multi-stream vertex buffer setup for instanced rendering
+// Used to bind base geometry (stream 0) + instance data (stream 1)
+IC void CBackend::set_Vertices_Forced(size_t stream_count, ID3DVertexBuffer** vbs, const u32* strides, const u32* offsets)
+{
+	// Invalidate cached vb since we're setting multiple streams
+	vb = nullptr;
+	vb_stride = 0;
+	HW.pContext->IASetVertexBuffers(0, static_cast<UINT>(stream_count), vbs, strides, offsets);
+}
+#endif
+
 IC void CBackend::Render(D3DPRIMITIVETYPE T, u32 startV, u32 PC)
 {
 	//	TODO: DX10: Remove triangle fan usage from the engine

@@ -5,28 +5,30 @@ struct FSlideWindowItem;
 
 #include "FBasicVisual.h"
 
+//-----------------------------------------------------------------------------
+// FTreeVisual - Base class for tree visuals with GPU instancing support
+//
+// Trees use a batched rendering approach for better performance:
+// 1. Collection phase: Trees are grouped by CRC (identical geometry)
+// 2. Render phase: Batched trees are rendered via RenderInstanced()
+//
+// The old Render() method is kept for backward compatibility but the
+// primary rendering path uses RenderInstanced() for batched trees.
+//-----------------------------------------------------------------------------
 class FTreeVisual : public dxRender_Visual, public IRender_Mesh
 {
-private:
-	struct _5color
-	{
-		Fvector rgb; // - all static lighting
-		float hemi; // - hemisphere
-		float sun; // - sun
-	};
-
-protected:
-	_5color c_scale;
-	_5color c_bias;
-	Fmatrix xform;
 public:
-	virtual void Render(float LOD); // LOD - Level Of Detail  [0.0f - min, 1.0f - max], Ignored
+	virtual void Render(float LOD) override;
 	virtual void Load(LPCSTR N, IReader* data, u32 dwFlags);
 	virtual void Copy(dxRender_Visual* pFrom);
 	virtual void Release();
 
 	FTreeVisual(void);
 	virtual ~FTreeVisual(void);
+
+protected:
+	// Helper for instanced rendering - maps instance data and issues draw call
+	void DoRenderInstanced(const xr_vector<FloraVertData*>& data, u32 countV, u32 startI, u32 PC);
 };
 
 class FTreeVisual_ST : public FTreeVisual
@@ -36,7 +38,8 @@ public:
 	FTreeVisual_ST(void);
 	virtual ~FTreeVisual_ST(void);
 
-	virtual void Render(float LOD); // LOD - Level Of Detail  [0.0f - min, 1.0f - max], Ignored
+	virtual void Render(float LOD) override;
+	virtual void RenderInstanced(const xr_vector<FloraVertData*>& data) override;
 	virtual void Load(LPCSTR N, IReader* data, u32 dwFlags);
 	virtual void Copy(dxRender_Visual* pFrom);
 	virtual void Release();
@@ -48,14 +51,17 @@ private:
 class FTreeVisual_PM : public FTreeVisual
 {
 	typedef FTreeVisual inherited;
-private:
-	FSlideWindowItem* pSWI;
-	u32 last_lod;
+public:
+	// Public for access during tree batching (LOD selection in r_dsgraph_insert_static)
+	FSlideWindowItem* pSWI{};
+	u32 last_lod{};
+
 public:
 	FTreeVisual_PM(void);
 	virtual ~FTreeVisual_PM(void);
 
-	virtual void Render(float LOD); // LOD - Level Of Detail  [0.0f - min, 1.0f - max], Ignored
+	virtual void Render(float LOD) override;
+	virtual void RenderInstanced(const xr_vector<FloraVertData*>& data) override;
 	virtual void Load(LPCSTR N, IReader* data, u32 dwFlags);
 	virtual void Copy(dxRender_Visual* pFrom);
 	virtual void Release();

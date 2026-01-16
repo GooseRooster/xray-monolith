@@ -62,6 +62,7 @@ typedef xr_allocator render_allocator;
 #endif // USE_DOUG_LEA_ALLOCATOR_FOR_RENDER
 
 class dxRender_Visual;
+struct FloraVertData;
 
 // #define	USE_RESOURCE_DEBUGGER
 
@@ -72,6 +73,13 @@ namespace R_dsgraph
 	{
 		float ssa;
 		dxRender_Visual* pVisual;
+	};
+
+	// Tree instancing item - groups identical trees by CRC for batch rendering
+	struct _TreeItem
+	{
+		dxRender_Visual* pVisual;
+		xr_vector<FloraVertData*> data;
 	};
 
 	struct _MatrixItem
@@ -121,9 +129,47 @@ namespace R_dsgraph
 	// NORMAL
 	typedef xr_vector<_NormalItem, render_allocator::helper<_NormalItem>::result> mapNormalDirect;
 
-	struct mapNormalItems : public mapNormalDirect
+	// mapNormalItems now holds both regular items and trees for GPU instancing
+	// Maintains vector-like interface for backwards compatibility with existing code
+	// NOTE: trees is a pointer because FixedMAP uses raw memory allocation (ZeroMemory)
+	// which doesn't call constructors. xr_unordered_map requires proper construction.
+	struct mapNormalItems
 	{
-		float ssa;
+		float ssa{};
+		mapNormalDirect items;
+#ifdef USE_DX11
+		xr_unordered_map<u32, _TreeItem>* trees{nullptr};  // Allocated lazily, grouped by CRC
+#endif
+
+		// Forward vector-like methods for backwards compatibility
+		void push_back(const _NormalItem& item) { items.push_back(item); }
+		auto begin() { return items.begin(); }
+		auto end() { return items.end(); }
+		auto begin() const { return items.begin(); }
+		auto end() const { return items.end(); }
+		void clear()
+		{
+			items.clear();
+#ifdef USE_DX11
+			if (trees)
+			{
+				delete trees;
+				trees = nullptr;
+			}
+#endif
+		}
+		bool empty() const { return items.empty(); }
+		size_t size() const { return items.size(); }
+
+#ifdef USE_DX11
+		// Get or create the trees map (lazy allocation)
+		xr_unordered_map<u32, _TreeItem>& get_trees()
+		{
+			if (!trees)
+				trees = new xr_unordered_map<u32, _TreeItem>();
+			return *trees;
+		}
+#endif
 	};
 
 	struct mapNormalTextures : public FixedMAP<STextureList*, mapNormalItems, render_allocator>

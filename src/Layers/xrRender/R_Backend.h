@@ -22,6 +22,10 @@
 
 #include "fvf.h"
 
+#ifdef USE_DX11
+#	include <map>   // For FloraVbuffers
+#endif
+
 const u32 CULL_CCW = D3DCULL_CCW;
 const u32 CULL_CW = D3DCULL_CW;
 const u32 CULL_NONE = D3DCULL_NONE;
@@ -194,6 +198,15 @@ private:
 	CMatrix*						matrices	[8	];	// matrices are supported only for FFP
 #endif
 
+#ifdef USE_DX11
+	//-------------------------------------------------------------------------
+	// Flora/Tree Instancing Vertex Buffers
+	// Pre-allocated vertex buffers for GPU instancing of trees/flora.
+	//-------------------------------------------------------------------------
+	static constexpr u32 FloraVbufSizes[] = {1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1500, 2048, 3000, 4096, 5000, 6000, 7000, 8192};
+	std::map<u32, ID3DVertexBuffer*> FloraVbuffers;
+#endif
+
 	void Invalidate();
 public:
 	struct _stats
@@ -334,6 +347,14 @@ public:
 	ICF void set_Indices(ID3DIndexBuffer* _ib);
 	ICF void set_Geometry(SGeometry* _geom);
 	ICF void set_Geometry(ref_geom& _geom) { set_Geometry(&*_geom); }
+
+#ifdef USE_DX11
+	// Flora/Tree instancing support
+	ID3DVertexBuffer* GetFloraVbuff(u32& size);
+	// Multi-stream vertex buffer setup for instanced rendering
+	// Sets up multiple vertex buffer streams (e.g., base geometry + instance data)
+	IC void set_Vertices_Forced(size_t stream_count, ID3DVertexBuffer** vbs, const u32* strides, const u32* offsets);
+#endif
 	IC void set_Stencil(u32 _enable, u32 _func = D3DCMP_ALWAYS, u32 _ref = 0x00, u32 _mask = 0x00,
 	                    u32 _writemask = 0x00, u32 _fail = D3DSTENCILOP_KEEP, u32 _pass = D3DSTENCILOP_KEEP,
 	                    u32 _zfail = D3DSTENCILOP_KEEP);
@@ -417,6 +438,10 @@ public:
 	ICF void Render(D3DPRIMITIVETYPE T, u32 startV, u32 PC);
 
 #ifdef USE_DX11
+	// Instanced rendering for flora/trees - draws multiple instances with a single call
+	// instance_count: number of instances to draw (data must be set up via set_Vertices_Forced)
+	ICF void Render(D3DPRIMITIVETYPE T, u32 baseV, u32 startV, u32 countV, u32 startI, u32 PC, u32 instance_count);
+
 	ICF void Compute(UINT ThreadGroupCountX, UINT ThreadGroupCountY, UINT ThreadGroupCountZ);
 #endif
 

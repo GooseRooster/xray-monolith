@@ -107,7 +107,7 @@ void CRenderTarget::draw_rain(light& RainSetup)
 		Fmatrix m_shadow;
 		{
 			Fmatrix xf_project;
-			xf_project.mul(m_TexelAdjust, RainSetup.X.D[0].combine);
+			xf_project.mul(m_TexelAdjust, RainSetup.X.D.combine);
 			m_shadow.mul(xf_project, Device.mInvView);
 
 			FPU::m24r();

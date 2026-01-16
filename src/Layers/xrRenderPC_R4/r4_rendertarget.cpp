@@ -755,9 +755,7 @@ CRenderTarget::CRenderTarget()
 		if (RImplementation.o.nullrt) nullrt = (D3DFORMAT)MAKEFOURCC('N', 'U', 'L', 'L');
 
 		u32 size = RImplementation.o.smapsize;
-		// Create shadow map as texture array for parallel cascade rendering
-		// Each cascade writes to its own slice, enabling true parallel shadow map generation
-		rt_smap_depth.create(r2_RT_smap_depth, size, size, depth_format, 1, R__NUM_SUN_CASCADES);
+		rt_smap_depth.create(r2_RT_smap_depth, size, size, depth_format);
 
 		if (RImplementation.o.dx10_minmax_sm)
 		{

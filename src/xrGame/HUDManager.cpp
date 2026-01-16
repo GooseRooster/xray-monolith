@@ -183,8 +183,7 @@ void CHUDManager::Render_First()
 	// only shadow
 	::Render->set_Invisible(TRUE);
 	::Render->set_Object(O->H_Root());
-	// HUD rendering uses immediate context (main thread)
-	O->renderable_Render(R__IMM_CTX_ID, O);
+	O->renderable_Render();
 	::Render->set_Invisible(FALSE);
 }
 

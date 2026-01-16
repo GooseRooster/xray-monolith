@@ -37,9 +37,7 @@ bool CRender::is_sun()
 }
 
 float r_dtex_range = 50.f;
-//////////////////////////////////////////////////////////////////////////
-// Legacy shader selection using global RImplementation.phase
-//////////////////////////////////////////////////////////////////////////
+
 ShaderElement* CRender::rimp_select_sh_dynamic(dxRender_Visual* pVisual, float cdist_sq)
 {
 	int id = SE_R2_SHADOW;
@@ -50,10 +48,10 @@ ShaderElement* CRender::rimp_select_sh_dynamic(dxRender_Visual* pVisual, float c
 	return pVisual->shader->E[id]._get();
 }
 
-ShaderElement* CRender::rimp_select_sh_static(dxRender_Visual* pVisual, float cdist_sq, u32 ctx_phase)
+ShaderElement* CRender::rimp_select_sh_static(dxRender_Visual* pVisual, float cdist_sq)
 {
 	int id = SE_R2_SHADOW;
-	if (CRender::PHASE_NORMAL == ctx_phase)
+	if (CRender::PHASE_NORMAL == RImplementation.phase)
 	{
 		if (pVisual->shader->E[0]->flags.isLandscape)
 		{
@@ -71,6 +69,8 @@ ShaderElement* CRender::rimp_select_sh_static(dxRender_Visual* pVisual, float cd
 	}
 	return pVisual->shader->E[id]._get();
 }
+
+
 
 static class cl_parallax : public R_constant_setup
 {
@@ -542,8 +542,8 @@ void CRender::reset_begin()
 			if (0 == Lights_LastFrame[it]) continue ;
 			try
 			{
-				for (auto& svi : Lights_LastFrame[it]->svis)
-					svi.resetoccq();
+				Lights_LastFrame[it]->svis.resetoccq();
+
 			}
 			catch (...)
 			{
@@ -1385,15 +1385,7 @@ HRESULT CRender::shader_compile(
 	sh_name[len] = '0' + char(o.soc_shadows);
 	++len;
 
-	// OWA: MT Sun Cascades - shadow map is Texture2DArray, shader must sample accordingly
-	if (o.mt_sun_cascades)
-	{
-		defines[def_it].Name = "USE_MT_SUN_CASCADES";
-		defines[def_it].Definition = "1";
-		def_it ++;
-	}
-	sh_name[len] = '0' + char(o.mt_sun_cascades);
-	++len;
+
 
 	if (o.staticlighting || o.sunstatic)
 	{

@@ -26,7 +26,7 @@ void CRenderTarget::phase_scene_prepare()
 			HW.pContext->ClearDepthStencilView(HW.pBaseZB, D3D_CLEAR_DEPTH | D3D_CLEAR_STENCIL, 1.0f, 0);
 		else
 		{
-			HW.pContext->ClearDepthStencilView(rt_MSAADepth->get_dsv(), D3D_CLEAR_DEPTH | D3D_CLEAR_STENCIL, 1.0f, 0);
+			HW.pContext->ClearDepthStencilView(rt_MSAADepth->pZRT, D3D_CLEAR_DEPTH | D3D_CLEAR_STENCIL, 1.0f, 0);
 			HW.pContext->ClearDepthStencilView(HW.pBaseZB, D3D_CLEAR_DEPTH | D3D_CLEAR_STENCIL, 1.0f, 0);
 		}
 
@@ -100,7 +100,7 @@ void CRenderTarget::phase_scene_end()
 	if (!RImplementation.o.dx10_msaa)
 		u_setrt(rt_Color, 0, 0, HW.pBaseZB);
 	else
-		u_setrt(rt_Color, 0, 0, rt_MSAADepth->get_dsv());
+		u_setrt(rt_Color, 0, 0, rt_MSAADepth->pZRT);
 	RCache.set_CullMode(CULL_NONE);
 	RCache.set_Stencil(TRUE, D3DCMP_LESSEQUAL, 0x01, 0xff, 0x00); // stencil should be >= 1
 	if (RImplementation.o.nvstencil) u_stencil_optimize(CRenderTarget::SO_Combine);

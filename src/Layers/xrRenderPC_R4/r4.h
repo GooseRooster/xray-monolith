@@ -218,14 +218,9 @@ public:
 	IRender_Sector* rimp_detectSector(Fvector& P, Fvector& D);
 	void render_main(Fmatrix& mCombined, bool _fportals);
 
-	// Async scene graph building methods (Phase 2)
-	// These extract the scene graph building from render_main for async execution
-	void main_pass_static(Fmatrix& m_ViewProjection);   // Portal traversal + static geometry
-	void main_pass_dynamic(bool fill_lights);            // Dynamic objects + lights
 
 	void render_forward();
 	void render_Reticle();
-	void render_smap_direct(Fmatrix& mCombined);
 	void render_indirect(light* L);
 	void render_lights(light_Package& LP);
 	void render_sun();
@@ -238,26 +233,15 @@ public:
 	void init_cacades();
 	void render_sun_cascades();
 
-	// Async particle/bone calculation methods
-	void calculate_particles_async();
-	void calculate_particles_wait();
-	void calculate_bones_async();
-	void calculate_bones_wait();
 
-	// OGSR pattern: Get the largest sector ID (typically the outdoor sector)
-	// Pre-computed during level load for efficiency
-	// Used by sun shadow rendering for proper portal-based visibility
-	ICF IRender_Sector::sector_id_t get_largest_sector() const { return largest_sector_id; }
+
+
 
 public:
-	// Legacy versions using global RImplementation.phase (for backwards compatibility)
 	ShaderElement* rimp_select_sh_static(dxRender_Visual* pVisual, float cdist_sq);
 	ShaderElement* rimp_select_sh_dynamic(dxRender_Visual* pVisual, float cdist_sq);
 
-	// Per-context versions: use explicit phase for MT rendering thread safety
-	// When rendering to per-context dsgraphs, the phase may differ from RImplementation.phase
-	ShaderElement* rimp_select_sh_static(dxRender_Visual* pVisual, float cdist_sq, u32 ctx_phase);
-	ShaderElement* rimp_select_sh_dynamic(dxRender_Visual* pVisual, float cdist_sq, u32 ctx_phase);
+
 	D3DVERTEXELEMENT9* getVB_Format(int id, BOOL _alt = FALSE);
 	ID3DVertexBuffer* getVB(int id, BOOL _alt = FALSE);
 	ID3DIndexBuffer* getIB(int id, BOOL _alt = FALSE);
@@ -272,9 +256,7 @@ public:
 	IC u32 occq_begin(u32& ID) { return HWOCC.occq_begin(ID); }
 	IC void occq_end(u32& ID) { HWOCC.occq_end(ID); }
 	IC R_occlusion::occq_result occq_get(u32& ID) { return HWOCC.occq_get(ID); }
-	// Per-context overloads for MT rendering
-	IC u32 occq_begin(u32& ID, u32 context_id) { return HWOCC.occq_begin(ID, context_id); }
-	IC void occq_end(u32& ID, u32 context_id) { HWOCC.occq_end(ID, context_id); }
+	
 
 	ICF void apply_object(IRenderable* O)
 	{
@@ -295,26 +277,7 @@ public:
 		CopyMemory(o_hemi_cube, LT.get_hemi_cube(), CROS_impl::NUM_FACES*sizeof(float));
 	}
 
-	//-------------------------------------------------------------------------
-	// Thread-safe apply_object() that writes to per-context CBackend
-	// Used by parallel sun shadow rendering where each cascade has its own context
-	//-------------------------------------------------------------------------
-	ICF void apply_object(CBackend& cmd_list, IRenderable* O)
-	{
-		if (0 == O) return;
-		if (0 == O->renderable_ROS()) return;
-		CROS_impl& LT = *((CROS_impl*)O->renderable_ROS());
-		LT.update_smooth(O);
-		cmd_list.o_hemi = 0.75f * LT.get_hemi();
-		cmd_list.o_sun = 0.75f * LT.get_sun();
-		//--DSR-- HeatVision
-		cmd_list.hemi.set_hotness(O->GetHotness(), O->GetTransparency(), 0.f, 0.f);
-		cmd_list.hemi.set_glowing(
-			sil_glow_color.x,
-			sil_glow_color.y,
-			sil_glow_color.z, O->GetGlowing());
-		CopyMemory(cmd_list.o_hemi_cube, LT.get_hemi_cube(), CROS_impl::NUM_FACES*sizeof(float));
-	}
+	
 	
 	IC void apply_lmaterial()
 	{

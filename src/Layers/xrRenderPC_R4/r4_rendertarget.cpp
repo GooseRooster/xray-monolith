@@ -593,8 +593,9 @@ CRenderTarget::CRenderTarget()
 		// OWA: Static lighting lightmap render target
 		// Only created when static lighting mode is enabled
 		// RGB = baked indirect bounce lighting, A = sun occlusion
+		// Uses FP16 format for smooth shadow gradients (reduces banding in transitions)
 		if (RImplementation.o.staticlighting)
-			rt_Lmap.create(r2_RT_lmap, w, h, D3DFMT_A8R8G8B8, SampleCount);
+			rt_Lmap.create(r2_RT_lmap, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 
 		if (use_hires_format) {
 			rt_Generic_temp.create("$user$generic_temp", w, h, D3DFMT_A16B16G16R16F, RImplementation.o.dx10_msaa ? SampleCount : 1);

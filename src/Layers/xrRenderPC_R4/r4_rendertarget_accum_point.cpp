@@ -81,7 +81,8 @@ void CRenderTarget::accum_point(light* L)
 	{
 		// Select shader
 		u32 _id = 0;
-		if (L->flags.bShadow)
+		// OWA: Force unshadowed path in static lighting mode (R1 aesthetic - no dynamic shadows for local lights)
+		if (L->flags.bShadow && !RImplementation.o.staticlighting)
 		{
 			bool bFullSize = (L->X.S.size == u32(RImplementation.o.smapsize));
 			if (L->X.S.transluent) _id = SE_L_TRANSLUENT;

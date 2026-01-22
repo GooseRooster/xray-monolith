@@ -15,6 +15,9 @@
 #define		r2_T_envs0			"$user$env_s0"			// ---
 #define		r2_T_envs1			"$user$env_s1"			// ---
 
+// OWA: Probe-based ambient lighting texture (width=2, height=probeCount, RGBA32F)
+#define		r2_T_probe_grid		"$user$probe_grid"		// ---
+
 #define		r2_T_sky0			"$user$sky0"
 #define		r2_T_sky1			"$user$sky1"
 

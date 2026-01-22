@@ -267,6 +267,9 @@
     <ClInclude Include="..\xrRender\LightTrack.h">
       <Filter>Lights</Filter>
     </ClInclude>
+    <ClInclude Include="..\xrRender\LightProbeGrid.h">
+      <Filter>Lights</Filter>
+    </ClInclude>
     <ClInclude Include="SMAP_Allocator.h">
       <Filter>Lights</Filter>
     </ClInclude>
@@ -921,6 +924,9 @@
       <Filter>Lights</Filter>
     </ClCompile>
     <ClCompile Include="..\xrRender\LightTrack.cpp">
+      <Filter>Lights</Filter>
+    </ClCompile>
+    <ClCompile Include="..\xrRender\LightProbeGrid.cpp">
       <Filter>Lights</Filter>
     </ClCompile>
     <ClCompile Include="..\xrRender\WallmarksEngine.cpp">

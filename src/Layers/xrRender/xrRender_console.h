@@ -71,6 +71,11 @@ extern ECORE_API u32 ps_r4_lighting_style;
 extern ECORE_API xr_token lighting_style_token[];
 extern ECORE_API float ps_r4_static_brightness;  // Static lighting brightness multiplier (default 2.0)
 
+// OWA: Probe lighting system for static lighting mode
+extern ECORE_API int   ps_r_probe_update_rate;      // Probes updated per frame (10-200)
+extern ECORE_API float ps_r_probe_bounce_intensity; // Indirect sun strength (0.0-1.0)
+extern ECORE_API int   ps_r_debug_probes;           // Debug visualization (0 or 1)
+
 extern ECORE_API u32 ps_r_sun_quality; //	=	0;
 extern ECORE_API xr_token qsun_quality_token[];
 

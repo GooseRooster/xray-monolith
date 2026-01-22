@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../xrRender/r__dsgraph_structure.h"
 #include "../xrRender/r__occlusion.h"
@@ -23,6 +23,7 @@
 #include "../../xrEngine/fmesh.h"
 
 #include "../xrRenderPC_R1/GlowManager.h"
+#include "../xrRender/LightProbeGrid.h"
 
 
 class dxRender_Visual;
@@ -129,7 +130,7 @@ public:
 
 		u32 forcegloss : 1;
 		u32 forceskinw : 1;
-		
+
 		// HDR10
 		u32 dx11_hdr10 : 1;
 		u32 hires_rts : 1;  // OWA: Use 16-bit render targets in SDR (better gradients, less banding)
@@ -199,6 +200,9 @@ public:
 	bool m_bFirstFrameAfterReset; // Determines weather the frame is the first after resetting device.
 	xr_vector<sun::cascade> m_sun_cascades;
 
+	// Light probe grid for indirect lighting
+	CLightProbeGrid* m_pLightProbeGrid;
+
 private:
 	// Loading / Unloading
 	void LoadBuffers(CStreamReader* fs, BOOL _alternative);
@@ -256,7 +260,7 @@ public:
 	IC u32 occq_begin(u32& ID) { return HWOCC.occq_begin(ID); }
 	IC void occq_end(u32& ID) { HWOCC.occq_end(ID); }
 	IC R_occlusion::occq_result occq_get(u32& ID) { return HWOCC.occq_get(ID); }
-	
+
 
 	ICF void apply_object(IRenderable* O)
 	{
@@ -277,8 +281,8 @@ public:
 		CopyMemory(o_hemi_cube, LT.get_hemi_cube(), CROS_impl::NUM_FACES*sizeof(float));
 	}
 
-	
-	
+
+
 	IC void apply_lmaterial()
 	{
 		// Use ._get() for safe null check (OGSR pattern) - avoids crash if ctable is null
@@ -341,7 +345,7 @@ public:
 	virtual IRender_Sector* detectSector(const Fvector& P);
 	virtual IRender_Target* getTarget();
 
-	// Main 
+	// Main
 	virtual void flush();
 	virtual void set_Object(IRenderable* O);
 	virtual void add_Occluder(Fbox2& bb_screenspace); // mask screen region as oclluded
@@ -388,7 +392,7 @@ public:
 	virtual void models_PrefetchOne(LPCSTR name, bool assert = true);
 	virtual void models_Clear(BOOL b_complete);
 	virtual bool models_Exists(LPCSTR name);
-	
+
 	// anglobes: Sun Values
 	virtual Fvector GetSunPosition()
 	{

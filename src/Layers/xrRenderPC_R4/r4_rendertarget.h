@@ -178,6 +178,9 @@ public:
 	ref_texture t_envmap_0; // env-0
 	ref_texture t_envmap_1; // env-1
 
+	// OWA: Probe-based ambient lighting
+	ref_texture t_probe_grid;  // Texture2D with probe data (bound as s_probe_grid)
+
 	// smap
 	ref_rt rt_smap_surf; // 32bit,		color
 	ref_rt rt_smap_depth; // 24(32) bit,	depth

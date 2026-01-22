@@ -20,6 +20,9 @@
 #include <malloc.h>
 #pragma warning(pop)
 
+// Light probe grid integration
+extern int ps_r3_ssfx_il;
+
 void CRender::level_Load(IReader* fs)
 {
 	R_ASSERT(0!=g_pGameLevel);
@@ -116,6 +119,15 @@ void CRender::level_Load(IReader* fs)
 	mapLOD.clear();
 	mapWater.clear();
 
+	// Build light probe grid
+	if (ps_r3_ssfx_il != 0)
+	{
+		if (!m_pLightProbeGrid)
+			m_pLightProbeGrid = xr_new<CLightProbeGrid>();
+		m_pLightProbeGrid->Build();
+		g_LightProbeGrid = m_pLightProbeGrid;
+	}
+
 	// signal loaded
 	b_loaded = TRUE;
 }
@@ -124,6 +136,13 @@ void CRender::level_Unload()
 {
 	if (0 == g_pGameLevel) return;
 	if (!b_loaded) return;
+
+	// Clear light probe grid
+	if (m_pLightProbeGrid)
+	{
+		m_pLightProbeGrid->Clear();
+		g_LightProbeGrid = nullptr;
+	}
 
 	u32 I;
 

@@ -384,6 +384,8 @@ void CBlender_ssfx_il::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		// OWA XeGTAO: Bent normal for improved IL directional accuracy
 		C.r_dx10Texture("s_gtao", r2_RT_gtao);
+		// OWA: Probe-based ambient lighting texture
+		C.r_dx10Texture("s_probe_grid", r2_T_probe_grid);
 
 		C.r_dx10Texture("ssfx_ao", r2_RT_ssfx_il);
 

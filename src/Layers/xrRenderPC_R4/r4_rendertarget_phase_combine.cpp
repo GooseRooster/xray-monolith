@@ -3,6 +3,11 @@
 #include "../../xrEngine/environment.h"
 
 #include "../xrRender/dxEnvironmentRender.h"
+#include "../xrRender/LightProbeGrid.h"
+
+// OWA: Extern declarations for probe lighting
+extern int   ps_r3_ssfx_il;
+extern float ps_r_probe_bounce_intensity;
 
 #define STENCIL_CULL 0
 
@@ -276,6 +281,26 @@ void CRenderTarget::phase_combine()
 		_RELEASE(e0);
 		t_envmap_1->surface_set(e1);
 		_RELEASE(e1);
+
+		// OWA: Bind light probe grid for spatial ambient lighting
+		if (g_LightProbeGrid && g_LightProbeGrid->GetProbeCount() > 0 && ps_r3_ssfx_il != 0)
+		{
+			// Use X-Ray's texture binding system
+			ID3D11Texture2D* probeTex = g_LightProbeGrid->GetTexture();
+			if (probeTex)
+			{
+				t_probe_grid->surface_set(probeTex);
+			}
+
+			Fvector bmin = g_LightProbeGrid->GetBoundsMin();
+			Fvector bmax = g_LightProbeGrid->GetBoundsMax();
+			Ivector dims = g_LightProbeGrid->GetDimensions();
+
+			RCache.set_c("probe_grid_min", bmin.x, bmin.y, bmin.z, (float)g_LightProbeGrid->GetProbeCount());
+			RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, 0.f);
+			RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, (float)PROBES_PER_ROW);
+			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, 0.f, 0.f);
+		}
 
 		// Draw
 		RCache.set_Element(s_combine->E[0]);

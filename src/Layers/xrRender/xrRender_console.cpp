@@ -33,6 +33,11 @@ xr_token lighting_style_token [] = {
 };
 float ps_r4_static_brightness = 2.0f;  // OLR legacy default, tunable for HDR pipeline
 
+// OWA: Probe lighting system for static lighting mode
+int   ps_r_probe_update_rate = 50;       // Probes updated per frame (10-200)
+float ps_r_probe_bounce_intensity = 0.3f; // Indirect sun strength (0.0-1.0)
+int   ps_r_debug_probes = 0;             // Debug visualization (0 or 1)
+
 u32 ps_r_sun_shafts = 2;
 xr_token qsun_shafts_token [ ] = {
 	{"st_opt_low", 1},
@@ -1147,6 +1152,10 @@ void xrRender_initconsole()
 	// OWA: R4 Static Lighting Mode (R1-style retro visuals) - requires restart
 	CMD3(CCC_Token, "r4_lighting_style", &ps_r4_lighting_style, lighting_style_token);
 	CMD4(CCC_Float, "r4_static_brightness", &ps_r4_static_brightness, 0.5f, 4.0f);
+	// OWA: Probe lighting system for static lighting mode
+	CMD4(CCC_Integer, "r_probe_update_rate", &ps_r_probe_update_rate, 10, 200);
+	CMD4(CCC_Float, "r_probe_bounce_intensity", &ps_r_probe_bounce_intensity, 0.0f, 1.0f);
+	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 1);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);
 
     // r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping

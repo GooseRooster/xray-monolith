@@ -631,6 +631,13 @@ void CRender::OnFrame()
 
 	if (Details)
 		g_pGamePersistent->GrassBendersUpdateAnimations();
+
+	// Light probe grid update
+	if (m_pLightProbeGrid && ps_r3_ssfx_il != 0)
+	{
+		m_pLightProbeGrid->Update();
+		m_pLightProbeGrid->PrepareGPUBuffer();
+	}
 }
 
 // Particles
@@ -892,12 +899,15 @@ void CRender::rmNormal()
 //////////////////////////////////////////////////////////////////////
 CRender::CRender()
 	: m_bFirstFrameAfterReset(false)
+	, m_pLightProbeGrid(nullptr)
 {
 	init_cacades();
 }
 
 CRender::~CRender()
 {
+	xr_delete(m_pLightProbeGrid);
+
 	for (FSlideWindowItem it : SWIs)
 	{
 		xr_free(it.sw);
@@ -1938,6 +1948,12 @@ HRESULT CRender::shader_compile(
 		def_it++;
 		sh_name[len] = '1';
 		++len;
+
+		// OWA: Probe-based ambient lighting (enhances IL with world-space probes)
+		// Only enabled when IL is active - provides spatial ambient and screen-edge fallback
+		defines[def_it].Name = "USE_PROBE_LIGHTING";
+		defines[def_it].Definition = "1";
+		def_it++;
 	}
 	else
 	{

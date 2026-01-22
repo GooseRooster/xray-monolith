@@ -42,6 +42,8 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("env_s1", r2_T_envs1);
 		C.r_dx10Texture("sky_s0", r2_T_sky0);
 		C.r_dx10Texture("sky_s1", r2_T_sky1);
+		// OWA: Probe-based ambient lighting texture
+		C.r_dx10Texture("s_probe_grid", r2_T_probe_grid);
 		C.r_dx10Texture("s_occ", r2_RT_ssao_temp);
 		C.r_dx10Texture("s_half_depth", r2_RT_half_depth);
 		// OWA XeGTAO: Pre-computed AO from separate pass
@@ -237,6 +239,8 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("env_s1", r2_T_envs1);
 		C.r_dx10Texture("sky_s0", r2_T_sky0);
 		C.r_dx10Texture("sky_s1", r2_T_sky1);
+		// OWA: Probe-based ambient lighting texture
+		C.r_dx10Texture("s_probe_grid", r2_T_probe_grid);
 
 		C.r_dx10Texture("ssfx_ao", r2_RT_ssfx_temp);
 		C.r_dx10Texture("ssfx_il", r2_RT_ssfx_temp2);

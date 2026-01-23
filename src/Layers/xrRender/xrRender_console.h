@@ -71,6 +71,16 @@ extern ECORE_API u32 ps_r4_lighting_style;
 extern ECORE_API xr_token lighting_style_token[];
 extern ECORE_API float ps_r4_static_brightness;  // Static lighting brightness multiplier (default 2.0)
 
+// OWA: R4 Material style tokens (classic vs PBR)
+// PBR mode uses GGX specular BRDF, classic uses LUT-based material response
+enum eMaterialStyle : u32
+{
+	st_opt_classic = 0,   // LUT-based material response (default, retro look)
+	st_opt_pbr     = 1,   // GGX-based PBR materials
+};
+extern ECORE_API u32 ps_r4_material_style;
+extern ECORE_API xr_token material_style_token[];
+
 // OWA: Probe lighting system for static lighting mode
 extern ECORE_API int   ps_r_probe_update_rate;      // Probes updated per frame (10-200)
 extern ECORE_API float ps_r_probe_bounce_intensity; // Indirect sun strength (0.0-1.0)

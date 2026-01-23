@@ -33,6 +33,14 @@ xr_token lighting_style_token [] = {
 };
 float ps_r4_static_brightness = 2.0f;  // OLR legacy default, tunable for HDR pipeline
 
+// OWA: R4 Material style (classic vs PBR) - requires restart
+u32 ps_r4_material_style = st_opt_classic;  // Default to classic (current OWA behavior)
+xr_token material_style_token [] = {
+	{ "st_opt_classic", st_opt_classic },  // LUT-based material response
+	{ "st_opt_pbr",     st_opt_pbr     },  // GGX-based PBR materials
+	{ 0, 0 }
+};
+
 // OWA: Probe lighting system for static lighting mode
 int   ps_r_probe_update_rate = 50;       // Probes updated per frame (10-200)
 float ps_r_probe_bounce_intensity = 0.3f; // Indirect sun strength (0.0-1.0)
@@ -1152,6 +1160,8 @@ void xrRender_initconsole()
 	// OWA: R4 Static Lighting Mode (R1-style retro visuals) - requires restart
 	CMD3(CCC_Token, "r4_lighting_style", &ps_r4_lighting_style, lighting_style_token);
 	CMD4(CCC_Float, "r4_static_brightness", &ps_r4_static_brightness, 0.5f, 4.0f);
+	// OWA: R4 Material Style (classic vs PBR) - requires restart
+	CMD3(CCC_Token, "r4_material_style", &ps_r4_material_style, material_style_token);
 	// OWA: Probe lighting system for static lighting mode
 	CMD4(CCC_Integer, "r_probe_update_rate", &ps_r_probe_update_rate, 10, 200);
 	CMD4(CCC_Float, "r_probe_bounce_intensity", &ps_r_probe_bounce_intensity, 0.0f, 1.0f);

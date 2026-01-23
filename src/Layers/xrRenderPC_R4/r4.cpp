@@ -360,6 +360,10 @@ void CRender::create()
 	o.soc_shadows = ps_r2_ls_flags_ext.test(R2FLAGEXT_SOC_SHADOWS);  // OWA - classic SoC jittered shadows
 	o.staticlighting = (ps_r4_lighting_style == st_opt_static);      // OWA - R1-style static lightmaps (retro mode)
 
+	// OWA - PBR materials mode (GGX specular, analytical BRDF)
+	// Disabled in static lighting mode (R1 aesthetic consistency)
+	o.pbr_materials = (ps_r4_material_style == st_opt_pbr) && !o.staticlighting;
+
 	o.distortion_enabled = (strstr(Core.Params, "-nodistort")) ? FALSE : TRUE;
 	o.distortion = o.distortion_enabled;
 	o.disasm = (strstr(Core.Params, "-disasm")) ? TRUE : FALSE;
@@ -1415,6 +1419,17 @@ HRESULT CRender::shader_compile(
 		def_it ++;
 	}
 	sh_name[len] = '0' + char(o.staticlighting);
+	++len;
+
+	// OWA: PBR materials mode (GGX specular, analytical BRDF)
+	// Disabled in static lighting mode for R1 aesthetic consistency
+	if (o.pbr_materials)
+	{
+		defines[def_it].Name = "USE_PBR_MATERIALS";
+		defines[def_it].Definition = "1";
+		def_it++;
+	}
+	sh_name[len] = '0' + char(o.pbr_materials);
 	++len;
 
 	if (o.forceskinw)

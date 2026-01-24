@@ -180,6 +180,7 @@ public:
 
 	// OWA: Probe-based ambient lighting
 	ref_texture t_probe_grid;  // Texture2D with probe data (bound as s_probe_grid)
+	ref_texture t_probe_hash;  // Texture2D with spatial hash (bound as s_probe_hash)
 
 	// smap
 	ref_rt rt_smap_surf; // 32bit,		color

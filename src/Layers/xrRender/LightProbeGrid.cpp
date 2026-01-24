@@ -60,10 +60,18 @@ CLightProbeGrid::CLightProbeGrid()
     , m_bounceIntensity(DEFAULT_BOUNCE_INTENSITY)
     , m_lastUpdateTimeMs(0)
     , m_debugEnabled(false)
+    , m_pHashTexture(nullptr)
+    , m_pHashSRV(nullptr)
+    , m_hashDirty(true)
+    , m_hashCellSize(DEFAULT_HASH_CELL_SIZE)
+    , m_propagationIters(DEFAULT_PROPAGATION_ITERS)
+    , m_propagationRate(DEFAULT_PROPAGATION_RATE)
 {
     m_boundsMin.set(0, 0, 0);
     m_boundsMax.set(0, 0, 0);
     m_gridDims.set(0, 0, 0);
+    m_hashMin.set(0, 0, 0);
+    m_hashDims.set(0, 0, 0);
 
     InitializeHemisphereRays();
 }
@@ -77,6 +85,8 @@ void CLightProbeGrid::Clear()
 {
     m_probes.clear();
     m_visibleSectors.clear();
+    m_spatialHash.clear();
+    m_probeNeighbors.clear();
 
     if (m_pProbeSRV)
     {
@@ -88,9 +98,20 @@ void CLightProbeGrid::Clear()
         m_pProbeTexture->Release();
         m_pProbeTexture = nullptr;
     }
+    if (m_pHashSRV)
+    {
+        m_pHashSRV->Release();
+        m_pHashSRV = nullptr;
+    }
+    if (m_pHashTexture)
+    {
+        m_pHashTexture->Release();
+        m_pHashTexture = nullptr;
+    }
 
     m_gpuTextureHeight = 0;
     m_gpuBufferDirty = true;
+    m_hashDirty = true;
     m_nextProbeIndex = 0;
 }
 
@@ -281,19 +302,36 @@ void CLightProbeGrid::Build()
         return;
     }
 
+    // Compute grid bounds first (needed for spatial hash)
+    ComputeGridBounds();
+
+    // Build spatial hash acceleration structure
+    Msg("* [LightProbeGrid] Building spatial hash...");
+    BuildSpatialHash();
+
+    // Build neighbor connectivity for light propagation
+    Msg("* [LightProbeGrid] Building neighbor connectivity...");
+    BuildNeighborConnectivity();
+
     // Initial full update
     Msg("* [LightProbeGrid] Performing initial probe update...");
-    for (auto& probe : m_probes)
-        UpdateProbe(probe);
+    for (u32 i = 0; i < m_probes.size(); i++)
+        UpdateProbe(m_probes[i], i);
 
-    ComputeGridBounds();
+    // Initial propagation pass
+    PropagateLight(m_propagationIters);
+
     m_gpuBufferDirty = true;
+    m_hashDirty = true;
     PrepareGPUBuffer();
+    PrepareHashGPUBuffer();
 
     Msg("* [LightProbeGrid] Placed %d probes, bounds (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)",
         m_probes.size(),
         m_boundsMin.x, m_boundsMin.y, m_boundsMin.z,
         m_boundsMax.x, m_boundsMax.y, m_boundsMax.z);
+    Msg("* [LightProbeGrid] Spatial hash: %dx%dx%d cells (%.1fm cell size)",
+        m_hashDims.x, m_hashDims.y, m_hashDims.z, m_hashCellSize);
 }
 
 void CLightProbeGrid::ComputeGridBounds()
@@ -404,7 +442,7 @@ bool CLightProbeGrid::IsProbeInVisibleSector(const CLightProbe& probe)
     return m_visibleSectors.find(probe.sectorId) != m_visibleSectors.end();
 }
 
-void CLightProbeGrid::UpdateProbe(CLightProbe& probe)
+void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
 {
     probe.lastUpdateFrame = (u16)(m_currentFrame & 0xFFFF);
 
@@ -431,6 +469,9 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe)
 
     m_collider.ray_options(CDB::OPT_ONLYNEAREST);
 
+    // Track received sunlight from hemisphere samples
+    float receivedSunlight = 0;
+
     // Hemisphere rays
     for (int i = 0; i < RAYS_PER_PROBE; i++)
     {
@@ -443,6 +484,14 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe)
             // Ray escaped to sky
             skyHits += 1.0f;
             ambientAccum.add(skyColor);
+
+            // Check if this sky ray is toward the sun (receiving direct sunlight through opening)
+            float sunAlignment = dir.dotproduct(sunDir);
+            if (sunAlignment > SUN_ALIGNMENT_THRESHOLD)
+            {
+                // Weight by how closely aligned with sun direction
+                receivedSunlight += sunAlignment;
+            }
         }
         else
         {
@@ -453,12 +502,102 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe)
             hitPos.mad(probe.position, dir, hit->range);
 
             CastBounceRay(hitPos, hitNormal, bounceAccum, sunDir, sunColor);
+
+            // Check if the surface we hit is sunlit (receiving reflected sunlight)
+            m_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
+            if (m_collider.r_count() == 0)
+            {
+                // Hit surface can see sun - we're receiving reflected sunlight!
+                float NdotL = hitNormal.dotproduct(sunDir);
+                if (NdotL > 0)
+                {
+                    // Weight by surface's sun-facing angle and inverse distance
+                    float hitDist = hit->range;
+                    float distFactor = 1.0f / (1.0f + hitDist * 0.1f);
+                    receivedSunlight += NdotL * distFactor * 0.5f;
+                }
+            }
         }
     }
 
-    // Sun visibility
-    m_collider.ray_query(staticModel, probe.position, sunDir, RAY_MAX_DISTANCE);
-    probe.sunVisibility = (m_collider.r_count() == 0) ? 1.0f : 0.0f;
+    // Normalize received sunlight by ray count
+    receivedSunlight = _min(receivedSunlight / RAYS_PER_PROBE, 1.0f);
+
+    // Soft shadow sun visibility - cast multiple jittered rays toward sun
+    float directSunVis = 0;
+
+    // Build tangent frame for jittering around sun direction
+    Fvector sunTangent, sunBitangent;
+    if (fabsf(sunDir.y) < 0.99f)
+    {
+        sunTangent.crossproduct(sunDir, Fvector().set(0, 1, 0));
+    }
+    else
+    {
+        sunTangent.crossproduct(sunDir, Fvector().set(1, 0, 0));
+    }
+    sunTangent.normalize();
+    sunBitangent.crossproduct(sunDir, sunTangent);
+    sunBitangent.normalize();
+
+    // Cast jittered rays for soft shadows
+    for (int i = 0; i < SOFT_SHADOW_RAYS; i++)
+    {
+        // Deterministic jitter pattern (Fibonacci-like spiral)
+        float angle = (float)i * 2.399f;  // Golden angle in radians
+        float radius = SOFT_SHADOW_JITTER * (0.3f + 0.7f * (float)i / (float)SOFT_SHADOW_RAYS);
+
+        Fvector jitteredDir;
+        jitteredDir.set(sunDir);
+        jitteredDir.mad(sunTangent, cosf(angle) * radius);
+        jitteredDir.mad(sunBitangent, sinf(angle) * radius);
+        jitteredDir.normalize();
+
+        m_collider.ray_query(staticModel, probe.position, jitteredDir, RAY_MAX_DISTANCE);
+        if (m_collider.r_count() == 0)
+        {
+            directSunVis += 1.0f / SOFT_SHADOW_RAYS;
+        }
+    }
+
+    // Combine direct sun visibility with received sunlight
+    // Direct visibility takes priority, but received light fills in for indirect cases
+    float combinedSunVis = _max(directSunVis, receivedSunlight * RECEIVED_LIGHT_WEIGHT);
+    probe.sunVisibility = combinedSunVis;
+
+    // Gather bounce light from sunlit neighbors (Phase 4: Sunlit Bounce)
+    if (probeIndex < m_probeNeighbors.size())
+    {
+        const ProbeNeighbors& neighbors = m_probeNeighbors[probeIndex];
+        Fvector sunlitBounce = { 0, 0, 0 };
+        float sunlitWeight = 0;
+
+        for (int n = 0; n < 6; n++)
+        {
+            if (neighbors.indices[n] == 0xFFFF) continue;
+
+            const CLightProbe& neighbor = m_probes[neighbors.indices[n]];
+
+            // Only contribute if neighbor is sunlit
+            if (neighbor.sunVisibility > 0.3f)
+            {
+                float dist = neighbors.distances[n];
+                // Weight by sun visibility and inverse distance squared
+                float weight = neighbor.sunVisibility / (1.0f + dist * dist * 0.1f);
+
+                // Use neighbor's ambient as bounce source
+                sunlitBounce.mad(neighbor.ambient, weight);
+                sunlitWeight += weight;
+            }
+        }
+
+        if (sunlitWeight > 0)
+        {
+            sunlitBounce.div(sunlitWeight);
+            sunlitBounce.mul(m_bounceIntensity * 0.5f);  // Half intensity for neighbor bounce
+            bounceAccum.add(sunlitBounce);
+        }
+    }
 
     // Finalize with temporal smoothing (70% old, 30% new)
     float newSkyVis = totalRays > 0 ? (skyHits / totalRays) : 0.0f;
@@ -503,7 +642,7 @@ void CLightProbeGrid::Update()
 
         if (IsProbeInVisibleSector(probe))
         {
-            UpdateProbe(probe);
+            UpdateProbe(probe, idx);
             updated++;
         }
     }
@@ -518,12 +657,22 @@ void CLightProbeGrid::Update()
         if (probe.lastUpdateFrame == (u16)(m_currentFrame & 0xFFFF))
             continue;
 
-        UpdateProbe(probe);
+        UpdateProbe(probe, idx);
         updated++;
+    }
+
+    // Periodic light propagation pass
+    if (m_currentFrame % m_propagationRate == 0)
+    {
+        PropagateLight(m_propagationIters);
     }
 
     m_nextProbeIndex = (m_nextProbeIndex + m_updateBudget) % _max(1u, (u32)m_probes.size());
     m_lastUpdateTimeMs = updateTimer.GetElapsed_sec() * 1000.0f;
+
+    // Upload updated data to GPU
+    if (m_gpuBufferDirty)
+        PrepareGPUBuffer();
 }
 
 void CLightProbeGrid::PrepareGPUBuffer()
@@ -682,4 +831,330 @@ Fvector CLightProbeGrid::GetBoundsMax() const
 Ivector CLightProbeGrid::GetDimensions() const
 {
     return m_gridDims;
+}
+
+Fvector CLightProbeGrid::GetHashMin() const
+{
+    return m_hashMin;
+}
+
+Ivector CLightProbeGrid::GetHashDimensions() const
+{
+    return m_hashDims;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Spatial Hash Implementation
+//////////////////////////////////////////////////////////////////////////
+
+Ivector CLightProbeGrid::WorldToHashCell(const Fvector& pos) const
+{
+    Fvector local;
+    local.sub(pos, m_hashMin);
+
+    Ivector cell;
+    cell.x = _max(0, _min((int)(local.x / m_hashCellSize), m_hashDims.x - 1));
+    cell.y = _max(0, _min((int)(local.y / m_hashCellSize), m_hashDims.y - 1));
+    cell.z = _max(0, _min((int)(local.z / m_hashCellSize), m_hashDims.z - 1));
+
+    return cell;
+}
+
+void CLightProbeGrid::BuildSpatialHash()
+{
+    if (m_probes.empty()) return;
+
+    // Use bounds with a small margin
+    Fvector margin = { 0.5f, 0.5f, 0.5f };
+    m_hashMin.sub(m_boundsMin, margin);
+
+    Fvector hashMax;
+    hashMax.add(m_boundsMax, margin);
+
+    // Compute hash grid dimensions
+    Fvector extent;
+    extent.sub(hashMax, m_hashMin);
+
+    m_hashDims.x = _max(1, (int)ceilf(extent.x / m_hashCellSize));
+    m_hashDims.y = _max(1, (int)ceilf(extent.y / m_hashCellSize));
+    m_hashDims.z = _max(1, (int)ceilf(extent.z / m_hashCellSize));
+
+    // Allocate and clear hash grid
+    u32 totalCells = m_hashDims.x * m_hashDims.y * m_hashDims.z;
+    m_spatialHash.resize(totalCells);
+
+    for (auto& cell : m_spatialHash)
+    {
+        cell.count = 0;
+        for (int i = 0; i < MAX_PROBES_PER_CELL; i++)
+            cell.probeIndices[i] = 0xFFFF;
+    }
+
+    // Insert each probe into its cell
+    for (u32 i = 0; i < m_probes.size(); i++)
+    {
+        Ivector cellCoord = WorldToHashCell(m_probes[i].position);
+        int cellIndex = cellCoord.z * (m_hashDims.x * m_hashDims.y)
+                      + cellCoord.y * m_hashDims.x
+                      + cellCoord.x;
+
+        if (cellIndex >= 0 && cellIndex < (int)m_spatialHash.size())
+        {
+            SpatialHashCell& cell = m_spatialHash[cellIndex];
+            if (cell.count < MAX_PROBES_PER_CELL)
+            {
+                cell.probeIndices[cell.count] = (u16)i;
+                cell.count++;
+            }
+        }
+    }
+
+    m_hashDirty = true;
+}
+
+void CLightProbeGrid::PrepareHashGPUBuffer()
+{
+    if (m_spatialHash.empty()) return;
+
+    u32 totalCells = (u32)m_spatialHash.size();
+
+    // Texture layout: 1D array of cells, 2 texels per cell (8 probe indices)
+    // Using R16G16B16A16_UINT format: 4 uint16 per texel
+    // Texel 0: indices[0-3], Texel 1: indices[4-7]
+    u32 texWidth = totalCells * 2;  // 2 texels per cell
+    u32 texHeight = 1;
+
+    // Check if we need to wrap into 2D (max texture width is typically 16384)
+    const u32 MAX_WIDTH = 16384;
+    if (texWidth > MAX_WIDTH)
+    {
+        texHeight = (texWidth + MAX_WIDTH - 1) / MAX_WIDTH;
+        texWidth = MAX_WIDTH;
+    }
+
+    // Create texture if needed
+    if (!m_pHashTexture || m_hashDirty)
+    {
+        if (m_pHashSRV) { m_pHashSRV->Release(); m_pHashSRV = nullptr; }
+        if (m_pHashTexture) { m_pHashTexture->Release(); m_pHashTexture = nullptr; }
+
+        D3D11_TEXTURE2D_DESC texDesc = {};
+        texDesc.Width = texWidth;
+        texDesc.Height = texHeight;
+        texDesc.MipLevels = 1;
+        texDesc.ArraySize = 1;
+        texDesc.Format = DXGI_FORMAT_R16G16B16A16_UINT;
+        texDesc.SampleDesc.Count = 1;
+        texDesc.SampleDesc.Quality = 0;
+        texDesc.Usage = D3D11_USAGE_DYNAMIC;
+        texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+        HRESULT hr = HW.pDevice->CreateTexture2D(&texDesc, nullptr, &m_pHashTexture);
+        if (FAILED(hr))
+        {
+            Msg("! [LightProbeGrid] Hash texture creation failed: 0x%08X", hr);
+            return;
+        }
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = DXGI_FORMAT_R16G16B16A16_UINT;
+        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Texture2D.MostDetailedMip = 0;
+        srvDesc.Texture2D.MipLevels = 1;
+
+        R_CHK(HW.pDevice->CreateShaderResourceView(m_pHashTexture, &srvDesc, &m_pHashSRV));
+    }
+
+    // Upload data
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    if (SUCCEEDED(HW.pContext->Map(m_pHashTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+    {
+        u16* data = (u16*)mapped.pData;
+
+        for (u32 c = 0; c < totalCells; c++)
+        {
+            const SpatialHashCell& cell = m_spatialHash[c];
+
+            // Calculate 2D position
+            u32 linearPos = c * 2;
+            u32 row = linearPos / texWidth;
+            u32 col = linearPos % texWidth;
+
+            u16* rowPtr = (u16*)((u8*)mapped.pData + row * mapped.RowPitch);
+
+            // Texel 0: indices 0-3
+            rowPtr[col * 4 + 0] = cell.probeIndices[0];
+            rowPtr[col * 4 + 1] = cell.probeIndices[1];
+            rowPtr[col * 4 + 2] = cell.probeIndices[2];
+            rowPtr[col * 4 + 3] = cell.probeIndices[3];
+
+            // Texel 1: indices 4-7
+            if (col + 1 < texWidth)
+            {
+                rowPtr[(col + 1) * 4 + 0] = cell.probeIndices[4];
+                rowPtr[(col + 1) * 4 + 1] = cell.probeIndices[5];
+                rowPtr[(col + 1) * 4 + 2] = cell.probeIndices[6];
+                rowPtr[(col + 1) * 4 + 3] = cell.probeIndices[7];
+            }
+            else
+            {
+                // Wrap to next row
+                u16* nextRowPtr = (u16*)((u8*)mapped.pData + (row + 1) * mapped.RowPitch);
+                nextRowPtr[0] = cell.probeIndices[4];
+                nextRowPtr[1] = cell.probeIndices[5];
+                nextRowPtr[2] = cell.probeIndices[6];
+                nextRowPtr[3] = cell.probeIndices[7];
+            }
+        }
+
+        HW.pContext->Unmap(m_pHashTexture, 0);
+    }
+
+    m_hashDirty = false;
+}
+
+void CLightProbeGrid::BindHashToShader(u32 slot)
+{
+    if (m_pHashSRV)
+    {
+        HW.pContext->PSSetShaderResources(slot, 1, &m_pHashSRV);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Neighbor Connectivity Implementation
+//////////////////////////////////////////////////////////////////////////
+
+void CLightProbeGrid::BuildNeighborConnectivity()
+{
+    if (m_probes.empty()) return;
+
+    m_probeNeighbors.resize(m_probes.size());
+
+    // Direction vectors for +X, -X, +Y, -Y, +Z, -Z
+    static const Fvector dirs[6] = {
+        { 1, 0, 0 }, { -1, 0, 0 },
+        { 0, 1, 0 }, { 0, -1, 0 },
+        { 0, 0, 1 }, { 0, 0, -1 }
+    };
+
+    // Maximum distance to consider as neighbor (2.5x outdoor spacing)
+    float maxNeighborDist = OUTDOOR_GRID_SPACING * 2.5f;
+
+    for (u32 i = 0; i < m_probes.size(); i++)
+    {
+        ProbeNeighbors& neighbors = m_probeNeighbors[i];
+        const Fvector& pos = m_probes[i].position;
+
+        // Initialize as no neighbors
+        for (int n = 0; n < 6; n++)
+        {
+            neighbors.indices[n] = 0xFFFF;
+            neighbors.distances[n] = FLT_MAX;
+        }
+
+        // Use spatial hash to find candidate neighbors efficiently
+        Ivector centerCell = WorldToHashCell(pos);
+
+        // Check 3x3x3 neighborhood of hash cells
+        for (int dz = -1; dz <= 1; dz++)
+        for (int dy = -1; dy <= 1; dy++)
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            Ivector checkCell;
+            checkCell.x = centerCell.x + dx;
+            checkCell.y = centerCell.y + dy;
+            checkCell.z = centerCell.z + dz;
+
+            // Bounds check
+            if (checkCell.x < 0 || checkCell.x >= m_hashDims.x) continue;
+            if (checkCell.y < 0 || checkCell.y >= m_hashDims.y) continue;
+            if (checkCell.z < 0 || checkCell.z >= m_hashDims.z) continue;
+
+            int cellIndex = checkCell.z * (m_hashDims.x * m_hashDims.y)
+                          + checkCell.y * m_hashDims.x
+                          + checkCell.x;
+
+            const SpatialHashCell& cell = m_spatialHash[cellIndex];
+
+            for (int p = 0; p < cell.count; p++)
+            {
+                u32 j = cell.probeIndices[p];
+                if (j == i) continue;  // Skip self
+
+                Fvector delta;
+                delta.sub(m_probes[j].position, pos);
+                float dist = delta.magnitude();
+
+                // Skip probes too far away
+                if (dist > maxNeighborDist) continue;
+
+                delta.normalize_safe();
+
+                // Check which direction this neighbor is in
+                for (int n = 0; n < 6; n++)
+                {
+                    float alignment = delta.dotproduct(dirs[n]);
+                    // Must be mostly aligned (>0.7 = ~45 degrees) and closer than current
+                    if (alignment > 0.7f && dist < neighbors.distances[n])
+                    {
+                        neighbors.indices[n] = (u16)j;
+                        neighbors.distances[n] = dist;
+                    }
+                }
+            }
+        }
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Light Propagation Implementation
+//////////////////////////////////////////////////////////////////////////
+
+void CLightProbeGrid::PropagateLight(int iterations)
+{
+    if (m_probes.empty() || m_probeNeighbors.empty()) return;
+
+    // Temporary buffer for ping-pong
+    xr_vector<Fvector> newAmbient(m_probes.size());
+
+    for (int iter = 0; iter < iterations; iter++)
+    {
+        for (u32 i = 0; i < m_probes.size(); i++)
+        {
+            const ProbeNeighbors& neighbors = m_probeNeighbors[i];
+            Fvector neighborContrib = { 0, 0, 0 };
+            float totalWeight = 0;
+
+            for (int n = 0; n < 6; n++)
+            {
+                if (neighbors.indices[n] == 0xFFFF) continue;
+
+                const CLightProbe& neighbor = m_probes[neighbors.indices[n]];
+                float dist = neighbors.distances[n];
+                float weight = 1.0f / (1.0f + dist);
+
+                neighborContrib.mad(neighbor.ambient, weight);
+                totalWeight += weight;
+            }
+
+            if (totalWeight > 0)
+            {
+                neighborContrib.div(totalWeight);
+                // Blend: 85% self, 15% neighbors
+                newAmbient[i].lerp(m_probes[i].ambient, neighborContrib, 0.15f);
+            }
+            else
+            {
+                newAmbient[i] = m_probes[i].ambient;
+            }
+        }
+
+        // Copy back for next iteration
+        for (u32 i = 0; i < m_probes.size(); i++)
+            m_probes[i].ambient = newAmbient[i];
+    }
+
+    m_gpuBufferDirty = true;
 }

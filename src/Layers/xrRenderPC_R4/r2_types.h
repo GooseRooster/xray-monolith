@@ -17,6 +17,7 @@
 
 // OWA: Probe-based ambient lighting texture (width=2, height=probeCount, RGBA32F)
 #define		r2_T_probe_grid		"$user$probe_grid"		// ---
+#define		r2_T_probe_hash		"$user$probe_hash"		// spatial hash for K-nearest lookup
 
 #define		r2_T_sky0			"$user$sky0"
 #define		r2_T_sky1			"$user$sky1"

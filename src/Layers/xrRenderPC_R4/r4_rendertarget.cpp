@@ -1062,6 +1062,7 @@ CRenderTarget::CRenderTarget()
 
 		// OWA: Probe-based ambient lighting texture
 		t_probe_grid.create(r2_T_probe_grid);
+		t_probe_hash.create(r2_T_probe_hash);
 	}
 
 	// Build textures
@@ -1451,6 +1452,8 @@ CRenderTarget::~CRenderTarget()
 	// OWA: Probe-based ambient lighting
 	t_probe_grid->surface_set(NULL);
 	t_probe_grid.destroy();
+	t_probe_hash->surface_set(NULL);
+	t_probe_hash.destroy();
 
 	//	TODO: DX10: Check if we need old style SMAPs
 	//	_RELEASE					(rt_smap_ZB);

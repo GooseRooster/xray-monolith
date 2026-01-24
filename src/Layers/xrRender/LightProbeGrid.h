@@ -19,6 +19,18 @@ static const int   RAYS_PER_PROBE = 6;              // Fibonacci hemisphere rays
 static const float ASSUMED_ALBEDO = 0.5f;           // neutral gray for bounce
 static const float DEFAULT_BOUNCE_INTENSITY = 0.3f; // indirect sun multiplier
 
+// Soft shadow and received light constants
+static const int   SOFT_SHADOW_RAYS = 4;            // rays for soft sun shadows
+static const float SOFT_SHADOW_JITTER = 0.15f;      // jitter cone angle (radians, ~8.5 degrees)
+static const float SUN_ALIGNMENT_THRESHOLD = 0.5f;  // cos(60°) - rays within 60° of sun count
+static const float RECEIVED_LIGHT_WEIGHT = 0.7f;    // how much received light affects sunVisibility
+
+// Spatial hash constants
+static const int   MAX_PROBES_PER_CELL = 8;         // max probes stored per hash cell
+static const float DEFAULT_HASH_CELL_SIZE = 2.0f;   // spatial hash cell size (finer than probe spacing)
+static const int   DEFAULT_PROPAGATION_ITERS = 2;   // light propagation iterations
+static const int   DEFAULT_PROPAGATION_RATE = 30;   // frames between propagation passes
+
 //////////////////////////////////////////////////////////////////////////
 // GPU-compatible probe data structure (32 bytes, must match HLSL)
 //////////////////////////////////////////////////////////////////////////
@@ -45,6 +57,25 @@ struct CLightProbe
 };
 
 //////////////////////////////////////////////////////////////////////////
+// Spatial hash cell - stores indices of probes within each cell
+//////////////////////////////////////////////////////////////////////////
+struct SpatialHashCell
+{
+    u16 probeIndices[MAX_PROBES_PER_CELL];  // Probe indices in this cell
+    u8  count;                               // Number of valid entries
+    u8  _pad;                                // Padding for alignment
+};
+
+//////////////////////////////////////////////////////////////////////////
+// Probe neighbor connectivity - for light propagation
+//////////////////////////////////////////////////////////////////////////
+struct ProbeNeighbors
+{
+    u16   indices[6];    // Neighbor probe indices: +X, -X, +Y, -Y, +Z, -Z (0xFFFF = none)
+    float distances[6];  // Distance to each neighbor
+};
+
+//////////////////////////////////////////////////////////////////////////
 // CLightProbeGrid - Main probe system class
 //////////////////////////////////////////////////////////////////////////
 class CLightProbeGrid
@@ -58,7 +89,8 @@ public:
     void Clear();                   // Called in level_Unload
     void Update();                  // Called each frame from OnFrame
     void PrepareGPUBuffer();        // Upload probe data to GPU
-    void BindToShader(u32 slot);    // Bind SRV to shader slot
+    void BindToShader(u32 slot);    // Bind probe SRV to shader slot
+    void BindHashToShader(u32 slot); // Bind spatial hash SRV to shader slot
 
     // Hybrid integration for CROS_impl
     bool SampleNearest(const Fvector& position, Fvector& outAmbient, float& outSkyVis);
@@ -68,11 +100,17 @@ public:
     float GetLastUpdateTimeMs() const { return m_lastUpdateTimeMs; }
     bool IsDebugEnabled() const { return m_debugEnabled; }
     ID3D11Texture2D* GetTexture() const { return m_pProbeTexture; }  // For X-Ray texture binding
+    ID3D11Texture2D* GetHashTexture() const { return m_pHashTexture; }  // For hash texture binding
 
     // Grid bounds for shader constants
     Fvector GetBoundsMin() const;
     Fvector GetBoundsMax() const;
     Ivector GetDimensions() const;
+
+    // Spatial hash bounds for shader constants
+    Fvector GetHashMin() const;
+    Ivector GetHashDimensions() const;
+    float   GetHashCellSize() const { return m_hashCellSize; }
 
 private:
     // Probe storage
@@ -101,17 +139,42 @@ private:
     Fvector m_boundsMax;
     Ivector m_gridDims;
 
+    // Spatial hash acceleration structure
+    xr_vector<SpatialHashCell> m_spatialHash;
+    Ivector m_hashDims;
+    Fvector m_hashMin;
+    float   m_hashCellSize;
+
+    // Spatial hash GPU resources
+    ID3D11Texture2D*          m_pHashTexture;
+    ID3D11ShaderResourceView* m_pHashSRV;
+    bool  m_hashDirty;
+
+    // Neighbor connectivity for light propagation
+    xr_vector<ProbeNeighbors> m_probeNeighbors;
+    int   m_propagationIters;
+    int   m_propagationRate;
+
     // Internal methods
     void PlaceProbesInSector(CSector* sector, u32 sectorIndex, bool isIndoor);
     void PlacePortalBridgeProbes(CPortal* portal);
     bool IsValidProbePosition(const Fvector& pos);
     bool IsSectorIndoor(CSector* sector);
-    void UpdateProbe(CLightProbe& probe);
+    void UpdateProbe(CLightProbe& probe, u32 probeIndex);
     void CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal, Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor);
     Fvector ComputeTriangleNormal(const CDB::RESULT& hit);
     void BuildVisibleSectorSet();
     bool IsProbeInVisibleSector(const CLightProbe& probe);
     void ComputeGridBounds();
+
+    // Spatial hash methods
+    void BuildSpatialHash();
+    void PrepareHashGPUBuffer();
+    Ivector WorldToHashCell(const Fvector& pos) const;
+
+    // Neighbor connectivity and propagation
+    void BuildNeighborConnectivity();
+    void PropagateLight(int iterations);
 };
 
 // Global instance pointer (set during level load)

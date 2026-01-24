@@ -285,21 +285,36 @@ void CRenderTarget::phase_combine()
 		// OWA: Bind light probe grid for spatial ambient lighting
 		if (g_LightProbeGrid && g_LightProbeGrid->GetProbeCount() > 0 && ps_r3_ssfx_il != 0)
 		{
-			// Use X-Ray's texture binding system
+			// Bind probe data texture via X-Ray texture system
 			ID3D11Texture2D* probeTex = g_LightProbeGrid->GetTexture();
 			if (probeTex)
 			{
 				t_probe_grid->surface_set(probeTex);
 			}
 
+			// Bind spatial hash texture via X-Ray texture system
+			ID3D11Texture2D* hashTex = g_LightProbeGrid->GetHashTexture();
+			if (hashTex)
+			{
+				t_probe_hash->surface_set(hashTex);
+			}
+
 			Fvector bmin = g_LightProbeGrid->GetBoundsMin();
 			Fvector bmax = g_LightProbeGrid->GetBoundsMax();
 			Ivector dims = g_LightProbeGrid->GetDimensions();
 
+			// Probe grid uniforms
 			RCache.set_c("probe_grid_min", bmin.x, bmin.y, bmin.z, (float)g_LightProbeGrid->GetProbeCount());
-			RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, 0.f);
+			RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, (float)PROBES_PER_ROW);
 			RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, (float)PROBES_PER_ROW);
 			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, 0.f, 0.f);
+
+			// Spatial hash uniforms for K-nearest sampling
+			Fvector hashMin = g_LightProbeGrid->GetHashMin();
+			Ivector hashDims = g_LightProbeGrid->GetHashDimensions();
+			float cellSize = g_LightProbeGrid->GetHashCellSize();
+			RCache.set_c("hash_grid_min", hashMin.x, hashMin.y, hashMin.z, cellSize);
+			RCache.set_c("hash_grid_dims", (float)hashDims.x, (float)hashDims.y, (float)hashDims.z, 0.f);
 		}
 
 		// Draw

@@ -508,6 +508,11 @@ float ps_r2_gloss_min = 0.0f;
 int opt_static = 2;
 int opt_dynamic = 2;
 
+// OWA: Force point lights to cast shadows (high-end option)
+// When enabled, point lights (campfires, anomalies, etc.) generate 6-face shadow maps
+// This prevents light bleeding through geometry but is expensive (6x shadow passes per light)
+int ps_r4_point_light_shadows = 0;
+
 #ifndef _EDITOR
 #include	"../../xrEngine/xr_ioconsole.h"
 #include	"../../xrEngine/xr_ioc_cmd.h"
@@ -1166,6 +1171,8 @@ void xrRender_initconsole()
 	CMD4(CCC_Integer, "r_probe_update_rate", &ps_r_probe_update_rate, 10, 200);
 	CMD4(CCC_Float, "r_probe_bounce_intensity", &ps_r_probe_bounce_intensity, 0.0f, 1.0f);
 	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 1);
+	// OWA: Point light shadows (high-end option, expensive - 6 shadow passes per point light)
+	CMD4(CCC_Integer, "r4_point_light_shadows", &ps_r4_point_light_shadows, 0, 1);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);
 
     // r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping

@@ -186,7 +186,16 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 		C.r_dx10Sampler("smp_rtlinear");
 		C.r_End();
 		break;
-	case 5: // post-processing
+	case 5: // OWA: Raymarched volumetric spotlight (Peak Volumetric Lights port)
+		C.r_Pass("pfx_volumetric_light", "pfx_volumetric_light", false, FALSE, FALSE, TRUE, D3DBLEND_ONE, D3DBLEND_ONE);
+
+		C.r_dx10Texture("s_position", r2_RT_P);
+		C.r_dx10Texture("s_smap", r2_RT_smap_depth);
+
+		C.r_dx10Sampler("smp_rtlinear");
+		C.r_dx10Sampler("smp_smap");
+		C.r_dx10Sampler("smp_nofilter");
+		C.r_End();
 		break;
 	}
 }
@@ -380,7 +389,16 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 		C.r_dx10Sampler("smp_rtlinear");
 		C.r_End();
 		break;
-	case 5: // post-processing
+	case 5: // OWA: Raymarched volumetric spotlight (Peak Volumetric Lights port)
+		C.r_Pass("pfx_volumetric_light", "pfx_volumetric_light", false, FALSE, FALSE, TRUE, D3DBLEND_ONE, D3DBLEND_ONE);
+
+		C.r_dx10Texture("s_position", r2_RT_P);
+		C.r_dx10Texture("s_smap", r2_RT_smap_depth);
+
+		C.r_dx10Sampler("smp_rtlinear");
+		C.r_dx10Sampler("smp_smap");
+		C.r_dx10Sampler("smp_nofilter");
+		C.r_End();
 		break;
 	}
 	::Render->m_MSAASample = -1;

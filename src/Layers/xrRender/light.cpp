@@ -325,7 +325,14 @@ static Fvector cmDir[6] = {
 
 void light::export_(light_Package& package)
 {
-	if (flags.bShadow)
+	// OWA: Check if point light shadows are forced via console variable
+	// When ps_r4_point_light_shadows is enabled, treat all point lights as shadow-casting
+	// This generates 6-face shadow maps (expensive but prevents light bleeding through geometry)
+	bool bForcedShadow = (flags.type == IRender_Light::POINT && ps_r4_point_light_shadows);
+
+	// OWA: Skip shadow map generation entirely in static lighting mode (R1 aesthetic)
+	// This saves GPU work since the shadowed shader path is also skipped at render time
+	if ((flags.bShadow || bForcedShadow) && !RImplementation.o.staticlighting)
 	{
 		switch (flags.type)
 		{
@@ -415,6 +422,7 @@ void light::set_attenuation_params(float a0, float a1, float a2, float fo)
 
 extern float r_ssaGLOD_start, r_ssaGLOD_end;
 extern float ps_r2_slight_fade;
+extern int ps_r4_point_light_shadows;  // OWA: Force point lights to cast shadows
 
 float light::get_LOD()
 {

@@ -289,6 +289,9 @@ extern ECORE_API int ps_r3_dyn_wet_surf_sm_res; // 256
 extern ECORE_API int opt_static;
 extern ECORE_API int opt_dynamic;
 
+// OWA: Force point lights to cast shadows (high-end option, expensive)
+extern ECORE_API int ps_r4_point_light_shadows;
+
 enum
 {
 	R2FLAG_SUN = (1 << 0),

@@ -253,12 +253,15 @@ extern ECORE_API float ps_r4_hdr10_pda_intensity; 	// r4-only
 
 // ps_r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping
 extern ECORE_API float ps_r4_hdr10_chroma_correction;    // r4-only, chroma correction scaling (default 0.6)
-extern ECORE_API float ps_r4_hdr10_exposure;      		 // r4-only
-extern ECORE_API float ps_r4_hdr10_contrast;      		 // r4-only
-extern ECORE_API float ps_r4_hdr10_contrast_middle_gray; // r4-only
-extern ECORE_API float ps_r4_hdr10_saturation;    		 // r4-only
-extern ECORE_API float ps_r4_hdr10_brightness;			 // r4-only
-extern ECORE_API float ps_r4_hdr10_gamma;				 // r4-only
+
+// Color grading parameters (SDR + HDR) - renamed from ps_r4_hdr10_* for clarity
+extern ECORE_API float ps_r4_cg_exposure;      		     // r4-only
+extern ECORE_API float ps_r4_cg_contrast;      		     // r4-only
+extern ECORE_API float ps_r4_cg_contrast_middle_gray;    // r4-only
+extern ECORE_API float ps_r4_cg_saturation;    		     // r4-only
+extern ECORE_API float ps_r4_cg_brightness;			     // r4-only
+extern ECORE_API float ps_r4_cg_gamma;				     // r4-only
+
 extern ECORE_API float ps_r4_hdr10_ui_saturation;		 // r4-only
 
 extern ECORE_API int   ps_r4_hdr10_sun_on; // r4-only

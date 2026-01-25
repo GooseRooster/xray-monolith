@@ -1192,12 +1192,15 @@ extern int   ps_r4_hdr10_on;
 extern int   ps_r4_hdr10_colorspace;
 // ps_r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping
 extern float ps_r4_hdr10_chroma_correction;
-extern float ps_r4_hdr10_exposure;
-extern float ps_r4_hdr10_contrast;
-extern float ps_r4_hdr10_contrast_middle_gray;
-extern float ps_r4_hdr10_saturation;
-extern float ps_r4_hdr10_brightness;
-extern float ps_r4_hdr10_gamma;
+
+// Color grading parameters (SDR + HDR) - renamed from ps_r4_hdr10_* for clarity
+extern float ps_r4_cg_exposure;
+extern float ps_r4_cg_contrast;
+extern float ps_r4_cg_contrast_middle_gray;
+extern float ps_r4_cg_saturation;
+extern float ps_r4_cg_brightness;
+extern float ps_r4_cg_gamma;
+
 extern float ps_r4_hdr10_ui_saturation;
 
 // OWA: HDR10 bloom and lens flare removed - unified multi-scale bloom handles both SDR and HDR
@@ -1242,11 +1245,12 @@ DECL_BINDER4F( binder_hdr10_parameters2,
 	0.0f  // Was tonemap_mode - now unused, HDR always uses hybrid tonemapping
 );
 
-DECL_BINDER4F( binder_hdr10_parameters3,
-	ps_r4_hdr10_exposure,
-	ps_r4_hdr10_contrast + 1.0f,
-	ps_r4_hdr10_saturation + 1.0f,
-	ps_r4_hdr10_contrast_middle_gray
+// Color grading binder (SDR + HDR) - renamed from binder_hdr10_parameters3 for clarity
+DECL_BINDER4F( binder_cg_parameters1,
+	ps_r4_cg_exposure,
+	ps_r4_cg_contrast + 1.0f,
+	ps_r4_cg_saturation + 1.0f,
+	ps_r4_cg_contrast_middle_gray
 );
 
 // OWA: HDR10 bloom and lens flare removed - unified multi-scale bloom handles both SDR and HDR
@@ -1265,9 +1269,10 @@ DECL_BINDER4F( binder_hdr10_parameters5,
 	ps_r4_hdr10_sun_dusk_end
 );
 
-DECL_BINDER4F( binder_hdr10_parameters6,
-	ps_r4_hdr10_brightness,
-	1.0f / ps_r4_hdr10_gamma,
+// Color grading binder (SDR + HDR) - renamed from binder_hdr10_parameters6 for clarity
+DECL_BINDER4F( binder_cg_parameters2,
+	ps_r4_cg_brightness,
+	1.0f / ps_r4_cg_gamma,
 	0.0f,  // Was flare_threshold (removed)
 	0.0f   // Was flare_power (removed)
 );
@@ -1541,18 +1546,20 @@ void CBlender_Compile::SetMapping()
 	r_Constant("heatvision_params4", &binder_heatvision_args2);
 	//--DSR-- HeatVision_end
 
-	// HDR10 parameters
+	// HDR10 parameters (HDR-only settings)
     r_Constant("hdr10_parameters1",  &binder_hdr10_parameters1);
     r_Constant("hdr10_parameters2",  &binder_hdr10_parameters2);
-    r_Constant("hdr10_parameters3",  &binder_hdr10_parameters3);
 	r_Constant("hdr10_parameters4",  &binder_hdr10_parameters4);
 	r_Constant("hdr10_parameters5",  &binder_hdr10_parameters5);
-	r_Constant("hdr10_parameters6",  &binder_hdr10_parameters6);
 	r_Constant("hdr10_parameters7",  &binder_hdr10_parameters7);
 	r_Constant("hdr10_parameters8",  &binder_hdr10_parameters8);
 	r_Constant("hdr10_parameters9",  &binder_hdr10_parameters9);
 	r_Constant("hdr10_parameters10", &binder_hdr10_parameters10);
 	r_Constant("hdr10_parameters11", &binder_hdr10_parameters11);
+
+	// Color grading parameters (SDR + HDR)
+    r_Constant("cg_parameters1",     &binder_cg_parameters1);
+	r_Constant("cg_parameters2",     &binder_cg_parameters2);
 
 	r_Constant("vignette_control", &vignette_control);
 }

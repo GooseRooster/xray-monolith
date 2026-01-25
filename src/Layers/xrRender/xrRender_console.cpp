@@ -327,12 +327,15 @@ int   ps_r4_hdr10_colorspace      = 2;      // r4-only, default = Rec.2020
 
 // ps_r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping
 float ps_r4_hdr10_chroma_correction    = 0.6f; // r4-only, default = 0.6 (moderate correction)
-float ps_r4_hdr10_exposure     		   = 1.0f; // r4-only, default = 1.0 (no effect)
-float ps_r4_hdr10_contrast     		   = 0.0f; // r4-only, default = 0.0 (no effect, shader receives 1.0)
-float ps_r4_hdr10_contrast_middle_gray = 0.5f; // r4-only, default = 0.5 (contrast pivot point)
-float ps_r4_hdr10_saturation   		   = 0.0f; // r4-only, default = 0.0 (no effect, shader receives 1.0)
-float ps_r4_hdr10_brightness		   = 0.0f; // r4-only, default = 0.0 (no effect)
-float ps_r4_hdr10_gamma 			   = 1.0f; // r4-only, default = 1.0 (no effect)
+
+// Color grading parameters (SDR + HDR) - renamed from ps_r4_hdr10_* for clarity
+float ps_r4_cg_exposure     		   = 1.0f; // r4-only, default = 1.0 (no effect)
+float ps_r4_cg_contrast     		   = 0.0f; // r4-only, default = 0.0 (no effect, shader receives 1.0)
+float ps_r4_cg_contrast_middle_gray    = 0.5f; // r4-only, default = 0.5 (contrast pivot point)
+float ps_r4_cg_saturation   		   = 0.0f; // r4-only, default = 0.0 (no effect, shader receives 1.0)
+float ps_r4_cg_brightness		       = 0.0f; // r4-only, default = 0.0 (no effect)
+float ps_r4_cg_gamma 			       = 1.0f; // r4-only, default = 1.0 (no effect)
+
 float ps_r4_hdr10_ui_saturation        = 0.0f; // r4-only, default = 0.0 (no effect, shader receives 1.0)
 
 int   ps_r4_hdr10_sun_on 		   = 0;
@@ -1177,12 +1180,15 @@ void xrRender_initconsole()
 
     // r4_hdr10_tonemap_mode removed - HDR now always uses hybrid luminance/maxRGB tonemapping
 	CMD4(CCC_Float,   "r4_hdr10_chroma_correction",    	&ps_r4_hdr10_chroma_correction,       0.0f, 1.0f);
-	CMD4(CCC_Float,   "r4_hdr10_exposure",        		&ps_r4_hdr10_exposure, 		  	    0.1, 30);
-	CMD4(CCC_Float,   "r4_hdr10_contrast",        		&ps_r4_hdr10_contrast, 		  	     -1, 1);
-	CMD4(CCC_Float,   "r4_hdr10_contrast_middle_gray",  &ps_r4_hdr10_contrast_middle_gray,    0, 5);
-	CMD4(CCC_Float,   "r4_hdr10_saturation", 	  		&ps_r4_hdr10_saturation,      	     -1, 1);
-	CMD4(CCC_Float,   "r4_hdr10_brightness", 			&ps_r4_hdr10_brightness,			 -1, 1);
-	CMD4(CCC_Float,   "r4_hdr10_gamma",   			    &ps_r4_hdr10_gamma,					0.1, 5);
+
+	// Color grading commands (SDR + HDR) - renamed from r4_hdr10_* for clarity
+	CMD4(CCC_Float,   "r4_cg_exposure",        		&ps_r4_cg_exposure, 		  	    0.1, 30);
+	CMD4(CCC_Float,   "r4_cg_contrast",        		&ps_r4_cg_contrast, 		  	     -1, 1);
+	CMD4(CCC_Float,   "r4_cg_contrast_middle_gray",  &ps_r4_cg_contrast_middle_gray,    0, 5);
+	CMD4(CCC_Float,   "r4_cg_saturation", 	  		&ps_r4_cg_saturation,      	     -1, 1);
+	CMD4(CCC_Float,   "r4_cg_brightness", 			&ps_r4_cg_brightness,			 -1, 1);
+	CMD4(CCC_Float,   "r4_cg_gamma",   			    &ps_r4_cg_gamma,					0.1, 5);
+
 	CMD4(CCC_Float,   "r4_hdr10_ui_saturation",         &ps_r4_hdr10_ui_saturation,          -1, 1);
 
 	// OWA: HDR10 bloom and lens flare removed - unified multi-scale bloom handles both SDR and HDR

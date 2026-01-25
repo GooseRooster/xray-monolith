@@ -23,7 +23,7 @@ static const float DEFAULT_BOUNCE_INTENSITY = 0.3f; // indirect sun multiplier
 static const int   SOFT_SHADOW_RAYS = 4;            // rays for soft sun shadows
 static const float SOFT_SHADOW_JITTER = 0.15f;      // jitter cone angle (radians, ~8.5 degrees)
 static const float SUN_ALIGNMENT_THRESHOLD = 0.5f;  // cos(60°) - rays within 60° of sun count
-static const float RECEIVED_LIGHT_WEIGHT = 0.7f;    // how much received light affects sunVisibility
+static const float RECEIVED_LIGHT_WEIGHT = 0.35f;    // how much received light affects sunVisibility
 
 // Spatial hash constants
 static const int   MAX_PROBES_PER_CELL = 8;         // max probes stored per hash cell

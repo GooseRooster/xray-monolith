@@ -352,18 +352,20 @@ public
 
 	virtual void Status(TStatus& S)
 	{
-		xr_sprintf(S, sizeof(S), "(%f, %f, %f)", value->x, value->y, value->z);
+		// OWA: Use clean formatting like CCC_Float - fixed precision, no scientific notation
+		xr_sprintf(S, sizeof(S), "(%.3f, %.3f, %.3f)", value->x, value->y, value->z);
 	}
 
 	virtual void Info(TInfo& I)
 	{
-		xr_sprintf(I, sizeof(I), "vector3 in range [%e,%e,%e]-[%e,%e,%e]", min.x, min.y, min.z, max.x, max.y, max.z);
+		xr_sprintf(I, sizeof(I), "vector3 in range [%.3f,%.3f,%.3f]-[%.3f,%.3f,%.3f]", min.x, min.y, min.z, max.x, max.y, max.z);
 	}
 
 	virtual void fill_tips(vecTips& tips, u32 mode)
 	{
 		TStatus str;
-		xr_sprintf(str, sizeof(str), "(%e, %e, %e) (current) [(%e,%e,%e)-(%e,%e,%e)]", value->x, value->y, value->z,
+		// OWA: Use readable decimal format instead of scientific notation
+		xr_sprintf(str, sizeof(str), "(%.3f, %.3f, %.3f) (current) [(%.3f,%.3f,%.3f)-(%.3f,%.3f,%.3f)]", value->x, value->y, value->z,
 		           min.x, min.y, min.z, max.x, max.y, max.z);
 		tips.push_back(str);
 		IConsole_Command::fill_tips(tips, mode);
@@ -414,18 +416,20 @@ protected:
 
 	virtual void Status(TStatus& S)
 	{
-		xr_sprintf(S, sizeof(S), "(%f, %f, %f, %f)", value->x, value->y, value->z, value->w);
+		// OWA: Use clean formatting like CCC_Float - fixed precision, no scientific notation
+		xr_sprintf(S, sizeof(S), "(%.3f, %.3f, %.3f, %.3f)", value->x, value->y, value->z, value->w);
 	}
 
 	virtual void Info(TInfo& I)
 	{
-		xr_sprintf(I, sizeof(I), "vector4 in range [%e,%e,%e,%e]-[%e,%e,%e,%e]", min.x, min.y, min.z, min.w, max.x, max.y, max.z, max.w);
+		xr_sprintf(I, sizeof(I), "vector4 in range [%.3f,%.3f,%.3f,%.3f]-[%.3f,%.3f,%.3f,%.3f]", min.x, min.y, min.z, min.w, max.x, max.y, max.z, max.w);
 	}
 
 	virtual void fill_tips(vecTips& tips, u32 mode)
 	{
 		TStatus str;
-		xr_sprintf(str, sizeof(str), "(%e, %e, %e, %e) (current) [(%e,%e,%e,%e)-(%e,%e,%e,%e)]", value->x, value->y, value->z, value->w,
+		// OWA: Use readable decimal format instead of scientific notation
+		xr_sprintf(str, sizeof(str), "(%.3f, %.3f, %.3f, %.3f) (current) [(%.3f,%.3f,%.3f,%.3f)-(%.3f,%.3f,%.3f,%.3f)]", value->x, value->y, value->z, value->w,
 			min.x, min.y, min.z, min.w, max.x, max.y, max.z, max.w);
 		tips.push_back(str);
 		IConsole_Command::fill_tips(tips, mode);

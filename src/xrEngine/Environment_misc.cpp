@@ -19,6 +19,18 @@ extern Fvector3 ssfx_wetness_multiplier;
 // OWA: HDR10 mode flag for conditional clamping
 extern int ps_r4_hdr10_on;
 
+// OWA: Angle lerp with speed limit for dynamic weather transitions
+// Returns target if within max_change, otherwise moves current toward target by max_change
+inline float angle_lerp_speed(float current, float target, float max_change) {
+	float diff = target - current;
+	// Handle 360° wraparound
+	if (diff > PI) diff -= PI_MUL_2;
+	if (diff < -PI) diff += PI_MUL_2;
+	// Clamp change rate
+	if (_abs(diff) <= max_change) return target;
+	return current + (diff > 0 ? max_change : -max_change);
+}
+
 void CEnvModifier::load(IReader* fs, u32 version)
 {
 	use_flags.one();
@@ -487,16 +499,55 @@ void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescrip
 	fog_near = (1.0f - fog_density) * 0.85f * fog_distance;
 	fog_far = 0.99f * fog_distance;
 
-	rain_density = fi * A.rain_density + f * B.rain_density;
+	// OWA: RAIN - check for dynamic override
+	if (env->m_dynamic_rain.enabled) {
+		float dt = Device.fTimeDelta;
+		float transition_time = _max(env->m_dynamic_rain.transition_time, 0.1f);
+		float rain_diff = env->m_dynamic_rain.density_target - rain_density;
+		float rain_speed = 1.f / transition_time;  // Full range over transition time
+		float rain_change = rain_speed * dt;
+		if (_abs(rain_diff) <= rain_change)
+			rain_density = env->m_dynamic_rain.density_target;
+		else
+			rain_density += (rain_diff > 0 ? rain_change : -rain_change);
+		clamp(rain_density, 0.f, 1.f);
+	} else {
+		rain_density = fi * A.rain_density + f * B.rain_density;
+	}
 	rain_color.lerp(A.rain_color, B.rain_color, f);
 
-	bolt_period = fi * A.bolt_period + f * B.bolt_period;
-	bolt_duration = fi * A.bolt_duration + f * B.bolt_duration;
+	// OWA: THUNDER - check for dynamic override
+	if (env->m_dynamic_thunder.enabled) {
+		bolt_period = env->m_dynamic_thunder.period;
+		bolt_duration = env->m_dynamic_thunder.duration;
+	} else {
+		bolt_period = fi * A.bolt_period + f * B.bolt_period;
+		bolt_duration = fi * A.bolt_duration + f * B.bolt_duration;
+	}
 
-	wind_velocity = fi * A.wind_velocity + f * B.wind_velocity;
-	// OWA: Use angle_lerp for wind_direction to handle 360° wraparound properly
-	// Prevents cloud shadows from jumping when wind direction crosses 0°/360° boundary
-	wind_direction = angle_lerp(A.wind_direction, B.wind_direction, f);
+	// OWA: WIND - check for dynamic override
+	if (env->m_dynamic_wind.enabled) {
+		float dt = Device.fTimeDelta;
+		float transition_time = _max(env->m_dynamic_wind.transition_time, 0.1f);
+
+		// Velocity lerp toward target
+		float vel_diff = env->m_dynamic_wind.velocity_target - wind_velocity;
+		float vel_speed = 500.f / transition_time;  // ~500 units range over transition
+		float vel_change = vel_speed * dt;
+		if (_abs(vel_diff) <= vel_change)
+			wind_velocity = env->m_dynamic_wind.velocity_target;
+		else
+			wind_velocity += (vel_diff > 0 ? vel_change : -vel_change);
+
+		// Direction lerp with angle wraparound
+		float dir_speed = PI / transition_time;  // Max 180 degrees over transition
+		wind_direction = angle_lerp_speed(wind_direction, env->m_dynamic_wind.direction_target, dir_speed * dt);
+	} else {
+		wind_velocity = fi * A.wind_velocity + f * B.wind_velocity;
+		// Use angle_lerp for wind_direction to handle 360° wraparound properly
+		// Prevents cloud shadows from jumping when wind direction crosses 0°/360° boundary
+		wind_direction = angle_lerp(A.wind_direction, B.wind_direction, f);
+	}
 
 	m_fSunShaftsIntensity = fi * A.m_fSunShaftsIntensity + f * B.m_fSunShaftsIntensity;
 	m_fWaterIntensity = fi * A.m_fWaterIntensity + f * B.m_fWaterIntensity;

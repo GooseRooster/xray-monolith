@@ -622,6 +622,19 @@ void CEnvironment::OnFrame()
 		t_id = (current_weight < 0.5f) ? Current[0]->tb_id : Current[1]->tb_id;
 	}
 
+	// OWA: Override thunder collection if dynamic thunder is enabled
+	// Use AppendDef to load the collection on-demand if it doesn't exist yet
+	if (m_dynamic_thunder.enabled && m_dynamic_thunder.collection.size())
+	{
+		// AppendDef checks if collection exists; if not, loads it from config
+		// This ensures dynamic thunder can use any collection defined in thunderbolt_collections.ltx
+		t_id = eff_Thunderbolt->AppendDef(*this, m_thunderbolt_collections_config,
+		                                   m_thunderbolts_config, m_dynamic_thunder.collection.c_str());
+		// If AppendDef returns empty (collection doesn't exist in config), fall back to weather t_id
+		if (!t_id.size())
+			t_id = (current_weight < 0.5f) ? Current[0]->tb_id : Current[1]->tb_id;
+	}
+
 	eff_LensFlare->OnFrame(l_id);
 	eff_Thunderbolt->OnFrame(t_id, CurrentEnv->bolt_period, CurrentEnv->bolt_duration);
 	eff_Rain->OnFrame();

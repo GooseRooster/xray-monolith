@@ -400,6 +400,39 @@ public:
 	bool m_paused;
 	bool m_lerp_paused; // OWA: Pause engine-side lerping for scripted lighting control
 
+	// OWA: Dynamic weather override system
+	// When enabled, engine lerps toward script-specified targets instead of weather config values
+	struct SDynamicWindOverride {
+		bool enabled;
+		float velocity_target;
+		float direction_target;  // Radians
+		float transition_time;   // Seconds to reach target
+
+		SDynamicWindOverride() : enabled(false), velocity_target(0.f),
+		                          direction_target(0.f), transition_time(1.f) {}
+	};
+
+	struct SDynamicRainOverride {
+		bool enabled;
+		float density_target;
+		float transition_time;
+
+		SDynamicRainOverride() : enabled(false), density_target(0.f), transition_time(1.f) {}
+	};
+
+	struct SDynamicThunderOverride {
+		bool enabled;
+		float period;
+		float duration;
+		shared_str collection;
+
+		SDynamicThunderOverride() : enabled(false), period(0.f), duration(0.f) {}
+	};
+
+	SDynamicWindOverride    m_dynamic_wind;
+	SDynamicRainOverride    m_dynamic_rain;
+	SDynamicThunderOverride m_dynamic_thunder;
+
 	float GetGameTime() { return fGameTime; }
 
 	struct boost_values

@@ -1295,6 +1295,65 @@ bool is_weather_lerp_paused()
 	return environment()->m_lerp_paused;
 }
 
+// OWA: Dynamic wind override - engine lerps toward script-specified target instead of weather config
+void set_dynamic_wind(float velocity, float direction_deg, float transition_time)
+{
+	CEnvironment& env = *environment();
+	env.m_dynamic_wind.enabled = true;
+	env.m_dynamic_wind.velocity_target = velocity;
+	env.m_dynamic_wind.direction_target = deg2rad(direction_deg);
+	env.m_dynamic_wind.transition_time = _max(transition_time, 0.1f);
+}
+
+void clear_dynamic_wind()
+{
+	environment()->m_dynamic_wind.enabled = false;
+}
+
+bool is_dynamic_wind_enabled()
+{
+	return environment()->m_dynamic_wind.enabled;
+}
+
+// OWA: Dynamic rain override - engine lerps toward script-specified density
+void set_dynamic_rain(float density, float transition_time)
+{
+	CEnvironment& env = *environment();
+	env.m_dynamic_rain.enabled = true;
+	env.m_dynamic_rain.density_target = clampr(density, 0.f, 1.f);
+	env.m_dynamic_rain.transition_time = _max(transition_time, 0.1f);
+}
+
+void clear_dynamic_rain()
+{
+	environment()->m_dynamic_rain.enabled = false;
+}
+
+bool is_dynamic_rain_enabled()
+{
+	return environment()->m_dynamic_rain.enabled;
+}
+
+// OWA: Dynamic thunder override - engine uses script-specified period/duration/collection
+void set_dynamic_thunder(float period, float duration, LPCSTR collection)
+{
+	CEnvironment& env = *environment();
+	env.m_dynamic_thunder.enabled = true;
+	env.m_dynamic_thunder.period = period;
+	env.m_dynamic_thunder.duration = duration;
+	env.m_dynamic_thunder.collection = collection ? collection : "";
+}
+
+void clear_dynamic_thunder()
+{
+	environment()->m_dynamic_thunder.enabled = false;
+}
+
+bool is_dynamic_thunder_enabled()
+{
+	return environment()->m_dynamic_thunder.enabled;
+}
+
 void set_weather_value_vector(LPCSTR name, float x, float y, float z, float w = 0)
 {
 	CEnvDescriptor& E = *environment()->CurrentEnv;
@@ -2628,7 +2687,17 @@ void CLevel::script_register(lua_State* L)
 		def("reload", reload_weather),
 		def("boost_value", boost_weather_value),
 		def("boost_reset", boost_weather_reset),
-		def("sun_time", sun_time)
+		def("sun_time", sun_time),
+		// OWA: Dynamic weather override functions
+		def("set_dynamic_wind", set_dynamic_wind),
+		def("clear_dynamic_wind", clear_dynamic_wind),
+		def("is_dynamic_wind_enabled", is_dynamic_wind_enabled),
+		def("set_dynamic_rain", set_dynamic_rain),
+		def("clear_dynamic_rain", clear_dynamic_rain),
+		def("is_dynamic_rain_enabled", is_dynamic_rain_enabled),
+		def("set_dynamic_thunder", set_dynamic_thunder),
+		def("clear_dynamic_thunder", clear_dynamic_thunder),
+		def("is_dynamic_thunder_enabled", is_dynamic_thunder_enabled)
 	];
 
 	module(L, "hud_adjust")

@@ -73,15 +73,15 @@ void dxRainRender::Render(CEffect_Rain& owner)
 
 	// visual
 	float factor_visual = factor / 2.f + .5f;
-	Fvector3 f_rain_color = g_pGamePersistent->Environment().CurrentEnv->rain_color;
 
-	// OWA: Blend rain color with environment hemi to prevent overly bright rain in shadowed areas
+	// OWA: Rain color is now computed in rain_particles.ps shader using sky cubemap
+	// Engine passes shadow/hemi modulation through vertex color RGB
 	// rain_hemi ranges from 0 (fully shadowed) to ~1 (fully lit by sky)
 	// Use a minimum of 0.3 to prevent rain from becoming completely invisible in dark areas
 	float hemi_blend = _max(owner.rain_hemi, 0.3f);
-	f_rain_color.mul(hemi_blend);
 
-	u32 u_rain_color = color_rgba_f(f_rain_color.x, f_rain_color.y, f_rain_color.z, factor_visual);
+	// RGB = shadow factor (same value in all channels), Alpha = density
+	u32 u_rain_color = color_rgba_f(hemi_blend, hemi_blend, hemi_blend, factor_visual);
 
 	// born _new_ if needed
 	float b_radius_wrap_sqr = _sqr((rain_radius * 1.5f));

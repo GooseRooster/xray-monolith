@@ -117,13 +117,13 @@ void CRenderTarget::phase_bloom()
 	// bloom_texel_size: xy = 1/source_width, 1/source_height, z = radius
 	//-------------------------------------------------------------------------
 
-	// D2: rt_Bloom_1 (BLOOM_size) -> rt_Bloom_D2 (1/2 res)
-	// Source is BLOOM_size (fixed 256x256 typically)
-	// Threshold already applied in bloom_build pass
+	// D2: Full-res HDR scene -> rt_Bloom_D2 (1/2 res)
+	// Reads directly from HDR scene (r2_RT_generic1) — proper 2:1 downsample
+	// Threshold passed in .w to activate extraction in the shader
 	{
 		u_setrt(rt_Bloom_D2, NULL, NULL, NULL);
 		RCache.set_Element(s_bloom_downsample->E[0]);
-		RCache.set_c("bloom_texel_size", 1.f / BLOOM_size_X, 1.f / BLOOM_size_Y, radius, 0);
+		RCache.set_c("bloom_texel_size", 1.f / w, 1.f / h, radius, ps_r2_bloom_threshold);
 		draw_fullscreen(u32(w / 2), u32(h / 2));
 	}
 

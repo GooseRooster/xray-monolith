@@ -15,9 +15,9 @@ void CBlender_bloom_downsample::Compile(CBlender_Compile& C)
 
 	switch (C.iElement)
 	{
-	case 0: // D2: Full res -> 1/2 res (uses bloom_build output, applies threshold)
+	case 0: // D2: Full-res HDR scene -> 1/2 res (extraction + downsample)
 		C.r_Pass("stub_screen_space", "bloom_downsample", FALSE, FALSE, FALSE);
-		C.r_dx10Texture("s_bloom", r2_RT_bloom1);  // Initial extraction from bloom_build
+		C.r_dx10Texture("s_bloom", r2_RT_generic1);  // Read directly from HDR scene (same source as bloom_build)
 		C.r_dx10Sampler("smp_rtlinear");
 		C.r_End();
 		break;

@@ -124,7 +124,7 @@ int get_modded_exes_version() {
 }
 
 LPCSTR get_modded_exes_name() {
-	shared_str result = "Modded Exes";
+	shared_str result = "Modded Exes: Old World Edition";
 	return result.c_str();
 }
 

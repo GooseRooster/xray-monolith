@@ -108,7 +108,8 @@ void CBlender_Compile::_cpp_Compile(ShaderElement* _SH)
 #ifndef _EDITOR
 #if RENDER!=R_R1
 		//	Detect the alowance of detail bump usage here.
-		if (!(RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_DETAIL_BUMP)))
+		//	OWA: Also disable detail bump in static lighting mode (R1 has no detail bump)
+		if (!(RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_DETAIL_BUMP) && !RImplementation.o.staticlighting))
 		{
 			bDetail_Diffuse |= bDetail_Bump;
 			bDetail_Bump = false;

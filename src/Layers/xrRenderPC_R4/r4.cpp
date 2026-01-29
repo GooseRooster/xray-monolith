@@ -349,7 +349,7 @@ void CRender::create()
 	//.	o.sunstatic			= (strstr(Core.Params,"-sunstatic"))?	TRUE	:FALSE	;
 	o.sunstatic = r2_sun_static;
 	o.advancedpp = r2_advanced_pp;
-	o.volumetricfog = ps_r2_ls_flags.test(R3FLAG_VOLUMETRIC_SMOKE);
+	o.volumetricfog = ps_r2_ls_flags.test(R3FLAG_VOLUMETRIC_SMOKE) && !o.staticlighting;
 	o.sjitter = (strstr(Core.Params, "-sjitter")) ? TRUE : FALSE;
 	o.depth16 = (strstr(Core.Params, "-depth16")) ? TRUE : FALSE;
 	if (strstr(Core.Params, "-noshadows") || strstr(Core.Params, "-r4_dev"))
@@ -420,7 +420,7 @@ void CRender::create()
 	o.dx10_minmax_sm_screenarea_threshold = 1600 * 1200;
 
 	o.dx11_enable_tessellation = HW.FeatureLevel >= D3D_FEATURE_LEVEL_11_0 && ps_r2_ls_flags_ext.test(
-		R2FLAGEXT_ENABLE_TESSELLATION);
+		R2FLAGEXT_ENABLE_TESSELLATION) && !o.staticlighting;
 
 	if (o.dx10_minmax_sm == MMSM_AUTODETECT)
 	{
@@ -1371,7 +1371,7 @@ HRESULT CRender::shader_compile(
 	sh_name[len] = '0' + char(o.Tshadows);
 	++len;
 
-	if (ps_r2_anomaly_flags.test(R2_AN_FLAG_MBLUR))
+	if (ps_r2_anomaly_flags.test(R2_AN_FLAG_MBLUR) && !o.staticlighting)
 	{
 		defines[def_it].Name = "USE_MBLUR";
 		defines[def_it].Definition = "1";
@@ -1390,7 +1390,7 @@ HRESULT CRender::shader_compile(
 	++len;
 
 	// OWA: Classic SoC jittered shadows
-	if (o.soc_shadows)
+	if (o.soc_shadows && !o.staticlighting)
 	{
 		defines[def_it].Name = "SOC_SHADOWS";
 		defines[def_it].Definition = "1";
@@ -1417,13 +1417,23 @@ HRESULT CRender::shader_compile(
 		defines[def_it].Name = "USE_STATIC_LIGHTING";
 		defines[def_it].Definition = "1";
 		def_it ++;
+
+		// OWA: Static lighting quality tier (0=low, 1=medium, 2=high)
+		// Controls fog complexity: low=fog_color only, medium=simplified cubemap, high=full pipeline
+		static char c_static_quality[2];
+		xr_sprintf(c_static_quality, "%d", ps_r4_static_lighting_quality);
+		defines[def_it].Name = "STATIC_LIGHTING_QUALITY";
+		defines[def_it].Definition = c_static_quality;
+		def_it ++;
 	}
 	sh_name[len] = '0' + char(o.staticlighting);
+	++len;
+	sh_name[len] = '0' + char(o.staticlighting ? ps_r4_static_lighting_quality : 0);
 	++len;
 
 	// OWA: PBR materials mode (GGX specular, analytical BRDF)
 	// Disabled in static lighting mode for R1 aesthetic consistency
-	if (o.pbr_materials)
+	if (o.pbr_materials && !o.staticlighting)
 	{
 		defines[def_it].Name = "USE_PBR_MATERIALS";
 		defines[def_it].Definition = "1";
@@ -1553,7 +1563,7 @@ HRESULT CRender::shader_compile(
 
 	//	Igor: need restart options
 	// OWA: Also enable soft water when SSFX water is enabled (SSFX water depends on it)
-	if ((RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_SOFT_WATER)) || ps_r3_ssfx_water)
+	if ((RImplementation.o.advancedpp && !o.staticlighting && ps_r2_ls_flags.test(R2FLAG_SOFT_WATER)) || ps_r3_ssfx_water)
 	{
 		defines[def_it].Name = "USE_SOFT_WATER";
 		defines[def_it].Definition = "1";
@@ -1567,7 +1577,7 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_SOFT_PARTICLES))
+	if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_SOFT_PARTICLES) && !o.staticlighting)
 	{
 		defines[def_it].Name = "USE_SOFT_PARTICLES";
 		defines[def_it].Definition = "1";
@@ -1581,7 +1591,7 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_DOF))
+	if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_DOF) && !o.staticlighting)
 	{
 		defines[def_it].Name = "USE_DOF";
 		defines[def_it].Definition = "1";
@@ -1595,7 +1605,7 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	if (RImplementation.o.advancedpp && ps_sunshafts_mode)
+	if (RImplementation.o.advancedpp && ps_sunshafts_mode && !o.staticlighting)
 	{
 		xr_sprintf(c_sun_shafts, "%d", ps_r_sun_shafts);
 		defines[def_it].Name = "SUN_SHAFTS_QUALITY";
@@ -1626,7 +1636,7 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	if (RImplementation.o.advancedpp && ps_r_sun_quality)
+	if (RImplementation.o.advancedpp && ps_r_sun_quality && !o.staticlighting)
 	{
 		xr_sprintf(c_sun_quality, "%d", ps_r_sun_quality);
 		defines[def_it].Name = "SUN_QUALITY";
@@ -1641,7 +1651,7 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_STEEP_PARALLAX))
+	if (RImplementation.o.advancedpp && ps_r2_ls_flags.test(R2FLAG_STEEP_PARALLAX) && !o.staticlighting)
 	{
 		defines[def_it].Name = "ALLOW_STEEPPARALLAX";
 		defines[def_it].Definition = "1";
@@ -1733,7 +1743,7 @@ HRESULT CRender::shader_compile(
 	sh_name[len] = '0' + char(o.dx10_minmax_sm != 0);
 	++len;
 	
-	if (ps_ssfx_grass_interactive.y > 0)
+	if (ps_ssfx_grass_interactive.y > 0 && !o.staticlighting)
 	{
 		xr_sprintf(c_inter_grass, "%d", u8(ps_ssfx_grass_interactive.y));
 		defines[def_it].Name = "SSFX_INT_GRASS";
@@ -1897,7 +1907,7 @@ HRESULT CRender::shader_compile(
 
 	// OWA: SSFX compile-time defines (controlled by r3_ssfx_* console commands)
 	// These replace the static defines in check_screenspace_*.h files for smaller compiled shaders
-	if (ps_r3_ssfx_fog)
+	if (ps_r3_ssfx_fog && !o.staticlighting)
 	{
 		defines[def_it].Name = "SSFX_FOG";
 		defines[def_it].Definition = "1";
@@ -1911,7 +1921,7 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	if (ps_r3_ssfx_shadows)
+	if (ps_r3_ssfx_shadows && !o.staticlighting)
 	{
 		// OWA: Define SSFX_SSS for Screen Space Shadows effect
 		// SSFX_SHADOWS is always on (defined in shader header) for shadow quality fixes
@@ -1927,7 +1937,7 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	if (ps_r3_ssfx_water)
+	if (ps_r3_ssfx_water && !o.staticlighting)
 	{
 		defines[def_it].Name = "SSFX_WATER";
 		defines[def_it].Definition = "1";

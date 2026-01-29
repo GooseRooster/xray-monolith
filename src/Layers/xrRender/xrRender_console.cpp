@@ -33,6 +33,15 @@ xr_token lighting_style_token [] = {
 };
 float ps_r4_static_brightness = 2.0f;  // OLR legacy default, tunable for HDR pipeline
 
+// OWA: R4 Static lighting quality tiers - requires restart (recompiles shaders)
+u32 ps_r4_static_lighting_quality = st_static_medium;  // Default medium (simplified cubemap fog)
+xr_token static_lighting_quality_token [] = {
+	{ "st_opt_low",    st_static_low    },  // R1-style: fog_color only, no cubemap
+	{ "st_opt_medium", st_static_medium },  // Simplified cubemap, linear blending
+	{ "st_opt_high",   st_static_high   },  // Full pipeline (matches dynamic quality)
+	{ 0, 0 }
+};
+
 // OWA: R4 Material style (classic vs PBR) - requires restart
 u32 ps_r4_material_style = st_opt_classic;  // Default to classic (current OWA behavior)
 xr_token material_style_token [] = {
@@ -1168,6 +1177,7 @@ void xrRender_initconsole()
 	// OWA: R4 Static Lighting Mode (R1-style retro visuals) - requires restart
 	CMD3(CCC_Token, "r4_lighting_style", &ps_r4_lighting_style, lighting_style_token);
 	CMD4(CCC_Float, "r4_static_brightness", &ps_r4_static_brightness, 0.5f, 4.0f);
+	CMD3(CCC_Token, "r4_static_lighting_quality", &ps_r4_static_lighting_quality, static_lighting_quality_token);
 	// OWA: R4 Material Style (classic vs PBR) - requires restart
 	CMD3(CCC_Token, "r4_material_style", &ps_r4_material_style, material_style_token);
 	// OWA: Probe lighting system for static lighting mode

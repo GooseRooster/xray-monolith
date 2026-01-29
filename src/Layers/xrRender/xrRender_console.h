@@ -71,6 +71,17 @@ extern ECORE_API u32 ps_r4_lighting_style;
 extern ECORE_API xr_token lighting_style_token[];
 extern ECORE_API float ps_r4_static_brightness;  // Static lighting brightness multiplier (default 2.0)
 
+// OWA: R4 Static lighting quality tiers
+// Controls shader complexity when using static lighting (fog pipeline, Oklab, etc.)
+enum eStaticLightingQuality : u32
+{
+	st_static_low    = 0,   // R1-style: fog_color uniform only, no cubemap sampling
+	st_static_medium = 1,   // Simplified cubemap fog, linear blending
+	st_static_high   = 2,   // Full pipeline: rotation, normalization, Mie scatter, Oklab
+};
+extern ECORE_API u32 ps_r4_static_lighting_quality;
+extern ECORE_API xr_token static_lighting_quality_token[];
+
 // OWA: R4 Material style tokens (classic vs PBR)
 // PBR mode uses GGX specular BRDF, classic uses LUT-based material response
 enum eMaterialStyle : u32

@@ -2,6 +2,7 @@
 #include "dxLensFlareRender.h"
 #include "../../xrEngine/xr_efflensflare.h"
 #include "../../xrEngine/iGame_persistent.h"
+#include "xrRender_console.h"
 #define MAX_Flares	24
 
 #define FAR_DIST g_pGamePersistent->Environment().CurrentEnv->far_plane
@@ -42,15 +43,21 @@ void dxLensFlareRender::Render(CLensFlare& owner, BOOL bSun, BOOL bFlares, BOOL 
 
 	float fDistance = FAR_DIST * 0.75f;
 
+	// OWA: Procedural sun/moon decoupling
+	bool bProcedural = (ps_r4_procedural_sun_moon != 0.0f);
+
 	if (bSun)
 	{
 		if (owner.m_Current->m_Flags.is(CLensFlareDescriptor::flSource))
 		{
-			vecSx.mul(owner.vecX, owner.m_Current->m_Source.fRadius * fDistance);
-			vecSy.mul(owner.vecY, owner.m_Current->m_Source.fRadius * fDistance);
+			// OWA: Fixed billboard radius when procedural mode is on
+			// Prevents weather artists from accidentally changing procedural sun/moon size
+			float srcRadius = bProcedural ? 0.054f : owner.m_Current->m_Source.fRadius;
+			vecSx.mul(owner.vecX, srcRadius * fDistance);
+			vecSy.mul(owner.vecY, srcRadius * fDistance);
 			if (owner.m_Current->m_Source.ignore_color) color.set(1.f, 1.f, 1.f, 1.f);
 			else color.set(dwLight);
-			color.a *= owner.m_StateBlend;
+				color.a *= owner.m_StateBlend;
 			u32 c = color.get();
 			pv->set(owner.vecLight.x + vecSx.x - vecSy.x, owner.vecLight.y + vecSx.y - vecSy.y,
 			        owner.vecLight.z + vecSx.z - vecSy.z, c, 0, 0);

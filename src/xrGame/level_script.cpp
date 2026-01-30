@@ -1525,6 +1525,16 @@ void sun_time(int hour, int minute)
 	);
 
 	R_ASSERT(_valid(E.sun_dir));
+
+	// OWA: Set visual time override so timers_game shader constant matches
+	// the scrubbed time (needed for procedural sun/moon shader)
+	environment()->editor_sun_time = float(hour) * 3600.f + float(minute) * 60.f;
+}
+
+void sun_time_reset()
+{
+	// OWA: Clear visual time override, restoring normal fGameTime for shaders
+	environment()->editor_sun_time = -1.f;
 }
 
 void reload_language()
@@ -2688,6 +2698,7 @@ void CLevel::script_register(lua_State* L)
 		def("boost_value", boost_weather_value),
 		def("boost_reset", boost_weather_reset),
 		def("sun_time", sun_time),
+		def("sun_time_reset", sun_time_reset),
 		// OWA: Dynamic weather override functions
 		def("set_dynamic_wind", set_dynamic_wind),
 		def("clear_dynamic_wind", clear_dynamic_wind),

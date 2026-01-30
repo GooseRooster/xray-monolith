@@ -243,12 +243,12 @@ class cl_times : public R_constant_setup
 
 static cl_times binder_times;
 
-// game time
+// game time (uses visual time override when weather editor is active)
 class cl_game_times : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
 	{
-		float t = g_pGamePersistent->Environment().GetGameTime();
+		float t = g_pGamePersistent->Environment().GetVisualTime();
 		RCache.set_c(C, t, t / DAY_LENGTH, t / (DAY_LENGTH / 24), floor(t / (DAY_LENGTH / 24)));
 	}
 };
@@ -1277,12 +1277,17 @@ DECL_BINDER4F( binder_cg_parameters2,
 	0.0f   // Was flare_power (removed)
 );
 
-DECL_BINDER4F( binder_hdr10_parameters7,
-	0.0f,  // Was flare_ghosts (removed)
-	0.0f,  // Was flare_ghost_dispersal (removed)
-	0.0f,  // Was flare_center_falloff (removed)
-	0.0f   // Was flare_halo_scale (removed)
-);
+// OWA: Moon phase and procedural sun/moon data (replaces removed flare ghost/halo params)
+extern float ps_r4_procedural_sun_moon;
+static class cl_hdr10_parameters7 : public R_constant_setup
+{
+	virtual void setup(R_constant* C)
+	{
+		float moon_phase = g_pGamePersistent->moon_shader_data.phase;
+		float moon_day_frac = g_pGamePersistent->moon_shader_data.game_day_frac;
+		RCache.set_c(C, moon_phase, moon_day_frac, ps_r4_procedural_sun_moon, 0.0f);
+	}
+} binder_hdr10_parameters7;
 
 DECL_BINDER4F( binder_hdr10_parameters8,
 	0.0f,  // Was flare_halo_ca (removed)
@@ -1291,11 +1296,14 @@ DECL_BINDER4F( binder_hdr10_parameters8,
 	ps_r4_hdr10_ui_saturation + 1.0f
 );
 
+// OWA: Procedural sun flare params + moon intensity (replaces removed lens flare params)
+extern float ps_r4_sun_flare_intensity;
+extern float ps_r4_sun_flare_rays;
 DECL_BINDER4F( binder_hdr10_parameters9,
-	0.0f,  // Was flare_ghost_intensity (removed)
-	0.0f,  // Was flare_halo_intensity (removed)
-	ps_r4_hdr10_moon_intensity,
-	0.0f   // Unused (was highlight_intensity, now controlled by hermite spline)
+	ps_r4_sun_flare_intensity,   // Star-burst flare strength [0, 2]
+	ps_r4_sun_flare_rays,        // Number of radial flare rays [4, 12]
+	ps_r4_hdr10_moon_intensity,  // Moon HDR glow multiplier (unchanged)
+	0.0f                         // Reserved
 );
 
 DECL_BINDER4F( binder_hdr10_parameters10,
@@ -1304,6 +1312,8 @@ DECL_BINDER4F( binder_hdr10_parameters10,
 	0.0f,  // Was flare_lens_color.z (removed)
 	ps_r4_hdr10_sun_on
 );
+
+
 
 // OWA: HDR expansion tuning parameters (knee is now automatic per BT.2408)
 extern float ps_r4_hdr10_light_expansion;

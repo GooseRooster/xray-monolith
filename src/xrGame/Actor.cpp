@@ -1393,6 +1393,48 @@ void CActor::UpdateCL()
 	g_pGamePersistent->actor_data.bleeding = conditions().BleedingSpeed();
 	//g_pGamePersistent->actor_data.helmet = !GetOutfit()->bIsHelmetAvaliable || inventory().ItemFromSlot(HELMET_SLOT) ? 1 : 0;
 
+	// OWA: Compute moon phase from game date for procedural moon rendering
+	{
+		u32 year, month, day, hours, mins, secs, milisecs;
+		Level().GetGameDateTime(year, month, day, hours, mins, secs, milisecs);
+
+		// Convert game date to total days since Jan 1, 2000
+		static const u32 month_days[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+
+		u32 total_days = 0;
+		for (u32 y = 2000; y < year; ++y)
+		{
+			bool leap = (y % 400 == 0) || ((y % 4 == 0) && (y % 100 != 0));
+			total_days += leap ? 366 : 365;
+		}
+		for (u32 m = 1; m < month; ++m)
+		{
+			total_days += month_days[m];
+			if (m == 2)
+			{
+				bool leap = (year % 400 == 0) || ((year % 4 == 0) && (year % 100 != 0));
+				if (leap) total_days += 1;
+			}
+		}
+		total_days += (day - 1);
+
+		// Fractional day including time of day
+		float day_frac = float(total_days) + float(hours) / 24.f + float(mins) / 1440.f + float(secs) / 86400.f;
+
+		// Synodic period = 29.53059 days (mean lunar month)
+		// Reference: Jan 6, 2000 was a new moon (day 5 from Jan 1, 2000 = day 0)
+		static const float SYNODIC_PERIOD = 29.53059f;
+		static const float NEW_MOON_REF_DAY = 5.0f;
+
+		float days_since_ref = day_frac - NEW_MOON_REF_DAY;
+		float phase = fmod(days_since_ref, SYNODIC_PERIOD);
+		if (phase < 0.f) phase += SYNODIC_PERIOD;
+
+		// Normalize to [0,1]: 0 = new moon, 0.5 = full moon, 1.0 = next new moon
+		g_pGamePersistent->moon_shader_data.phase = phase / SYNODIC_PERIOD;
+		g_pGamePersistent->moon_shader_data.game_day_frac = day_frac;
+	}
+
 	// Update environment radiation value if hud is not shown
 	if (!psHUD_Flags.test(HUD_DRAW))
 		CurrentGameUI()->UIMainIngameWnd->get_hud_states()->UpdateZones();

@@ -433,7 +433,13 @@ public:
 	SDynamicRainOverride    m_dynamic_rain;
 	SDynamicThunderOverride m_dynamic_thunder;
 
+	// OWA: Weather editor visual time override for shader constants
+	// When >= 0, timers_game shader constant uses this instead of fGameTime
+	// Set by weather.sun_time(), cleared by weather.sun_time_reset()
+	float editor_sun_time;
+
 	float GetGameTime() { return fGameTime; }
+	float GetVisualTime() { return editor_sun_time >= 0.f ? editor_sun_time : fGameTime; }
 
 	struct boost_values
 	{

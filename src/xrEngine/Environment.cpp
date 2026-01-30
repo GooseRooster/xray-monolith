@@ -85,6 +85,8 @@ CEnvironment::CEnvironment() :
 	wind_blast_strength_start_value = 0.f;
 	wind_blast_strength_stop_value = 0.f;
 
+	editor_sun_time = -1.f; // OWA: No weather editor override by default
+
 	wind_anim = { 0.0f, 0.0f, 0.0f, 0.0f };
 
 	// fill clouds hemi verts & faces

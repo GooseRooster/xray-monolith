@@ -350,6 +350,12 @@ float ps_r4_hdr10_ui_saturation        = 0.0f; // r4-only, default = 0.0 (no eff
 int   ps_r4_hdr10_sun_on 		   = 0;
 float ps_r4_hdr10_sun_intensity    = 80.0f; // r4-only
 float ps_r4_hdr10_moon_intensity       = 5.0f;  // r4-only, subtle HDR glow for moon
+
+// OWA: Procedural sun/moon rendering
+float ps_r4_procedural_sun_moon    = 0.0f;   // r4-only, master toggle (0=texture, 1=procedural)
+float ps_r4_sun_flare_intensity    = 0.5f;   // r4-only, star-burst flare strength [0, 2]
+float ps_r4_sun_flare_rays         = 6.0f;   // r4-only, number of radial flare rays [4, 12]
+
 float ps_r4_hdr10_sun_dawn_begin   = 4.5f;  // r4-only, 24 hour format
 float ps_r4_hdr10_sun_dawn_end     = 6.0f;  // r4-only, 24 hour format
 float ps_r4_hdr10_sun_dusk_begin   = 18.5f; // r4-only, 24 hour format
@@ -1206,6 +1212,12 @@ void xrRender_initconsole()
 	CMD4(CCC_Integer, "r4_hdr10_sun_on",           &ps_r4_hdr10_sun_on,               0, 1);
 	CMD4(CCC_Float,   "r4_hdr10_sun_intensity",    &ps_r4_hdr10_sun_intensity,     1.0f, 100.0f);
 	CMD4(CCC_Float,   "r4_hdr10_moon_intensity",       &ps_r4_hdr10_moon_intensity,       1.0f, 20.0f);
+
+	// OWA: Procedural sun/moon rendering
+	CMD4(CCC_Float,   "r4_procedural_sun_moon",    &ps_r4_procedural_sun_moon,     0.0f, 1.0f);
+	CMD4(CCC_Float,   "r4_sun_flare_intensity",    &ps_r4_sun_flare_intensity,     0.0f, 2.0f);
+	CMD4(CCC_Float,   "r4_sun_flare_rays",         &ps_r4_sun_flare_rays,          4.0f, 12.0f);
+
 	CMD4(CCC_Float,   "r4_hdr10_sun_dawn_begin",   &ps_r4_hdr10_sun_dawn_begin,    0.0f, 24.0f);
 	CMD4(CCC_Float,   "r4_hdr10_sun_dawn_end",     &ps_r4_hdr10_sun_dawn_end,      0.0f, 24.0f);
 	CMD4(CCC_Float,   "r4_hdr10_sun_dusk_begin",   &ps_r4_hdr10_sun_dusk_begin,    0.0f, 24.0f);

@@ -208,6 +208,13 @@ public:
 		float lum_factor;
 	} nv_shader_data;
 
+	// OWA: Moon phase data for procedural moon rendering
+	struct moon_data
+	{
+		float phase;         // [0,1] where 0=new moon, 0.5=full moon, 1.0=next new moon
+		float game_day_frac; // fractional day count from epoch (for shader noise seeding)
+	} moon_shader_data;
+
 private:
 	CInifile* m_textures_prefetch_config;
 };

@@ -278,6 +278,10 @@ extern ECORE_API float ps_r4_hdr10_ui_saturation;		 // r4-only
 extern ECORE_API int   ps_r4_hdr10_sun_on; // r4-only
 extern ECORE_API float ps_r4_hdr10_sun_intensity;  // r4-only
 extern ECORE_API float ps_r4_hdr10_moon_intensity; // r4-only
+// OWA: Procedural sun/moon rendering
+extern ECORE_API float ps_r4_procedural_sun_moon;  // r4-only, master toggle
+extern ECORE_API float ps_r4_sun_flare_intensity;   // r4-only, star-burst flare strength
+extern ECORE_API float ps_r4_sun_flare_rays;         // r4-only, number of flare rays
 extern ECORE_API float ps_r4_hdr10_sun_dawn_begin; // r4-only
 extern ECORE_API float ps_r4_hdr10_sun_dawn_end;   // r4-only
 extern ECORE_API float ps_r4_hdr10_sun_dusk_begin; // r4-only

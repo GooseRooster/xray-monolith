@@ -64,6 +64,10 @@ void CRenderTarget::phase_accumulator()
 
 void CRenderTarget::phase_vol_accumulator()
 {
+	// Guard: rt_Generic_2 requires advancedpp to be created
+	if (!rt_Generic_2)
+		return;
+
 	if (RImplementation.o.ssfx_volumetric)
 	{
 		// SSS does not require the stencil. ( This also fix the MSAA bug )

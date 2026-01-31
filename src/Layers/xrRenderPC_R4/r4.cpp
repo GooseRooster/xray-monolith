@@ -347,8 +347,8 @@ void CRender::create()
 	o.bug = (strstr(Core.Params, "-bug")) ? TRUE : FALSE;
 	o.sunfilter = (strstr(Core.Params, "-sunfilter")) ? TRUE : FALSE;
 	//.	o.sunstatic			= (strstr(Core.Params,"-sunstatic"))?	TRUE	:FALSE	;
-	o.sunstatic = r2_sun_static;
-	o.advancedpp = r2_advanced_pp;
+	o.sunstatic = FALSE; // R4 always supports dynamic sun (r2_sun_static may not be initialized when user.ltx is missing)
+	o.advancedpp = TRUE; // R4 always supports advanced post-processing (r2_advanced_pp may not be initialized when user.ltx is missing)
 	o.volumetricfog = ps_r2_ls_flags.test(R3FLAG_VOLUMETRIC_SMOKE) && !o.staticlighting;
 	o.sjitter = (strstr(Core.Params, "-sjitter")) ? TRUE : FALSE;
 	o.depth16 = (strstr(Core.Params, "-depth16")) ? TRUE : FALSE;

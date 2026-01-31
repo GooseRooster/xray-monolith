@@ -440,6 +440,9 @@ void CRenderTarget::phase_perceptual_lighting()
 
 void CRenderTarget::phase_ssfx_volumetric_blur()
 {
+	// Guard: rt_Generic_2 requires advancedpp to be created
+	if (!rt_Generic_2 || !rt_ssfx_volumetric || !rt_ssfx_volumetric_tmp)
+		return;
 
 	// Be careful and clear the buffer ( rt_Generic_2 contain unspeakable stuff if no volumetric is written )
 	if (!m_bHasActiveVolumetric)

@@ -488,10 +488,14 @@ void R_dsgraph_structure::r_dsgraph_insert_static(dxRender_Visual* pVisual)
 		mapNormalItems& items = Ntex->val;
 
 #ifdef USE_DX11
-		// Tree instancing: Group trees by CRC for batch rendering with DrawIndexedInstanced
+		// Tree instancing: Group trees by CRC+LOD for batch rendering with DrawIndexedInstanced
+		// Using CRC+LOD as key ensures all trees in a batch have the same LOD level,
+		// preventing flickering when tree insertion order varies frame-to-frame.
 		const bool is_tree = (pVisual->Type == MT_TREE_PM || pVisual->Type == MT_TREE_ST);
 		if (is_tree)
 		{
+			u32 tree_lod = 0;  // Default LOD for non-PM trees (FTreeVisual_ST)
+
 			// For progressive mesh trees, compute and store LOD based on SSA
 			if (pVisual->Type == MT_TREE_PM)
 			{
@@ -499,11 +503,15 @@ void R_dsgraph_structure::r_dsgraph_insert_static(dxRender_Visual* pVisual)
 				// Cast to access pSWI and last_lod (FTreeVisual_PM specific)
 				FTreeVisual_PM* tree_pm = static_cast<FTreeVisual_PM*>(pVisual);
 				tree_pm->last_lod = iFloor((1.f - lod) * float(tree_pm->pSWI->count - 1) + 0.5f);
+				tree_lod = tree_pm->last_lod;
 			}
 
-			// Add to trees collection grouped by CRC (lazy allocation via get_trees())
+			// Create combined key from CRC (geometry) and LOD level
+			const u64 batch_key = make_tree_batch_key(pVisual->crc, tree_lod);
+
+			// Add to trees collection grouped by CRC+LOD (lazy allocation via get_trees())
 			auto& trees_map = items.get_trees();
-			auto it = trees_map.find(pVisual->crc);
+			auto it = trees_map.find(batch_key);
 			if (it != trees_map.end())
 			{
 				// Add this tree's instance data to existing batch
@@ -511,11 +519,11 @@ void R_dsgraph_structure::r_dsgraph_insert_static(dxRender_Visual* pVisual)
 			}
 			else
 			{
-				// Create new batch for this CRC
+				// Create new batch for this CRC+LOD combination
 				_TreeItem new_tree;
 				new_tree.pVisual = pVisual;
 				new_tree.data.push_back(&pVisual->tree_data);
-				trees_map[pVisual->crc] = std::move(new_tree);
+				trees_map[batch_key] = std::move(new_tree);
 			}
 		}
 		else

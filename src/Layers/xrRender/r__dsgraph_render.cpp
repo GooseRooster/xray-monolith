@@ -42,12 +42,13 @@ void __fastcall mapNormal_Render(mapNormalItems& N)
 	}
 
 #ifdef USE_DX11
-	// *** INSTANCED - Trees grouped by CRC ***
+	// *** INSTANCED - Trees grouped by CRC+LOD ***
 	// Trees use GPU instancing for batch rendering (DrawIndexedInstanced)
+	// Batched by both CRC (geometry) and LOD level to ensure consistent LOD within each batch
 	if (N.trees && !N.trees->empty())
 	{
-		// Use fixed LOD of 1.0 for instanced trees
-		// (actual LOD selection was done during insertion for PM trees)
+		// Use fixed LOD of 1.0 for shader LOD parameter
+		// (actual geometry LOD was determined during insertion and is consistent per batch)
 		RCache.LOD.set_LOD(1.f);
 
 		for (auto& tree_entry : *N.trees)

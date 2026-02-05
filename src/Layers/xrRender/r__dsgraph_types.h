@@ -75,12 +75,21 @@ namespace R_dsgraph
 		dxRender_Visual* pVisual;
 	};
 
-	// Tree instancing item - groups identical trees by CRC for batch rendering
+	// Tree instancing item - groups identical trees by CRC+LOD for batch rendering
+	// Trees are batched by both geometry (CRC) AND LOD level to prevent flickering
+	// when different trees in the same batch would have different LOD levels.
 	struct _TreeItem
 	{
 		dxRender_Visual* pVisual;
 		xr_vector<FloraVertData*> data;
 	};
+
+	// Helper to create a combined key from CRC and LOD for tree batching
+	// Upper 32 bits = CRC (geometry hash), Lower 32 bits = LOD index
+	inline u64 make_tree_batch_key(u32 crc, u32 lod)
+	{
+		return (static_cast<u64>(crc) << 32) | static_cast<u64>(lod);
+	}
 
 	struct _MatrixItem
 	{
@@ -138,7 +147,9 @@ namespace R_dsgraph
 		float ssa{};
 		mapNormalDirect items;
 #ifdef USE_DX11
-		xr_unordered_map<u32, _TreeItem>* trees{nullptr};  // Allocated lazily, grouped by CRC
+		// Trees grouped by CRC+LOD key (u64) to ensure consistent LOD within each batch
+		// This prevents flickering caused by different trees having different LODs
+		xr_unordered_map<u64, _TreeItem>* trees{nullptr};
 #endif
 
 		// Forward vector-like methods for backwards compatibility
@@ -163,10 +174,10 @@ namespace R_dsgraph
 
 #ifdef USE_DX11
 		// Get or create the trees map (lazy allocation)
-		xr_unordered_map<u32, _TreeItem>& get_trees()
+		xr_unordered_map<u64, _TreeItem>& get_trees()
 		{
 			if (!trees)
-				trees = new xr_unordered_map<u32, _TreeItem>();
+				trees = new xr_unordered_map<u64, _TreeItem>();
 			return *trees;
 		}
 #endif

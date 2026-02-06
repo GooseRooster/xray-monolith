@@ -56,6 +56,8 @@ float hud_fov_aim_multiplier = 1.0f;
 
 extern int g_nearwall;
 
+BOOL g_use_non_linear_inertia = TRUE;
+
 float CWeapon::SDS_Radius(bool alt) {
 	// hack for GL to always return 0, fix later
 	if (m_zoomtype == 2)
@@ -2682,12 +2684,26 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 		// Двигаемся в любом другом направлении - плавно убираем наклон
 		if (m_fLR_MovingFactor < 0.0f)
 		{
-			m_fLR_MovingFactor += fStepPerUpd;
+			if (g_use_non_linear_inertia)
+			{
+				m_fLR_MovingFactor += fStepPerUpd * (0.1f - 2.f * m_fLR_MovingFactor);
+			}
+			else
+			{
+				m_fLR_MovingFactor += fStepPerUpd;
+			}
 			clamp(m_fLR_MovingFactor, -1.0f, 0.0f);
 		}
 		else
 		{
-			m_fLR_MovingFactor -= fStepPerUpd;
+			if (g_use_non_linear_inertia)
+			{
+				m_fLR_MovingFactor -= fStepPerUpd * (0.1f + 2.f * m_fLR_MovingFactor);
+			}
+			else
+			{
+				m_fLR_MovingFactor -= fStepPerUpd;
+			}
 			clamp(m_fLR_MovingFactor, 0.0f, 1.0f);
 		}
 	}
@@ -2823,12 +2839,26 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 		float fRetSpeedMod = (fYMag == 0.0f ? 1.0f : 0.75f) * (fInertiaReturnSpeedMod * 0.075f);
 		if (m_fLR_InertiaFactor < 0.0f)
 		{
-			m_fLR_InertiaFactor += fAvgTimeDelta * fRetSpeedMod;
+			if (g_use_non_linear_inertia)
+			{
+				m_fLR_InertiaFactor += (0.3f - m_fLR_InertiaFactor) * fAvgTimeDelta * fRetSpeedMod;
+			}
+			else
+			{
+				m_fLR_InertiaFactor += fAvgTimeDelta * fRetSpeedMod;
+			}
 			clamp(m_fLR_InertiaFactor, -1.0f, 0.0f);
 		}
 		else
 		{
-			m_fLR_InertiaFactor -= fAvgTimeDelta * fRetSpeedMod;
+			if (g_use_non_linear_inertia)
+			{
+				m_fLR_InertiaFactor -= (0.3f + m_fLR_InertiaFactor) * fAvgTimeDelta * fRetSpeedMod;
+			}
+			else
+			{
+				m_fLR_InertiaFactor -= fAvgTimeDelta * fRetSpeedMod;
+			}
 			clamp(m_fLR_InertiaFactor, 0.0f, 1.0f);
 		}
 	}
@@ -2839,12 +2869,26 @@ void CWeapon::UpdateHudAdditional(Fmatrix& trans)
 		float fRetSpeedMod = (fPMag == 0.0f ? 1.0f : 0.75f) * (fInertiaReturnSpeedMod * 0.075f);
 		if (m_fUD_InertiaFactor < 0.0f)
 		{
-			m_fUD_InertiaFactor += fAvgTimeDelta * fRetSpeedMod;
+			if (g_use_non_linear_inertia)
+			{
+				m_fUD_InertiaFactor += (0.3f - m_fUD_InertiaFactor) * fAvgTimeDelta * fRetSpeedMod;
+			}
+			else
+			{
+				m_fUD_InertiaFactor += fAvgTimeDelta * fRetSpeedMod;
+			}
 			clamp(m_fUD_InertiaFactor, -1.0f, 0.0f);
 		}
 		else
 		{
-			m_fUD_InertiaFactor -= fAvgTimeDelta * fRetSpeedMod;
+			if (g_use_non_linear_inertia)
+			{
+				m_fUD_InertiaFactor -= (0.3f + m_fUD_InertiaFactor) * fAvgTimeDelta * fRetSpeedMod;
+			}
+			else
+			{
+				m_fUD_InertiaFactor -= fAvgTimeDelta * fRetSpeedMod;
+			}
 			clamp(m_fUD_InertiaFactor, 0.0f, 1.0f);
 		}
 	}

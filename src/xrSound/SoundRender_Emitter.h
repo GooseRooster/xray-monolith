@@ -6,6 +6,9 @@
 #include "SoundRender_Core.h"
 #include "soundrender_environment.h"
 
+// Steam Audio forward declaration
+class CSteamAudioSource;
+
 class CSoundRender_Emitter : public CSound_emitter
 {
 	float starting_delay;
@@ -49,6 +52,9 @@ public:
 	float occluder_volume; // USER
 	float fade_volume;
 	Fvector occluder [3];
+
+	// Steam Audio per-source processing
+	CSteamAudioSource* m_steamSource = nullptr;
 
 	State m_current_state;
 	u32 m_stream_cursor;

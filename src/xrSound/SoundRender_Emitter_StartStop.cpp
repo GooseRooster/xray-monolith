@@ -5,6 +5,12 @@
 #include "SoundRender_Emitter.h"
 #include "SoundRender_Source.h"
 
+// Steam Audio
+#include "SoundRender_CoreA.h"
+#include "SteamAudio/SteamAudioSource.h"
+#include "SteamAudio/SteamAudioScene.h"
+#include "SteamAudio/SteamAudioReverb.h"
+
 void CSoundRender_Emitter::start(ref_sound* _owner, BOOL _loop, float delay)
 {
 	starting_delay = delay;
@@ -20,6 +26,39 @@ void CSoundRender_Emitter::start(ref_sound* _owner, BOOL _loop, float delay)
 	p_source.volume = 1.f; // 1.f
 	set_frequency(1.f);
 	p_source.max_ai_distance = source()->m_fMaxAIDist; // 300.f;
+
+	// Clean up any leftover Steam Audio source from previous use of this emitter.
+	// Multiple FSM paths transition to stStopped without calling i_stop() (which handles
+	// cleanup). When the emitter is reused, m_steamSource would be overwritten, leaking
+	// the old source and its reflection effect slot. This safety net catches all such leaks.
+	if (m_steamSource)
+	{
+		if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
+		{
+			CSteamAudioScene* scene = SoundRenderA->GetSteamScene();
+			if (scene && scene->GetSimulator() && m_steamSource->GetSource())
+			{
+				iplSourceRemove(m_steamSource->GetSource(), scene->GetSimulator());
+				scene->MarkPendingCommit();
+			}
+		}
+		m_steamSource->Destroy();
+		xr_delete(m_steamSource);
+	}
+
+	// Create Steam Audio source for 3D sounds
+	if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled() && source()->channels_num() == 1)
+	{
+		CSteamAudioScene* scene = SoundRenderA->GetSteamScene();
+		if (scene && scene->IsReady())
+		{
+			m_steamSource = xr_new<CSteamAudioSource>();
+			if (!m_steamSource->Initialize(scene))
+			{
+				xr_delete(m_steamSource);
+			}
+		}
+	}
 
 	if (fis_zero(delay, EPS_L))
 	{
@@ -38,6 +77,25 @@ void CSoundRender_Emitter::i_stop()
 {
 	bRewind = FALSE;
 	if (target) SoundRender->i_stop(this);
+
+	// Handle Steam Audio source cleanup
+	// Reverb tails are handled by the listener probe's convolution effect (overlap-save),
+	// so no decay pool is needed — just remove from simulator and destroy immediately.
+	if (m_steamSource)
+	{
+		if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
+		{
+			CSteamAudioScene* scene = SoundRenderA->GetSteamScene();
+			if (scene && scene->GetSimulator() && m_steamSource->GetSource())
+			{
+				iplSourceRemove(m_steamSource->GetSource(), scene->GetSimulator());
+				scene->MarkPendingCommit();
+			}
+		}
+		m_steamSource->Destroy();
+		xr_delete(m_steamSource);
+	}
+
 	if (owner_data)
 	{
 		Event_ReleaseOwner();

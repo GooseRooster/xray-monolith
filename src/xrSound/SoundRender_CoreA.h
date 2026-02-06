@@ -4,6 +4,11 @@
 #include "OpenALDeviceList.h"
 #include <AL/efx.h>
 
+// Steam Audio forward declarations
+class CSteamAudioScene;
+class CSteamAudioSimulator;
+class CSteamAudioReverb;
+
 
 #ifdef DEBUG
 #	define A_CHK(expr)		{ alGetError(); 		expr; ALenum error=alGetError(); 			VERIFY2(error==AL_NO_ERROR, (LPCSTR)alGetString(error)); }
@@ -72,6 +77,12 @@ class CSoundRender_CoreA : public CSoundRender_Core
 	LPALGETAUXILIARYEFFECTSLOTF alGetAuxiliaryEffectSlotf{};
 	LPALGETAUXILIARYEFFECTSLOTFV alGetAuxiliaryEffectSlotfv{};
 
+	// Steam Audio members
+	CSteamAudioScene* m_steamScene = nullptr;
+	CSteamAudioSimulator* m_steamSimulator = nullptr;
+	CSteamAudioReverb* m_steamReverb = nullptr;
+	bool m_bSteamAudioEnabled = false;
+
 public:
 	ALuint effect{};
 	ALuint effectfv{};
@@ -82,6 +93,13 @@ public:
 	// EFX Slots
 	void LoadEffect();
 	void DestroyEffect();
+
+	// Steam Audio
+	bool IsSteamAudioEnabled() const { return m_bSteamAudioEnabled; }
+	CSteamAudioScene* GetSteamScene() const { return m_steamScene; }
+	CSteamAudioSimulator* GetSteamSimulator() const { return m_steamSimulator; }
+	CSteamAudioReverb* GetSteamReverb() const { return m_steamReverb; }
+	void DisableSteamAudio();  // Graceful fallback to EFX
 
 public:
 	CSoundRender_CoreA();
@@ -96,6 +114,8 @@ public:
 	virtual void set_master_volume(float f);
 
 	virtual const Fvector& listener_position() { return Listener.position; }
+	const Fvector& listener_direction() const { return Listener.orientation[0]; }
+	const Fvector& listener_up() const { return Listener.orientation[1]; }
 
 	// EFX listener
 	void set_listener(const CSoundRender_Environment& env);

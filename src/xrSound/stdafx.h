@@ -27,6 +27,9 @@
 #include <vorbis/codec.h>
 #include <vorbis/vorbisfile.h>
 
+// Steam Audio for spatial audio processing
+#include <phonon.h>
+
 #include "../xrCDB/xrCDB.h"
 #include "Sound.h"
 

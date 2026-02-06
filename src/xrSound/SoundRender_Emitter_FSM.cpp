@@ -5,6 +5,12 @@
 #include "SoundRender_Core.h"
 #include "SoundRender_Source.h"
 
+// Steam Audio
+#include "SoundRender_CoreA.h"
+#include "SteamAudio/SteamAudioSource.h"
+#include "SteamAudio/SteamAudioScene.h"
+#include "SteamAudio/SteamAudioReverb.h"
+
 //#define MEASURE_PROCESSING_TIME
 
 #ifdef MEASURE_PROCESSING_TIME
@@ -303,6 +309,25 @@ void CSoundRender_Emitter::update(float dt)
 	}
 	else if (owner_data)
 	{
+		// Clean up Steam Audio source for implicit stStopped transitions.
+		// i_stop() handles this for its own path (and nulls owner_data so we skip here).
+		// But stPlaying/stSimulating timeout and invalid-position paths set stStopped
+		// directly without calling i_stop(), leaking m_steamSource.
+		if (m_steamSource)
+		{
+			if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
+			{
+				CSteamAudioScene* scene = SoundRenderA->GetSteamScene();
+				if (scene && scene->GetSimulator() && m_steamSource->GetSource())
+				{
+					iplSourceRemove(m_steamSource->GetSource(), scene->GetSimulator());
+					scene->MarkPendingCommit();
+				}
+			}
+			m_steamSource->Destroy();
+			xr_delete(m_steamSource);
+		}
+
 		VERIFY(this==owner_data->feedback);
 		owner_data->feedback = 0;
 		owner_data = 0;
@@ -334,8 +359,6 @@ IC void volume_lerp(float& c, float t, float s, float dt)
 	c += (diff / diff_a) * mot;
 }
 
-#include "..\xrServerEntities\ai_sounds.h"
-
 BOOL CSoundRender_Emitter::update_culling(float dt)
 {
 	float volume_att = 1.f;
@@ -356,11 +379,31 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 			return FALSE;
 		}
 
-		// Calc attenuated volume
+		// Check Steam Audio state early — needed for occlusion
+		bool steamAudioActive = m_steamSource && SoundRenderA && SoundRenderA->IsSteamAudioEnabled();
+
+		// Calc attenuated volume using linear distance model for ALL 3D sounds.
+		// Non-binaural gets DOUBLE attenuation (FSM linear + OpenAL inverse rolloff) which
+		// the game is tuned for. For binaural (OpenAL rolloff=0), we compensate by applying
+		// the equivalent of OpenAL's inverse-distance-clamped model here in the FSM.
 		//LostAlphaRus in
-		float min_max = p_source.max_distance - p_source.min_distance;
-		volume_att = (p_source.max_distance - dist) / min_max;
-		clamp(volume_att, 0.f, p_source.volume);
+		{
+			float min_max = p_source.max_distance - p_source.min_distance;
+			volume_att = (p_source.max_distance - dist) / min_max;
+			clamp(volume_att, 0.f, p_source.volume);
+		}
+
+		// Binaural rolloff compensation: OpenAL is disabled for binaural (rolloff=0),
+		// so we apply the equivalent inverse-distance model here.
+		// Formula: gain = refDist / (refDist + rolloff * (clampedDist - refDist))
+		// This matches what OpenAL would do for non-binaural sources.
+		bool steamBinauralActive = steamAudioActive && psSoundFlags.test(ss_SA_Binaural);
+		if (steamBinauralActive && dist > p_source.min_distance)
+		{
+			float oalGain = p_source.min_distance /
+				(p_source.min_distance + psSoundRolloff * (dist - p_source.min_distance));
+			volume_att *= oalGain;
+		}
 
 		float fade_scale = bStopping || (p_source.base_volume * p_source.volume * (owner_data->s_type == st_Effect ? psSoundVEffects * psSoundVFactor : psSoundVMusic * psSoundVMusicFactor) < psSoundCull) ? -1.f : 1.f;
 		fade_volume += dt * 10.f * fade_scale;
@@ -371,8 +414,48 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 			volume_att -= 0.1f;
 		//v2v3v4 out
 
+		// Update Steam Audio source position - ALWAYS do this for ANY Steam Audio feature
+		// This sets iplSourceSetInputs which registers the source for simulation
+		// CRITICAL: Without this, reflection simulation won't produce IR for this source!
+		if (steamAudioActive)
+		{
+			m_steamSource->UpdatePosition(p_source.position, p_source.min_distance);
+			m_steamSource->FetchOutputs();
+		}
+
 		// Update occlusion
-		float occ = (owner_data->g_type == SOUND_TYPE_WORLD_AMBIENT) ? 1.0f : SoundRender->get_occlusion(p_source.position, .2f, occluder);
+		float occ = 1.0f;
+		if (steamAudioActive && psSoundFlags.test(ss_SA_Occlusion))
+		{
+			// Use Steam Audio ray-traced occlusion with smoothing
+			// Note: Position and outputs already updated above
+			// Steam Audio occlusion: 1.0 = no occlusion (sound passes), 0.0 = fully occluded
+			// This maps directly to volume multiplier (1.0 = full volume, 0.0 = silent)
+			occ = m_steamSource->GetSmoothedOcclusion(dt);
+
+			// Prevent multiplicative double-dipping with transmission.
+			// ProcessBuffer applies frequency-dependent transmission to PCM;
+			// occlusion here reduces AL_GAIN. Together they'd give ~-38dB through concrete.
+			// Use average transmission as floor so AL_GAIN stays high enough
+			// for the frequency filtering to remain audible.
+			if (psSoundFlags.test(ss_SA_Transmission))
+			{
+				float trans[3];
+				m_steamSource->GetTransmission(trans);
+				// Use loudest transmitted band as floor, not average.
+				// Average understates the dominant band (e.g. concrete: low=0.12, high=0.05,
+				// avg=0.08 loses the low-freq component). Max keeps the frequency filtering
+				// in ProcessBuffer audible.
+				float maxTrans = std::max({trans[0], trans[1], trans[2]});
+				if (occ < maxTrans)
+					occ = maxTrans;
+			}
+		}
+		else
+		{
+			// Fallback to simple raycast occlusion
+			occ = SoundRender->get_occlusion(p_source.position, .2f, occluder);
+		}
 		volume_lerp(occluder_volume, occ, 1.f, dt);
 		clamp(occluder_volume, 0.f, 1.f);
 	}

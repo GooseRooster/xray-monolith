@@ -45,13 +45,29 @@ XRSOUND_API extern int psSoundCacheSizeMB;
 XRSOUND_API extern xr_token* snd_devices_token;
 XRSOUND_API extern u32 snd_device_id;
 
+// Steam Audio tuning parameters
+XRSOUND_API extern int psSA_OcclusionRays;        // Number of occlusion rays per source (1-32)
+XRSOUND_API extern int psSA_ReverbRays;           // Number of reverb rays (256-8192)
+XRSOUND_API extern int psSA_ReverbBounces;        // Max ray bounces for reverb (2-16)
+XRSOUND_API extern float psSA_ReverbUpdateRate;   // Reverb update interval in seconds (0.1-1.0)
+
 // Flags
 enum
 {
 	ss_Hardware = (1ul << 1ul),
 	//!< Use hardware mixing only
 	ss_EFX = (1ul << 2ul),
-	//!< Use eax
+	//!< Use EFX (OpenAL Effects Extension) reverb
+	ss_SteamAudio = (1ul << 3ul),
+	//!< Use Steam Audio for spatial audio processing
+	ss_SA_Occlusion = (1ul << 4ul),
+	//!< Steam Audio: Enable ray-traced occlusion
+	ss_SA_Transmission = (1ul << 5ul),
+	//!< Steam Audio: Enable sound transmission through walls
+	ss_SA_Reverb = (1ul << 6ul),
+	//!< Steam Audio: Enable physics-based reverb (replaces EFX)
+	ss_SA_Binaural = (1ul << 7ul),
+	//!< Steam Audio: Use binaural HRTF for headphone output
 	ss_forcedword = u32(-1)
 };
 

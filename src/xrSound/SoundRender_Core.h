@@ -53,6 +53,9 @@ protected:
 	CSoundRender_Environment s_user_environment;
 
 	int m_iPauseCounter;
+
+	// Steam Audio reflections timing — resets with fTimer_Value on level load
+	float m_lastReflectionsRequest = 0.0f;
 public:
 	// Cache
 	CSoundRender_Cache cache;

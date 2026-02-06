@@ -1,0 +1,68 @@
+; Steam Audio Material Configuration
+; ===================================
+;
+; This file configures acoustic material properties for Steam Audio.
+;
+; [presets] section:
+; ------------------
+; Define acoustic properties for each material type.
+; Format: preset_name = abs_low, abs_mid, abs_high, scatter, trans_low, trans_mid, trans_high
+;
+; Values explanation:
+;   - absorption: How much sound is absorbed at each frequency band (0.0-1.0)
+;     0.0 = perfect reflection, 1.0 = total absorption
+;   - scattering: How diffusely sound reflects (0.0-1.0)
+;     0.0 = perfect specular reflection, 1.0 = fully diffuse
+;   - transmission: How much sound passes through the material (0.0-1.0)
+;     0.0 = no transmission, 1.0 = full transmission
+;
+; Frequency bands: low (~250Hz), mid (~1kHz), high (~4kHz)
+;
+; Available presets: default, concrete, metal, wood, glass, dirt, grass, water, fabric, plaster
+;
+
+[presets]
+; Uncomment and modify to customize acoustic properties
+; default  = 0.10, 0.20, 0.30, 0.05, 0.10, 0.05, 0.03
+; concrete = 0.01, 0.02, 0.02, 0.05, 0.015, 0.01, 0.005
+; metal    = 0.02, 0.02, 0.03, 0.10, 0.20, 0.15, 0.10
+; wood     = 0.11, 0.07, 0.06, 0.05, 0.07, 0.05, 0.035
+; glass    = 0.06, 0.04, 0.02, 0.05, 0.25, 0.20, 0.15
+; dirt     = 0.15, 0.25, 0.40, 0.20, 0.05, 0.03, 0.02
+; grass    = 0.25, 0.45, 0.65, 0.30, 0.03, 0.02, 0.01
+; water    = 0.99, 0.99, 0.99, 0.00, 0.01, 0.01, 0.01
+; fabric   = 0.30, 0.45, 0.65, 0.15, 0.04, 0.025, 0.015
+; plaster  = 0.08, 0.06, 0.05, 0.05, 0.04, 0.03, 0.02
+
+; [mappings] section:
+; -------------------
+; Map X-Ray material IDs (from gamemtl.ltx) to acoustic presets.
+; Format: material_id = preset_name
+;
+; To find material IDs, check:
+;   gamedata/configs/gamemtl.ltx
+;
+; Example mappings based on common Anomaly material IDs:
+
+[mappings]
+; Terrain materials
+; 0 = dirt
+; 1 = grass
+; 2 = dirt
+; 3 = grass
+
+; Building materials
+; 15 = concrete
+; 16 = concrete
+; 17 = plaster
+
+; Metal materials
+; 35 = metal
+; 36 = metal
+
+; Wood materials
+; 55 = wood
+; 56 = wood
+
+; Glass materials
+; 75 = glass

@@ -4,12 +4,19 @@
 #include "../xrEngine/xrLevel.h"
 
 #include "SoundRender_Core.h"
+#include "SoundRender_CoreA.h"
 #include "SoundRender_Source.h"
 #include "SoundRender_Emitter.h"
 
 #include "NotificationClient.h"
 
 #include <AL/efx.h>
+
+// Steam Audio
+#include "SteamAudio/SteamAudio.h"
+#include "SteamAudio/SteamAudioScene.h"
+#include "SteamAudio/SteamAudioSimulator.h"
+#include "SteamAudio/SteamAudioReverb.h"
 
 float psSpeedOfSound = 1.f;
 int psSoundTargets = 1024;
@@ -26,6 +33,12 @@ float psSoundVMusicFactor = 1.f;
 int psSoundCacheSizeMB = 256;
 
 float snd_efx_environment_change_time = 1.66f;
+
+// Steam Audio tuning parameters
+int psSA_OcclusionRays = 8;          // Default: 8 rays per source
+int psSA_ReverbRays = 4096;          // Default: 4096 rays for reverb
+int psSA_ReverbBounces = 8;          // Default: 8 bounces
+float psSA_ReverbUpdateRate = 0.2f;  // Default: 200ms update interval
 
 CSoundRender_Core* SoundRender = nullptr;
 CSound_manager_interface* Sound = nullptr;
@@ -167,6 +180,65 @@ void CSoundRender_Core::set_handler(sound_event* E)
 void CSoundRender_Core::set_geometry_occ(CDB::MODEL* M)
 {
 	geom_MODEL = M;
+
+	// Upload geometry to Steam Audio and start simulation
+	if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
+	{
+		CSteamAudioScene* scene = SoundRenderA->GetSteamScene();
+		CSteamAudioSimulator* simulator = SoundRenderA->GetSteamSimulator();
+
+		if (scene && simulator)
+		{
+			// Stop existing simulation if running
+			simulator->Stop();
+
+			if (M)
+			{
+				// Build Steam Audio scene from CDB geometry
+				if (scene->BuildFromCDBModel(M))
+				{
+					// Start simulation threads
+					if (simulator->Start(scene))
+					{
+						// Wire up the simulator wrapper so FlushCommit uses mutex-protected TryCommit
+						scene->SetSimulatorWrapper(simulator);
+
+						Msg("STEAM_AUDIO: Scene built and simulation started (%d triangles)",
+							M->get_tris_count());
+
+						// Initialize reverb system if enabled
+						CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
+						if (reverb && psSoundFlags.test(ss_SA_Reverb))
+						{
+							IPLHRTF hrtf = CSteamAudio::Instance().GetHRTF();
+							if (reverb->Initialize(scene, hrtf))
+							{
+								Msg("STEAM_AUDIO: Reverb system initialized");
+							}
+							else
+							{
+								Msg("! STEAM_AUDIO: Failed to initialize reverb");
+							}
+						}
+					}
+					else
+					{
+						Msg("! STEAM_AUDIO: Failed to start simulator");
+					}
+				}
+				else
+				{
+					Msg("! STEAM_AUDIO: Failed to build scene from geometry");
+				}
+			}
+			else
+			{
+				// Geometry cleared - clear Steam Audio scene
+				scene->Clear();
+				Msg("STEAM_AUDIO: Scene cleared");
+			}
+		}
+	}
 }
 
 void CSoundRender_Core::set_geometry_som(IReader* I)

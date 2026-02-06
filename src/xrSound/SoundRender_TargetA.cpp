@@ -5,8 +5,14 @@
 #include "soundrender_emitter.h"
 #include "soundrender_source.h"
 
+// Steam Audio
+#include "SoundRender_CoreA.h"
+#include "SteamAudio/SteamAudioSource.h"
+#include "SteamAudio/SteamAudioReverb.h"
+
 xr_vector<u8> g_target_temp_data;
 xr_vector<u8> g_target_temp_data_16;
+static xr_vector<u8> g_target_stereo_data;  // Dedicated buffer for binaural stereo output
 
 CSoundRender_TargetA::CSoundRender_TargetA(): CSoundRender_Target()
 {
@@ -160,24 +166,43 @@ void CSoundRender_TargetA::fill_parameters()
 
 	inherited::fill_parameters();
 
-	// 3D params
-	VERIFY2(m_pEmitter, SE->source()->file_name());
-	A_CHK(alSourcef (pSource, AL_REFERENCE_DISTANCE, m_pEmitter->p_source.min_distance));
+	// Check if this 3D sound uses binaural HRTF processing
+	// If so, Steam Audio handles spatialization - OpenAL just plays the stereo output
+	bool useBinaural = SoundRenderA && SoundRenderA->IsSteamAudioEnabled() &&
+	                   m_pEmitter->m_steamSource && !m_pEmitter->b2D &&
+	                   psSoundFlags.test(ss_SA_Binaural);
 
-	VERIFY2(m_pEmitter, SE->source()->file_name());
-	A_CHK(alSourcef (pSource, AL_MAX_DISTANCE, m_pEmitter->p_source.max_distance));
+	if (useBinaural)
+	{
+		// Binaural mode: position source at listener (relative mode, origin)
+		// Steam Audio already encoded the direction via HRTF into the stereo stream
+		A_CHK(alSourcei(pSource, AL_SOURCE_RELATIVE, AL_TRUE));
+		A_CHK(alSource3f(pSource, AL_POSITION, 0.0f, 0.0f, 0.0f));
+		A_CHK(alSource3f(pSource, AL_VELOCITY, 0.0f, 0.0f, 0.0f));
+		A_CHK(alSourcef(pSource, AL_ROLLOFF_FACTOR, 0.0f));
+		// Skip distance parameters - not needed for binaural
+	}
+	else
+	{
+		// Standard 3D mode: use OpenAL spatialization
+		VERIFY2(m_pEmitter, SE->source()->file_name());
+		A_CHK(alSourcef (pSource, AL_REFERENCE_DISTANCE, m_pEmitter->p_source.min_distance));
 
-	VERIFY2(m_pEmitter, SE->source()->file_name ());
-	A_CHK(alSource3f(pSource, AL_POSITION, m_pEmitter->p_source.position.x,m_pEmitter->p_source.position.y,-m_pEmitter->
-		p_source.position.z));
+		VERIFY2(m_pEmitter, SE->source()->file_name());
+		A_CHK(alSourcef (pSource, AL_MAX_DISTANCE, m_pEmitter->p_source.max_distance));
 
-	VERIFY2(m_pEmitter, SE->source()->file_name());
-	A_CHK(alSource3f(pSource, AL_VELOCITY, m_pEmitter->p_source.velocity.x, m_pEmitter->p_source.velocity.y, -m_pEmitter->p_source.velocity.z));
+		VERIFY2(m_pEmitter, SE->source()->file_name ());
+		A_CHK(alSource3f(pSource, AL_POSITION, m_pEmitter->p_source.position.x, m_pEmitter->p_source.position.y, -m_pEmitter->
+			p_source.position.z));
 
-	VERIFY2(m_pEmitter, SE->source()->file_name());
-	A_CHK(alSourcei (pSource, AL_SOURCE_RELATIVE, m_pEmitter->b2D));
+		VERIFY2(m_pEmitter, SE->source()->file_name());
+		A_CHK(alSource3f(pSource, AL_VELOCITY, m_pEmitter->p_source.velocity.x, m_pEmitter->p_source.velocity.y, -m_pEmitter->p_source.velocity.z));
 
-	A_CHK(alSourcef (pSource, AL_ROLLOFF_FACTOR, psSoundRolloff));
+		VERIFY2(m_pEmitter, SE->source()->file_name());
+		A_CHK(alSourcei (pSource, AL_SOURCE_RELATIVE, m_pEmitter->b2D));
+
+		A_CHK(alSourcef (pSource, AL_ROLLOFF_FACTOR, psSoundRolloff));
+	}
 
 	VERIFY2(m_pEmitter, SE->source()->file_name());
 	float _gain = m_pEmitter->smooth_volume;
@@ -211,8 +236,60 @@ void CSoundRender_TargetA::fill_block(ALuint BufferID)
 	ALuint format = (m_pEmitter->source()->m_wformat.nChannels == 1) ? AL_FORMAT_MONO16 : AL_FORMAT_STEREO16;
 	if (format == AL_FORMAT_MONO16)
 	{
-		m_pEmitter->fill_block(&g_target_temp_data.front(), g_target_temp_data.size());
-		A_CHK(alBufferData(BufferID, format, &g_target_temp_data.front(), g_target_temp_data.size(), m_pEmitter->source()->m_wformat.nSamplesPerSec));
+		// IMPORTANT: Always use buf_block for fill size, not g_target_temp_data.size()
+		// The buffer may have been resized for stereo output, but we only want mono input
+		m_pEmitter->fill_block(&g_target_temp_data.front(), buf_block);
+
+		// Apply Steam Audio effects (occlusion, transmission, air absorption) to 3D sounds
+		// Reverb contribution happens inside ProcessBuffer via AccumulateDryAudio to shared bus
+		if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled() &&
+			m_pEmitter->m_steamSource && !m_pEmitter->b2D)
+		{
+			int numSamples = buf_block / sizeof(s16);
+			int sampleRate = m_pEmitter->source()->m_wformat.nSamplesPerSec;
+
+			// Get listener info for binaural direction calculation
+			Fvector listenerPos = SoundRenderA->listener_position();
+			Fvector listenerDir, listenerUp;
+			// Reverse Z-negation that was applied for OpenAL
+			const Fvector& storedDir = SoundRenderA->listener_direction();
+			const Fvector& storedUp = SoundRenderA->listener_up();
+			listenerDir.set(storedDir.x, storedDir.y, -storedDir.z);
+			listenerUp.set(storedUp.x, storedUp.y, -storedUp.z);
+
+			// Process buffer with direct effects and binaural HRTF
+			int stereoBytes = numSamples * 2 * sizeof(s16);
+			if (g_target_stereo_data.size() < (size_t)stereoBytes)
+				g_target_stereo_data.resize(stereoBytes);
+
+			memcpy(&g_target_stereo_data.front(), &g_target_temp_data.front(), buf_block);
+
+			bool isStereo = m_pEmitter->m_steamSource->ProcessBuffer(
+				(s16*)&g_target_stereo_data.front(),
+				numSamples,
+				sampleRate,
+				listenerPos, listenerDir, listenerUp
+			);
+
+			// Use appropriate format and size based on binaural output
+			if (isStereo)
+			{
+				// Binaural output: stereo, interleaved — from dedicated stereo buffer
+				A_CHK(alBufferData(BufferID, AL_FORMAT_STEREO16, &g_target_stereo_data.front(), stereoBytes, sampleRate));
+			}
+			else
+			{
+				// Mono output: ProcessBuffer modified the stereo buffer in-place (mono path),
+				// copy back to shared buffer for consistency
+				memcpy(&g_target_temp_data.front(), &g_target_stereo_data.front(), buf_block);
+				A_CHK(alBufferData(BufferID, format, &g_target_temp_data.front(), buf_block, sampleRate));
+			}
+		}
+		else
+		{
+			// Non-Steam Audio path: standard mono - use buf_block for size
+			A_CHK(alBufferData(BufferID, format, &g_target_temp_data.front(), buf_block, m_pEmitter->source()->m_wformat.nSamplesPerSec));
+		}
 	}
 	else
 	{

@@ -8,6 +8,12 @@
 #include "../xrEngine/pure.h"
 #include "../xrEngine/XR_IOConsole.h"
 
+// Steam Audio
+#include "SteamAudio/SteamAudio.h"
+#include "SteamAudio/SteamAudioScene.h"
+#include "SteamAudio/SteamAudioSimulator.h"
+#include "SteamAudio/SteamAudioReverb.h"
+
 namespace soundSmoothingParams {
 	float distanceBasedDelayPower = 1.f;
 	float distanceBasedDelayMinDistance = 50.f;
@@ -135,6 +141,15 @@ int CSoundRender_CoreA::load_reverb(ALuint effect_, const EFXEAXREVERBPROPERTIES
 
 void CSoundRender_CoreA::commit()
 {
+	// When Steam Audio reverb is enabled, disable EFX reverb
+	// Steam Audio handles reverb via buffer processing instead
+	if (m_bSteamAudioEnabled && psSoundFlags.test(ss_SA_Reverb) && m_steamReverb && m_steamReverb->IsInitialized())
+	{
+		// Disable EFX reverb by setting slot gain to 0
+		A_CHK(alAuxiliaryEffectSlotf(slot, AL_EFFECTSLOT_GAIN, 0.f));
+		return;
+	}
+
 	// Tell the effect slot to use the loaded effect object. Note that this
 	// effectively copies the effect properties. You can modify or delete the
 	// effect object afterward without affecting the effect slot.
@@ -313,6 +328,29 @@ void CSoundRender_CoreA::_initialize(int stage)
 	Listener.orientation[0].set(0.0f, 0.0f, 0.0f);
 	Listener.orientation[1].set(0.0f, 0.0f, 0.0f);
 
+	// Initialize Steam Audio if enabled
+	if (psSoundFlags.test(ss_SteamAudio))
+	{
+		if (CSteamAudio::Instance().Initialize())
+		{
+			m_steamScene = xr_new<CSteamAudioScene>();
+			m_steamSimulator = xr_new<CSteamAudioSimulator>();
+			m_steamReverb = xr_new<CSteamAudioReverb>();
+			m_bSteamAudioEnabled = true;
+			Msg("SOUND: Steam Audio enabled");
+		}
+		else
+		{
+			Msg("! SOUND: Steam Audio initialization failed, falling back to EFX");
+			m_bSteamAudioEnabled = false;
+		}
+	}
+	else
+	{
+		Msg("SOUND: Steam Audio disabled by user preference");
+		m_bSteamAudioEnabled = false;
+	}
+
 	inherited::_initialize(stage);
 
 	if (stage == 1) //first initialize
@@ -351,6 +389,30 @@ void CSoundRender_CoreA::set_master_volume(float f)
 void CSoundRender_CoreA::_clear()
 {
 	inherited::_clear();
+
+	// Shutdown Steam Audio
+	if (m_bSteamAudioEnabled)
+	{
+		Msg("SOUND: Shutting down Steam Audio...");
+		if (m_steamReverb)
+		{
+			m_steamReverb->Destroy();
+			xr_delete(m_steamReverb);
+		}
+		if (m_steamSimulator)
+		{
+			m_steamSimulator->Stop();
+			xr_delete(m_steamSimulator);
+		}
+		if (m_steamScene)
+		{
+			m_steamScene->Clear();
+			xr_delete(m_steamScene);
+		}
+		CSteamAudio::Instance().Shutdown();
+		m_bSteamAudioEnabled = false;
+	}
+
 	// remove targets
 	CSoundRender_Target* T = nullptr;
 	for (u32 tit = 0; tit < s_targets.size(); tit++)
@@ -397,4 +459,51 @@ void CSoundRender_CoreA::update_listener(const Fvector& P, const Fvector& D, con
 	A_CHK(alListener3f (AL_POSITION,Listener.position.x,Listener.position.y,-Listener.position.z));
 	A_CHK(alListener3f (AL_VELOCITY, Listener.prevVelocity.x, Listener.prevVelocity.y, -Listener.prevVelocity.z));
 	A_CHK(alListenerfv (AL_ORIENTATION,&Listener.orientation[0].x));
+
+	// Update Steam Audio listener position
+	if (m_bSteamAudioEnabled && m_steamScene && m_steamScene->IsReady())
+	{
+		m_steamScene->SetListenerPosition(P, D, N);
+
+		// Update reverb: listener probe position + HRTF decode orientation
+		if (m_steamReverb && m_steamReverb->IsInitialized())
+		{
+			m_steamReverb->UpdateListenerProbe(P, D, N);
+			m_steamReverb->SetListenerOrientation(D, N);
+		}
+	}
+}
+
+void CSoundRender_CoreA::DisableSteamAudio()
+{
+	if (!m_bSteamAudioEnabled)
+		return;
+
+	Msg("! SOUND: Disabling Steam Audio, falling back to EFX");
+
+	// Stop and destroy Steam Audio components
+	if (m_steamReverb)
+	{
+		m_steamReverb->Destroy();
+		xr_delete(m_steamReverb);
+	}
+	if (m_steamSimulator)
+	{
+		m_steamSimulator->Stop();
+		xr_delete(m_steamSimulator);
+	}
+	if (m_steamScene)
+	{
+		m_steamScene->Clear();
+		xr_delete(m_steamScene);
+	}
+
+	m_bSteamAudioEnabled = false;
+
+	// Re-enable EFX reverb
+	if (m_is_supported)
+	{
+		A_CHK(alAuxiliaryEffectSlotf(slot, AL_EFFECTSLOT_GAIN, 1.f));
+		Msg("SOUND: EFX reverb re-enabled");
+	}
 }

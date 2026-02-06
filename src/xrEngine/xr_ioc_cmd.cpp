@@ -1048,6 +1048,20 @@ void CCC_Register()
 	CMD4(CCC_Integer, "snd_targets", &psSoundTargets, 32, 1024);
 	CMD4(CCC_Integer, "snd_cache_size", &psSoundCacheSizeMB, 8, 256);
 
+	// Steam Audio
+	CMD3(CCC_Mask, "snd_steam_audio", &psSoundFlags, ss_SteamAudio);
+	CMD3(CCC_Mask, "snd_steam_audio_occlusion", &psSoundFlags, ss_SA_Occlusion);
+	CMD3(CCC_Mask, "snd_steam_audio_transmission", &psSoundFlags, ss_SA_Transmission);
+	CMD3(CCC_Mask, "snd_steam_audio_reverb", &psSoundFlags, ss_SA_Reverb);
+	CMD3(CCC_Mask, "snd_steam_audio_binaural", &psSoundFlags, ss_SA_Binaural);
+	CMD4(CCC_Integer, "snd_steam_audio_occlusion_rays", &psSA_OcclusionRays, 1, 32);
+	CMD4(CCC_Integer, "snd_steam_audio_reverb_rays", &psSA_ReverbRays, 256, 8192);
+	CMD4(CCC_Integer, "snd_steam_audio_reverb_bounces", &psSA_ReverbBounces, 2, 16);
+	CMD4(CCC_Float, "snd_steam_audio_reverb_update_rate", &psSA_ReverbUpdateRate, 0.05f, 1.0f);
+	// Steam Audio debug logging (0=off, 1=on)
+	extern int g_SA_DebugLogging;
+	CMD4(CCC_Integer, "snd_sa_debug", &g_SA_DebugLogging, 0, 1);
+
 	// Distance based delay power
 	CMD4(CCC_Float, "snd_distance_based_delay_power", &soundSmoothingParams::distanceBasedDelayPower, 0.f, 2.f);
 	CMD4(CCC_Float, "snd_distance_based_delay_min_distance", &soundSmoothingParams::distanceBasedDelayMinDistance, 15.f, 100.f);

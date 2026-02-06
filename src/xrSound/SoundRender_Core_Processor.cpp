@@ -8,6 +8,13 @@
 #include "SoundRender_Source.h"
 #include "SoundRender_CoreA.h"
 
+// Steam Audio
+#include "SteamAudio/SteamAudioSimulator.h"
+#include "SteamAudio/SteamAudioReverb.h"
+#include "SteamAudio/SteamAudioScene.h"
+
+extern float psSA_ReverbUpdateRate;
+
 CSoundRender_Emitter* CSoundRender_Core::i_play(ref_sound* S, BOOL _loop, float delay)
 {
 	VERIFY(S->_p->feedback==0);
@@ -31,6 +38,53 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 	fTimer_Value = new_tm;
 
 	s_emitters_u ++;
+
+	// Steam Audio: Request simulation FIRST, wait for results, THEN process sources
+	// This fixes the timing bug where outputs were fetched before simulation completed
+	if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
+	{
+		CSteamAudioSimulator* simulator = SoundRenderA->GetSteamSimulator();
+		if (simulator)
+		{
+			// Request direct simulation (occlusion/transmission) - runs every frame
+			simulator->RequestDirectSimulation();
+
+			// Consume results from the PREVIOUS frame's simulation (if ready).
+			// No wait: sources have safe "no effect" defaults, so the first frame
+			// without results is imperceptible. The old Sleep(1) spin-wait stalled
+			// the main thread for up to 75ms due to Windows timer resolution (~15ms).
+			if (simulator->IsDirectResultReady())
+			{
+				simulator->ConsumeDirectResult();
+			}
+
+			// Request reflections simulation less frequently (configurable interval)
+			// Reverb doesn't need to update every frame - it's expensive
+			// Member variable resets naturally when fTimer_Value resets on level load
+			if (fTimer_Value - m_lastReflectionsRequest > psSA_ReverbUpdateRate)
+			{
+				simulator->RequestReflectionsSimulation();
+				m_lastReflectionsRequest = fTimer_Value;
+			}
+			// Note: We don't wait for reflections - they can lag by a frame
+			// This is acceptable because reverb is perceptually tolerant of latency
+		}
+
+		// Flush any pending simulator commits from source adds/removes last frame
+		// This batches commits for better performance vs per-source commits
+		CSteamAudioScene* scene = SoundRenderA->GetSteamScene();
+		if (scene)
+		{
+			scene->FlushCommit();
+		}
+
+		// Clear the reverb dry bus before sources contribute this frame
+		CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
+		if (reverb && reverb->IsInitialized() && psSoundFlags.test(ss_SA_Reverb))
+		{
+			reverb->BeginFrame();
+		}
+	}
 
 	// Firstly update emitters, which are now being rendered
 	//Msg	("! update: r-emitters");
@@ -127,6 +181,8 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 	// update listener
 	update_listener(P, D, N, dt_sec);
 
+	// Note: Steam Audio simulation request moved to START of update() for proper synchronization
+
 	// Start rendering of pending targets
 	if (!s_targets_defer.empty())
 	{
@@ -143,6 +199,17 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 
 	// Events
 	update_events();
+
+	// Steam Audio reverb: process accumulated reflections and stream to output
+	// This must happen AFTER all sources have contributed their reflections
+	if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
+	{
+		CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
+		if (reverb && reverb->IsInitialized() && psSoundFlags.test(ss_SA_Reverb))
+		{
+			reverb->EndFrame();
+		}
+	}
 
 	bLocked = FALSE;
 }

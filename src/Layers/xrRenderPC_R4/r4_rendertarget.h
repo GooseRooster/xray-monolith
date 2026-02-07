@@ -58,6 +58,7 @@ public:
 
 	IBlender* b_blur;
 	IBlender* b_dof;
+	IBlender* b_dof_blur; // OWA: Kawase DOF downsample pyramid
 	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
 	IBlender* b_gasmask_drops;
 	IBlender* b_gasmask_dudv;
@@ -272,6 +273,7 @@ private:
 	ref_shader s_blur_pl; // OWA: Perceptual Lighting cascaded blur
 	ref_shader s_perceptual_lighting; // OWA: Perceptual Lighting final composite
 	ref_shader s_dof;
+	ref_shader s_dof_blur; // OWA: Kawase DOF downsample pyramid
 	// OWA: s_pp_bloom removed - phase_pp_bloom() output was never sampled
 	ref_shader s_gasmask_drops;
 	ref_shader s_gasmask_dudv;
@@ -420,6 +422,7 @@ public:
 	void phase_blur_pl(); // OWA: Perceptual Lighting cascaded blur
 	void phase_perceptual_lighting(); // OWA: Perceptual Lighting final composite (post-PP)
 	// OWA: phase_pp_bloom() removed - output was never sampled, replaced by multi-scale Kawase bloom
+	void phase_dof_blur(); // OWA: Kawase downsample pyramid for DOF
 	void phase_dof();
 	void phase_gasmask_drops();
 	void phase_gasmask_dudv();

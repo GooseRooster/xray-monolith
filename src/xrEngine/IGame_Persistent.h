@@ -154,6 +154,8 @@ public:
 	{
 	};
 
+	virtual float GetDofBlendFactor() const { return 1.0f; }
+
 	virtual void OnSectorChanged(int sector)
 	{
 	};

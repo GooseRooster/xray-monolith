@@ -33,6 +33,7 @@ class CGamePersistent :
 	bool m_bDialogDOF;        // Dialog DOF active (uses pickable focus)
 	Fvector m_dof_pre_ui;     // DOF state saved before UI opened
 	float m_dof_speed_override; // Temporary speed override (0 = use console value)
+	float m_dof_blend;        // DOF intensity ramp: 0=invisible, 1=full strength
 
 	CUISequencer* m_intro;
 	EVENT eQuickLoad;
@@ -104,6 +105,8 @@ public:
 	void RestoreUIDOF();
 	void UpdateAutoFocus();
 	void SetDofSpeedOverride(float speed) { m_dof_speed_override = speed; }
+	void ResetDofBlend();
+	virtual float GetDofBlendFactor() const override { return m_dof_blend; }
 
 	virtual void GetCurrentDof(Fvector3& dof);
 	virtual void SetBaseDof(const Fvector3& dof);

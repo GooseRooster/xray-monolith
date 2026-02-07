@@ -428,6 +428,55 @@ void CBlender_ssfx_il::Compile(CBlender_Compile& C)
 	}
 }
 
+// OWA: DOF Kawase dual blur pyramid
+// 3 downsample passes (5-tap Kawase) + 2 upsample passes (9-tap tent)
+// Downsample: full->half->quarter->eighth; Upsample: eighth->quarter->half
+// First downsample pass adds bloom contribution
+CBlender_dof_blur::CBlender_dof_blur() { description.CLS = 0; }
+CBlender_dof_blur::~CBlender_dof_blur() {}
+
+void CBlender_dof_blur::Compile(CBlender_Compile& C)
+{
+	IBlender::Compile(C);
+
+	switch (C.iElement)
+	{
+	case 0: // Full-res scene (generic0) -> half-res (blur_h_2), with bloom additive
+		C.r_Pass("stub_screen_space", "dof_downsample", FALSE, FALSE, FALSE);
+		C.r_dx10Texture("s_image", r2_RT_generic0);
+		C.r_dx10Texture("s_bloom_dof", r2_RT_bloom_d2);
+		C.r_dx10Sampler("smp_rtlinear");
+		C.r_End();
+		break;
+	case 1: // Half-res (blur_h_2) -> quarter-res (blur_h_4)
+		C.r_Pass("stub_screen_space", "dof_downsample", FALSE, FALSE, FALSE);
+		C.r_dx10Texture("s_image", r2_RT_blur_h_2);
+		C.r_dx10Texture("s_bloom_dof", r2_RT_bloom_d2); // bound but weight=0
+		C.r_dx10Sampler("smp_rtlinear");
+		C.r_End();
+		break;
+	case 2: // Quarter-res (blur_h_4) -> eighth-res (blur_h_8)
+		C.r_Pass("stub_screen_space", "dof_downsample", FALSE, FALSE, FALSE);
+		C.r_dx10Texture("s_image", r2_RT_blur_h_4);
+		C.r_dx10Texture("s_bloom_dof", r2_RT_bloom_d2); // bound but weight=0
+		C.r_dx10Sampler("smp_rtlinear");
+		C.r_End();
+		break;
+	case 3: // Upsample: eighth-res (blur_h_8) -> quarter-res (blur_4)
+		C.r_Pass("stub_screen_space", "dof_upsample", FALSE, FALSE, FALSE);
+		C.r_dx10Texture("s_image", r2_RT_blur_h_8);
+		C.r_dx10Sampler("smp_rtlinear");
+		C.r_End();
+		break;
+	case 4: // Upsample: quarter-res (blur_4) -> half-res (blur_2)
+		C.r_Pass("stub_screen_space", "dof_upsample", FALSE, FALSE, FALSE);
+		C.r_dx10Texture("s_image", r2_RT_blur_4);
+		C.r_dx10Sampler("smp_rtlinear");
+		C.r_End();
+		break;
+	}
+}
+
 // OWA: Perceptual Lighting - FGFX LSPOIrr implementation
 // Progressive downsampling and cascaded blur
 // NOTE: Limited to 6 elements (0-5) for engine compatibility

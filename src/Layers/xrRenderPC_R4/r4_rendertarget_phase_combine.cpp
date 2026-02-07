@@ -558,7 +558,8 @@ void CRenderTarget::phase_combine()
 	// OWA: phase_pp_bloom() removed - output was never sampled, replaced by multi-scale Kawase bloom
 
 	if (ps_r2_ls_flags.test(R2FLAG_DOF))
-	{	
+	{
+		phase_dof_blur();  // OWA: Kawase downsample pyramid for DOF (reuses blur_h targets)
 		phase_dof();
 	}
 

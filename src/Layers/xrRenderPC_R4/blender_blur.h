@@ -94,6 +94,20 @@ public:
 	virtual ~CBlender_ssfx_il();
 };
 
+// OWA: DOF Kawase downsample blur pyramid
+class CBlender_dof_blur : public IBlender
+{
+public:
+	virtual LPCSTR getComment() { return "OWA: DOF blur downsample"; }
+	virtual BOOL canBeDetailed() { return FALSE; }
+	virtual BOOL canBeLMAPped() { return FALSE; }
+
+	virtual void Compile(CBlender_Compile& C);
+
+	CBlender_dof_blur();
+	virtual ~CBlender_dof_blur();
+};
+
 // OWA: Perceptual Lighting cascaded blur
 class CBlender_blur_pl : public IBlender
 {

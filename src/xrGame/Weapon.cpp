@@ -3170,21 +3170,20 @@ void CWeapon::OnStateSwitch(u32 S, u32 oldState)
 	inherited::OnStateSwitch(S, oldState);
 	m_BriefInfo_CalcFrame = 0;
 
-	// OWA: Smooth DOF restore when leaving reload state
-	// Uses reduced speed (~35% of normal) so blur fades out gently instead of snapping
+	// OWA: On reload end, snap planes to base DOF + fade in via blend ramp (no sweep)
 	if (oldState == eReload && GetState() != eReload)
 	{
 		if (ps_r2_dof_reload && H_Parent() == Level().CurrentEntity())
 		{
-			GamePersistent().SetDofSpeedOverride(ps_r2_dof_focus_speed * 0.35f);
 			GamePersistent().RestoreEffectorDOF();
+			GamePersistent().ResetDofBlend();
 		}
 	}
 
 	if (GetState() == eReload)
 	{
 		// OWA: Auto-computed reload DOF — consistent shallow near-field focus across all weapons
-		// Uses SetEffectorDOF path for smooth exponential ease interpolation
+		// Snap planes to reload position + fade in via blend ramp (no sweep)
 		if (ps_r2_dof_reload && H_Parent() == Level().CurrentEntity())
 		{
 			Fvector reload_dof;
@@ -3192,6 +3191,7 @@ void CWeapon::OnStateSwitch(u32 S, u32 oldState)
 			reload_dof.y = ps_r2_dof_reload_focus;
 			reload_dof.z = ps_r2_dof_reload_far;
 			GamePersistent().SetEffectorDOF(reload_dof);
+			GamePersistent().ResetDofBlend();
 		}
 	}
 

@@ -466,6 +466,7 @@ CRenderTarget::CRenderTarget()
 	}
 	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
 	b_dof = xr_new<CBlender_dof>();
+	b_dof_blur = xr_new<CBlender_dof_blur>(); // OWA: Kawase DOF blur pyramid
 	b_gasmask_drops = xr_new<CBlender_gasmask_drops>();
 	b_gasmask_dudv = xr_new<CBlender_gasmask_dudv>();
 	b_nightvision = xr_new<CBlender_nightvision>();
@@ -717,6 +718,7 @@ CRenderTarget::CRenderTarget()
 	}
 	// OWA: s_pp_bloom removed - phase_pp_bloom() output was never sampled
 	s_dof.create(b_dof, "r2\\dof");
+	s_dof_blur.create(b_dof_blur, "r2\\dof_blur"); // OWA: Kawase DOF blur pyramid
 	s_gasmask_drops.create(b_gasmask_drops, "r2\\gasmask_drops");
 	s_gasmask_dudv.create(b_gasmask_dudv, "r2\\gasmask_dudv");
 	s_nightvision.create(b_nightvision, "r2\\nightvision");
@@ -1493,6 +1495,7 @@ CRenderTarget::~CRenderTarget()
 	////////////lvutner
 	xr_delete(b_blur);
 	xr_delete(b_dof);
+	xr_delete(b_dof_blur); // OWA: Kawase DOF blur pyramid
 	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
 	xr_delete(b_gasmask_drops);
 	xr_delete(b_gasmask_dudv);

@@ -18,8 +18,12 @@ void CBlender_dof::Compile(CBlender_Compile& C)
 		C.r_Pass("stub_screen_space", "depth_of_field", FALSE, FALSE, FALSE);
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_image", r2_RT_generic0);
-		C.r_dx10Texture("s_blur_2", r2_RT_blur_2);
-		C.r_dx10Texture("s_blur_4", r2_RT_blur_4);
+		// OWA: Read from Kawase DOF blur pyramid
+		// s_blur_2/4: raw downsample (gentle/medium blur)
+		// s_blur_8: tent-upsampled from eighth->half (smooth wide blur)
+		C.r_dx10Texture("s_blur_2", r2_RT_blur_h_2);
+		C.r_dx10Texture("s_blur_4", r2_RT_blur_h_4);
+		C.r_dx10Texture("s_blur_8", r2_RT_blur_2);
 
 		C.r_dx10Sampler("smp_base");
 		C.r_dx10Sampler("smp_nofilter");

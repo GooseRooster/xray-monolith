@@ -60,6 +60,7 @@ CGamePersistent::CGamePersistent(void)
 	m_bDialogDOF = false;
 	m_dof_pre_ui.set(0, 0, 0);
 	m_dof_speed_override = 0.f;
+	m_dof_blend = 1.0f;
 	m_game_params.m_e_game_type = eGameIDNoGame;
 	ambient_effect_next_time = 0;
 	ambient_effect_stop_time = 0;
@@ -992,6 +993,12 @@ void CGamePersistent::RestoreEffectorDOF()
 	SetEffectorDOF(m_dof[3]);
 }
 
+void CGamePersistent::ResetDofBlend()
+{
+	m_dof[1] = m_dof[0]; // Snap current to destination (no plane interpolation)
+	m_dof_blend = 0.0f;  // Start invisible, will ramp to 1.0
+}
+
 #include "hudmanager.h"
 #include "../Layers/xrRender/xrRender_console.h"
 
@@ -1018,6 +1025,19 @@ void CGamePersistent::UpdateDof()
 		pick_dof.x = pick_dof.y + diff_near;
 		pick_dof.z = pick_dof.y + diff_far;
 		m_dof[0] = pick_dof;
+	}
+
+	// OWA: Ramp blend factor toward 1.0 (same exponential ease as planes)
+	// Hides focus plane sweep during event DOF transitions (inventory/reload/dialog)
+	// Must run before the early-return below — after ResetDofBlend() snaps planes,
+	// they're already similar, but the blend still needs to ramp up.
+	if (m_dof_blend < 1.0f)
+	{
+		float blend_speed = ps_r2_dof_focus_speed;
+		float blend_alpha = 1.0f - expf(-Device.fTimeDelta * blend_speed);
+		m_dof_blend += (1.0f - m_dof_blend) * blend_alpha;
+		if (m_dof_blend > 0.999f)
+			m_dof_blend = 1.0f;
 	}
 
 	if (m_dof[1].similar(m_dof[0]))
@@ -1048,6 +1068,7 @@ void CGamePersistent::SetUIDOF(const Fvector& dof)
 		m_dof_pre_ui = m_dof[0];
 	m_bUIDOF = true;
 	m_dof[0] = dof;
+	ResetDofBlend(); // Snap planes + fade in (no focus plane sweep)
 }
 
 void CGamePersistent::SetDialogDOF()
@@ -1056,6 +1077,7 @@ void CGamePersistent::SetDialogDOF()
 		m_dof_pre_ui = m_dof[0];
 	m_bDialogDOF = true;
 	SetPickableEffectorDOF(true); // NPC in focus via raycast
+	m_dof_blend = 0.0f; // Start invisible (planes converge via raycast, blend hides the sweep)
 }
 
 void CGamePersistent::RestoreUIDOF()
@@ -1073,6 +1095,7 @@ void CGamePersistent::RestoreUIDOF()
 
 	// Restore pre-UI DOF destination
 	m_dof[0] = m_dof_pre_ui;
+	ResetDofBlend(); // Snap planes + fade in (hides reverse sweep back to base DOF)
 }
 
 #include "ui\uimainingamewnd.h"

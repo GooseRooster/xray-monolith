@@ -103,7 +103,7 @@ void CRenderTarget::phase_combine()
 			m_saved_viewproj.set(Device.mFullTransform);
 		}
 		float scale = ps_r2_mblur / 2.f;
-		m_blur_scale.set(scale, -scale).div(12.f);
+		m_blur_scale.set(scale, -scale);
 	}
 
 	{
@@ -183,7 +183,7 @@ void CRenderTarget::phase_combine()
 		m_current.set(Device.mProject);
 		m_saved_viewproj.set(Device.mFullTransform);
 		float scale = ps_r2_mblur / 2.f;
-		m_blur_scale.set(scale, -scale).div(12.f);
+		m_blur_scale.set(scale, -scale);
 	}*/
 
 	// Draw full-screen quad textured with our scene image
@@ -714,7 +714,11 @@ void CRenderTarget::phase_combine()
 		RCache.set_c("e_kernel", ps_r2_aa_kernel, ps_r2_aa_kernel, ps_r2_aa_kernel, 0);
 		RCache.set_c("m_current", Matrix_current);
 		RCache.set_c("m_previous", Matrix_previous);
-		RCache.set_c("m_blur", m_blur_scale.x, m_blur_scale.y, 0, 0);
+		// OWA: m_blur.z = runtime enable flag (1.0 = on, 0.0 = off)
+		float mblur_on = (ps_r2_anomaly_flags.test(R2_AN_FLAG_MBLUR)
+		               && !RImplementation.o.staticlighting
+		               && ps_r2_mblur > 0.001f) ? 1.0f : 0.0f;
+		RCache.set_c("m_blur", m_blur_scale.x, m_blur_scale.y, mblur_on, 0);
 		/////lvutner		
 		RCache.set_c("mask_control", ps_r2_mask_control.x, ps_r2_mask_control.y, ps_r2_mask_control.z, ps_r2_mask_control.w);
 

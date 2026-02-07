@@ -1371,14 +1371,8 @@ HRESULT CRender::shader_compile(
 	sh_name[len] = '0' + char(o.Tshadows);
 	++len;
 
-	if (ps_r2_anomaly_flags.test(R2_AN_FLAG_MBLUR) && !o.staticlighting)
-	{
-		defines[def_it].Name = "USE_MBLUR";
-		defines[def_it].Definition = "1";
-		def_it ++;
-	}
-	sh_name[len] = '0' + char(ps_r2_anomaly_flags.test(R2_AN_FLAG_MBLUR));
-	++len;
+	// OWA: USE_MBLUR compile-time define removed — motion blur is now runtime-toggled via m_blur.z
+	// Shader permutation axis eliminated; mblur.h always compiled, gated by uniform constant
 
 	if (o.sunfilter)
 	{

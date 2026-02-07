@@ -796,6 +796,7 @@ extern Fvector4 ps_ssfx_il_setup1;
 extern float ps_ssfx_hud_hemi;
 
 // OWA retro shader constants
+extern float ps_r__tf_contrast;
 extern float ps_r2_auto_fog;
 // OWA Multi-Scale Bloom parameters
 extern float ps_r2_bloom_threshold;
@@ -1341,9 +1342,7 @@ static class cl_owa_tex_contrast : public R_constant_setup
 {
 	virtual void setup(R_constant* C) override
 	{
-		// OWA: Get tex_contrast from current weather instead of console variable
-		float tex_contrast = g_pGamePersistent->Environment().CurrentEnv->m_fTexContrast;
-		RCache.set_c(C, tex_contrast, 0, 0, 0);
+		RCache.set_c(C, ps_r__tf_contrast, 0, 0, 0);
 	}
 } binder_owa_tex_contrast;
 

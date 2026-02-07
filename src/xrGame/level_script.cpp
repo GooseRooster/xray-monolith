@@ -1165,8 +1165,6 @@ float get_weather_value_numric(LPCSTR name)
 		return E.bloom_sky_intensity;
 	else if (0 == xr_strcmp(name, "hemi_vibrance"))
 		return E.m_fHemiVibrance;
-	else if (0 == xr_strcmp(name, "tex_contrast"))
-		return E.m_fTexContrast;
 	else if (0 == xr_strcmp(name, "fog_auto_blend"))
 		return E.m_fFogAutoBlend;
 
@@ -1225,8 +1223,6 @@ void set_weather_value_numric(LPCSTR name, float val)
 		E.bloom_exposure = val;
 	else if (0 == xr_strcmp(name, "bloom_sky_intensity"))
 		E.bloom_sky_intensity = val;
-	else if (0 == xr_strcmp(name, "tex_contrast"))
-		E.m_fTexContrast = val;
 	else if (0 == xr_strcmp(name, "fog_auto_blend"))
 		E.m_fFogAutoBlend = val;
 	else if (0 == xr_strcmp(name, "hemi_vibrance"))

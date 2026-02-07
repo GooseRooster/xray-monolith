@@ -189,6 +189,7 @@ extern ECORE_API float ps_r2_bloom_intensity; // r2-only - bloom strength
 extern ECORE_API float ps_r2_bloom_radius;    // r2-only - sample radius multiplier
 extern ECORE_API float ps_r2_ls_bloom_speed;  // r2-only - eye adaptation speed (kept for luminance)
 
+extern ECORE_API float ps_r__tf_contrast; // OWA texture contrast (0=off, 1=full)
 extern ECORE_API float ps_r2_auto_fog; // r2-only - OWA auto fog (0=weather fog_color, 1=environment-derived)
 extern ECORE_API float ps_r2_ls_dsm_kernel; // r2-only
 extern ECORE_API float ps_r2_ls_psm_kernel; // r2-only

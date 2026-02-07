@@ -268,7 +268,6 @@ CEnvDescriptor::CEnvDescriptor(shared_str const& identifier) :
 	bloom_exposure = 3.f;
 	bloom_sky_intensity = 0.6f;
 
-	m_fTexContrast = 0.f;  // OWA: Default off for backwards compatibility
 	m_fFogAutoBlend = 1.f; // OWA: Default to full auto fog for backwards compatibility
 
 	lens_flare_id = "";
@@ -363,10 +362,6 @@ void CEnvDescriptor::load(CEnvironment& environment, CInifile& config)
 		config.r_float(m_identifier.c_str(), "bloom_exposure") : 3.0f;
 	bloom_sky_intensity = config.line_exist(m_identifier.c_str(), "bloom_sky_intensity") ?
 		config.r_float(m_identifier.c_str(), "bloom_sky_intensity") : 0.6f;
-
-	// OWA: Weather-driven texture contrast (0=off, 1=full effect)
-	m_fTexContrast = config.line_exist(m_identifier.c_str(), "tex_contrast") ?
-		config.r_float(m_identifier.c_str(), "tex_contrast") : 0.f;
 
 	// OWA: Fog auto blend (0=weather fog_color, 1=auto-calculated fog color)
 	m_fFogAutoBlend = config.line_exist(m_identifier.c_str(), "fog_auto_blend") ?
@@ -571,9 +566,6 @@ void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescrip
 	bloom_threshold = fi * A.bloom_threshold + f * B.bloom_threshold;
 	bloom_exposure = fi * A.bloom_exposure + f * B.bloom_exposure;
 	bloom_sky_intensity = fi * A.bloom_sky_intensity + f * B.bloom_sky_intensity;
-
-	// OWA: Weather-driven texture contrast
-	m_fTexContrast = fi * A.m_fTexContrast + f * B.m_fTexContrast;
 
 	// OWA: Fog auto blend
 	m_fFogAutoBlend = fi * A.m_fFogAutoBlend + f * B.m_fFogAutoBlend;

@@ -200,7 +200,6 @@ public:
 	float bloom_exposure;
 	float bloom_sky_intensity;
 
-	float m_fTexContrast;  // OWA: Weather-driven texture contrast (0=off, 1=full)
 	float m_fFogAutoBlend; // OWA: Blend between fog_color (0) and auto-calculated fog (1)
 
 	// int lens_flare_id;

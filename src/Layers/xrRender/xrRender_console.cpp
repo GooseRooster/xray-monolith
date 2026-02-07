@@ -245,6 +245,9 @@ float ps_r2_bloom_intensity = 1.0f;   // Bloom intensity/strength (0.0-4.0)
 float ps_r2_bloom_radius = 1.0f;      // Sample radius multiplier (0.5-4.0)
 float ps_r2_ls_bloom_speed = 100.f;   // Eye adaptation speed (kept for luminance)
 
+// OWA texture contrast - global console variable (replaces per-weather parameter)
+float ps_r__tf_contrast = 0.5f;
+
 // OWA auto fog - derives fog color from environment instead of weather file
 // 0 = use weather fog_color with distance-based sky horizon blending
 // 1 = fully automatic fog color from sky/environment sampling
@@ -1111,6 +1114,7 @@ void xrRender_initconsole()
 	CMD4(CCC_Float, "r2_bloom_intensity", &ps_r2_bloom_intensity, 0.0f, 4.0f);
 	CMD4(CCC_Float, "r2_bloom_radius", &ps_r2_bloom_radius, 0.5f, 4.0f);
 	CMD4(CCC_Float, "r2_ls_bloom_speed", &ps_r2_ls_bloom_speed, 0.f, 100.f);
+	CMD4(CCC_Float, "r__tf_contrast", &ps_r__tf_contrast, 0.0f, 1.0f);
 	CMD4(CCC_Float, "r2_auto_fog", &ps_r2_auto_fog, 0.f, 1.f);
 	CMD4(CCC_Float, "r2_ls_dsm_kernel", &ps_r2_ls_dsm_kernel, .1f, 3.f);
 	CMD4(CCC_Float, "r2_ls_psm_kernel", &ps_r2_ls_psm_kernel, .1f, 3.f);

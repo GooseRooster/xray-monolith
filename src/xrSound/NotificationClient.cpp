@@ -5,6 +5,7 @@
 #include "SoundRender_Emitter.h"
 #include "SoundRender_TargetA.h"
 #include <AL/al.h>
+#include <AL/alext.h>
 
 CNotificationClient::CNotificationClient() 
 {
@@ -82,7 +83,15 @@ inline STDMETHODIMP_(HRESULT __stdcall) CNotificationClient::OnDefaultDeviceChan
 
         SoundRenderA->DestroyEffect();
         SoundRenderA->pDevice = alcOpenDevice(deviceDesc.name_al);
-        SoundRenderA->pContext = alcCreateContext(SoundRenderA->pDevice, nullptr);
+        if (psSoundFlags.test(ss_HRTF))
+        {
+            ALCint attrs[] = { ALC_HRTF_SOFT, ALC_TRUE, 0 };
+            SoundRenderA->pContext = alcCreateContext(SoundRenderA->pDevice, attrs);
+        }
+        else
+        {
+            SoundRenderA->pContext = alcCreateContext(SoundRenderA->pDevice, nullptr);
+        }
 
         alcMakeContextCurrent(SoundRenderA->pContext);
         alcDestroyContext(OldContect);

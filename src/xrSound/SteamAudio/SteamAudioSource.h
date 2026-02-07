@@ -17,12 +17,11 @@ extern int g_SA_DebugLogging;
  * Manages:
  * - IPLSource for direct simulation (occlusion, transmission, air absorption)
  * - IPLDirectEffect for direct path processing
- * - IPLBinauralEffect for HRTF spatialization of direct sound
  * - Simulation inputs/outputs
- * - Audio buffer processing
+ * - Audio buffer processing (mono in-place)
  *
- * Reverb is handled globally by CSteamAudioReverb's listener probe.
- * Sources contribute their dry audio to the shared reverb bus via AccumulateDryAudio().
+ * Spatialization (HRTF/panning) is handled entirely by OpenAL.
+ * Reverb is handled by EFX, with decay times driven by CSteamAudioReverb's listener probe.
  */
 class CSteamAudioSource
 {
@@ -52,36 +51,26 @@ public:
     // Fetch outputs from simulator (call after iplSimulatorRunDirect)
     void FetchOutputs();
 
-    // Process audio buffer with direct effects (occlusion, transmission, air absorption)
-    // and optionally apply binaural HRTF. Contributes dry audio to reverb bus.
-    // Input: mono s16 PCM
-    // Output: modified in place (mono if !binaural, interleaved stereo if binaural)
-    // Returns: true if output is stereo (binaural enabled), false if mono
-    bool ProcessBuffer(s16* buffer, int numSamples, int sampleRate,
-                       const Fvector& listenerPos, const Fvector& listenerDir, const Fvector& listenerUp);
+    // Process audio buffer with direct effects (occlusion, transmission, air absorption).
+    // Input/Output: mono s16 PCM, modified in-place.
+    void ProcessBuffer(s16* buffer, int numSamples, int sampleRate);
 
 private:
     IPLSource m_source = nullptr;
     IPLSimulator m_simulator = nullptr;  // Cached for defensive iplSourceRemove in Destroy
+
     IPLDirectEffect m_directEffect = nullptr;
-    IPLBinauralEffect m_binauralEffect = nullptr;      // For HRTF spatialization of direct sound
 
     // Simulation state
     IPLSimulationInputs m_inputs = {};
     IPLSimulationOutputs m_outputs = {};
 
-    // Processing buffers (float, deinterleaved)
+    // Processing buffers (float, one frameSize each)
     xr_vector<float> m_inputBuffer;
     xr_vector<float> m_outputBuffer;
-
-    // Stereo output buffer for binaural processing
-    xr_vector<float> m_stereoData;       // 2 * frameSize floats
-    xr_vector<float*> m_stereoChannels;  // [0] = left, [1] = right
-    IPLAudioBuffer m_stereoBuffer = {};
 
     // Cached values
     Fvector m_position = {0, 0, 0};
     bool m_outputsValid = false;
     float m_smoothedOcclusion = 1.0f;  // Start with no occlusion (1.0 = sound passes through)
-    bool m_hasBinauralEffect = false;    // True if binaural effect was created
 };

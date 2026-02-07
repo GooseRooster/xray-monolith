@@ -4,6 +4,8 @@
 #include "SteamAudioScene.h"
 #include "SteamAudioSource.h"
 #include "../SoundRender_CoreA.h"
+#include "../SoundRender_Environment.h"
+#include "../SoundRender.h"
 
 CSteamAudioReverb::CSteamAudioReverb()
 {
@@ -14,32 +16,20 @@ CSteamAudioReverb::~CSteamAudioReverb()
     Destroy();
 }
 
-bool CSteamAudioReverb::Initialize(CSteamAudioScene* scene, IPLHRTF hrtf)
+bool CSteamAudioReverb::Initialize(CSteamAudioScene* scene)
 {
-    if (!scene || !scene->IsReady() || !hrtf)
+    if (!scene || !scene->IsReady())
     {
-        Msg("! STEAM_AUDIO: Cannot initialize reverb - scene or HRTF not ready");
+        Msg("! STEAM_AUDIO: Cannot initialize reverb - scene not ready");
         return false;
     }
 
-    CSteamAudio& sa = CSteamAudio::Instance();
-    IPLContext context = sa.GetContext();
-    const IPLAudioSettings& audioSettings = sa.GetAudioSettings();
     IPLSimulator simulator = scene->GetSimulator();
-
-    m_hrtf = hrtf;
-    m_frameSize = audioSettings.frameSize;
-    m_sampleRate = audioSettings.samplingRate;
     m_simulator = simulator;
 
-    // Calculate IR size based on max reverb duration
-    m_irSize = (int)(MAX_REVERB_DURATION * m_sampleRate);
-
-    IPLAudioSettings audioSettingsCopy = audioSettings;
-
     // --- Create listener probe source ---
-    // This is a persistent IPLSource at the listener position that only runs reflections.
-    // It always has a valid IR representing the listener's acoustic space.
+    // Persistent IPLSource at the listener position, runs reflections in PARAMETRIC mode.
+    // The simulator traces rays and extracts 3-band RT60 values from the simulated field.
     IPLSourceSettings sourceSettings = {};
     sourceSettings.flags = IPL_SIMULATIONFLAGS_REFLECTIONS;
 
@@ -50,7 +40,6 @@ bool CSteamAudioReverb::Initialize(CSteamAudioScene* scene, IPLHRTF hrtf)
         return false;
     }
 
-    // Add to simulator — commit will happen via FlushCommit
     iplSourceAdd(m_listenerSource, simulator);
     scene->MarkPendingCommit();
 
@@ -62,162 +51,31 @@ bool CSteamAudioReverb::Initialize(CSteamAudioScene* scene, IPLHRTF hrtf)
     m_listenerInputs.hybridReverbTransitionTime = 1.0f;
     m_listenerInputs.hybridReverbOverlapPercent = 0.25f;
 
-    // Default position at origin — UpdateListenerProbe will set the real position
     m_listenerInputs.source.origin = {0.0f, 0.0f, 0.0f};
     m_listenerInputs.source.ahead = {0.0f, 0.0f, -1.0f};
     m_listenerInputs.source.up = {0.0f, 1.0f, 0.0f};
     m_listenerInputs.source.right = {1.0f, 0.0f, 0.0f};
 
-    // Push initial inputs
     iplSourceSetInputs(m_listenerSource, IPL_SIMULATIONFLAGS_REFLECTIONS, &m_listenerInputs);
 
-    // --- Create reflection effect (single convolution) ---
-    IPLReflectionEffectSettings effectSettings = {};
-    effectSettings.type = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
-    effectSettings.irSize = m_irSize;
-    effectSettings.numChannels = AMBISONICS_CHANNELS;
-
-    error = iplReflectionEffectCreate(context, &audioSettingsCopy, &effectSettings, &m_listenerEffect);
-    if (error != IPL_STATUS_SUCCESS)
-    {
-        Msg("! STEAM_AUDIO: Failed to create listener reflection effect (error: %d)", error);
-        iplSourceRemove(m_listenerSource, simulator);
-        iplSourceRelease(&m_listenerSource);
-        m_listenerSource = nullptr;
-        scene->MarkPendingCommit();
-        return false;
-    }
-
-    // --- Create Ambisonics decoder ---
-    IPLAmbisonicsDecodeEffectSettings decodeSettings = {};
-    decodeSettings.speakerLayout.type = IPL_SPEAKERLAYOUTTYPE_STEREO;
-    decodeSettings.hrtf = m_hrtf;
-    decodeSettings.maxOrder = AMBISONICS_ORDER;
-
-    error = iplAmbisonicsDecodeEffectCreate(context, &audioSettingsCopy, &decodeSettings, &m_decoder);
-    if (error != IPL_STATUS_SUCCESS)
-    {
-        Msg("! STEAM_AUDIO: Failed to create Ambisonics decoder (error: %d)", error);
-        iplReflectionEffectRelease(&m_listenerEffect);
-        m_listenerEffect = nullptr;
-        iplSourceRemove(m_listenerSource, simulator);
-        iplSourceRelease(&m_listenerSource);
-        m_listenerSource = nullptr;
-        scene->MarkPendingCommit();
-        return false;
-    }
-
-    // --- Create OpenAL source for reverb output ---
-    alGenSources(1, &m_alSource);
-    ALenum alError = alGetError();
-    if (alError != AL_NO_ERROR)
-    {
-        Msg("! STEAM_AUDIO: Failed to create OpenAL reverb source (error: 0x%04x)", alError);
-        iplAmbisonicsDecodeEffectRelease(&m_decoder);
-        m_decoder = nullptr;
-        iplReflectionEffectRelease(&m_listenerEffect);
-        m_listenerEffect = nullptr;
-        iplSourceRemove(m_listenerSource, simulator);
-        iplSourceRelease(&m_listenerSource);
-        m_listenerSource = nullptr;
-        scene->MarkPendingCommit();
-        return false;
-    }
-
-    // Configure reverb source - positioned at listener (relative mode)
-    alSourcei(m_alSource, AL_SOURCE_RELATIVE, AL_TRUE);
-    alSource3f(m_alSource, AL_POSITION, 0.0f, 0.0f, 0.0f);
-    alSourcef(m_alSource, AL_GAIN, 1.0f);
-    alSourcef(m_alSource, AL_PITCH, 1.0f);
-    alSourcei(m_alSource, AL_LOOPING, AL_FALSE);
-
-    // Create buffers for streaming
-    alGenBuffers(NUM_REVERB_BUFFERS, m_alBuffers);
-    alError = alGetError();
-    if (alError != AL_NO_ERROR)
-    {
-        Msg("! STEAM_AUDIO: Failed to create OpenAL reverb buffers (error: 0x%04x)", alError);
-        alDeleteSources(1, &m_alSource);
-        m_alSource = 0;
-        iplAmbisonicsDecodeEffectRelease(&m_decoder);
-        m_decoder = nullptr;
-        iplReflectionEffectRelease(&m_listenerEffect);
-        m_listenerEffect = nullptr;
-        iplSourceRemove(m_listenerSource, simulator);
-        iplSourceRelease(&m_listenerSource);
-        m_listenerSource = nullptr;
-        scene->MarkPendingCommit();
-        return false;
-    }
-
-    // --- Allocate dry bus buffer (mono, frameSize) ---
-    m_dryBusData.resize(m_frameSize, 0.0f);
-    m_dryBusPtr = m_dryBusData.data();
-    m_dryBusBuffer.numChannels = 1;
-    m_dryBusBuffer.numSamples = m_frameSize;
-    m_dryBusBuffer.data = &m_dryBusPtr;
-
-    // --- Allocate Ambisonics buffer (order 2 = 9 channels) ---
-    m_ambisonicsData.resize(AMBISONICS_CHANNELS * m_frameSize);
-    m_ambisonicsChannels.resize(AMBISONICS_CHANNELS);
-    for (int i = 0; i < AMBISONICS_CHANNELS; i++)
-    {
-        m_ambisonicsChannels[i] = m_ambisonicsData.data() + i * m_frameSize;
-    }
-    m_ambisonicsBuffer.numChannels = AMBISONICS_CHANNELS;
-    m_ambisonicsBuffer.numSamples = m_frameSize;
-    m_ambisonicsBuffer.data = m_ambisonicsChannels.data();
-
-    // --- Allocate stereo output buffer (deinterleaved, float) ---
-    m_stereoData.resize(2 * m_frameSize);
-    m_stereoChannels.resize(2);
-    m_stereoChannels[0] = m_stereoData.data();
-    m_stereoChannels[1] = m_stereoData.data() + m_frameSize;
-    m_stereoBuffer.numChannels = 2;
-    m_stereoBuffer.numSamples = m_frameSize;
-    m_stereoBuffer.data = m_stereoChannels.data();
-
-    // --- Allocate output smoothing cache (deinterleaved stereo) ---
-    m_cachedStereoData.resize(2 * m_frameSize, 0.0f);
-    m_cachedStereoChannels.resize(2);
-    m_cachedStereoChannels[0] = m_cachedStereoData.data();
-    m_cachedStereoChannels[1] = m_cachedStereoData.data() + m_frameSize;
-    m_hasCachedOutput = false;
-
-    // --- Allocate interleaved s16 output for OpenAL ---
-    m_interleavedOutput.resize(m_frameSize * 2);
-
-    // Initialize listener orientation to identity
-    m_listenerCoords.origin = {0.0f, 0.0f, 0.0f};
-    m_listenerCoords.ahead = {0.0f, 0.0f, -1.0f};
-    m_listenerCoords.up = {0.0f, 1.0f, 0.0f};
-    m_listenerCoords.right = {1.0f, 0.0f, 0.0f};
-
-    m_buffersQueued = false;
-    m_hasValidIR = false;
-
-    // Initialize outputs to safe defaults
-    m_listenerOutputs.reflections.ir = nullptr;
+    m_hasValidData = false;
     m_listenerOutputs.reflections.reverbTimes[0] = 0.0f;
     m_listenerOutputs.reflections.reverbTimes[1] = 0.0f;
     m_listenerOutputs.reflections.reverbTimes[2] = 0.0f;
 
     if (g_SA_DebugLogging)
-        Msg("STEAM_AUDIO: Listener reverb probe initialized (Ambisonics order: %d, channels: %d, frame: %d, IR: %d samples = %.1fs)",
-            AMBISONICS_ORDER, AMBISONICS_CHANNELS, m_frameSize, m_irSize, MAX_REVERB_DURATION);
+        Msg("STEAM_AUDIO: Listener reverb probe initialized (PARAMETRIC mode, full EFX mapping)");
 
     return true;
 }
 
 void CSteamAudioReverb::Destroy()
 {
-    // Remove listener probe from simulator
     if (m_listenerSource)
     {
         if (m_simulator)
         {
             iplSourceRemove(m_listenerSource, m_simulator);
-            // Defer commit — if scene is being destroyed, it doesn't matter
             CSteamAudioScene* scene = nullptr;
             if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
             {
@@ -230,90 +88,7 @@ void CSteamAudioReverb::Destroy()
         m_listenerSource = nullptr;
     }
     m_simulator = nullptr;
-
-    // Stop and delete OpenAL source
-    if (m_alSource)
-    {
-        alSourceStop(m_alSource);
-        alSourcei(m_alSource, AL_BUFFER, 0);
-        alDeleteSources(1, &m_alSource);
-        m_alSource = 0;
-    }
-
-    // Delete OpenAL buffers
-    bool hasValidBuffers = false;
-    for (int i = 0; i < NUM_REVERB_BUFFERS; i++)
-    {
-        if (m_alBuffers[i] != 0)
-        {
-            hasValidBuffers = true;
-            break;
-        }
-    }
-    if (hasValidBuffers)
-    {
-        alDeleteBuffers(NUM_REVERB_BUFFERS, m_alBuffers);
-        for (int i = 0; i < NUM_REVERB_BUFFERS; i++)
-            m_alBuffers[i] = 0;
-    }
-
-    if (m_listenerEffect)
-    {
-        iplReflectionEffectRelease(&m_listenerEffect);
-        m_listenerEffect = nullptr;
-    }
-
-    if (m_decoder)
-    {
-        iplAmbisonicsDecodeEffectRelease(&m_decoder);
-        m_decoder = nullptr;
-    }
-
-    m_dryBusData.clear();
-    m_dryBusPtr = nullptr;
-    m_ambisonicsData.clear();
-    m_ambisonicsChannels.clear();
-    m_stereoData.clear();
-    m_stereoChannels.clear();
-    m_cachedStereoData.clear();
-    m_cachedStereoChannels.clear();
-    m_hasCachedOutput = false;
-    m_interleavedOutput.clear();
-    m_hrtf = nullptr;
-    m_buffersQueued = false;
-    m_hasValidIR = false;
-}
-
-void CSteamAudioReverb::SetListenerOrientation(const Fvector& forward, const Fvector& up)
-{
-    // X-Ray uses: +X right, +Y up, -Z forward
-    // Steam Audio uses the same convention
-    m_listenerCoords.ahead = {forward.x, forward.y, -forward.z};
-    m_listenerCoords.up = {up.x, up.y, -up.z};
-
-    // Compute right vector (cross product of up and ahead)
-    Fvector right;
-    right.crossproduct(up, forward);
-    m_listenerCoords.right = {right.x, right.y, -right.z};
-}
-
-void CSteamAudioReverb::BeginFrame()
-{
-    // Zero-fill the dry bus — sources will accumulate into it during this frame
-    if (!m_dryBusData.empty())
-    {
-        memset(m_dryBusData.data(), 0, m_dryBusData.size() * sizeof(float));
-    }
-}
-
-void CSteamAudioReverb::AccumulateDryAudio(const float* data, int numSamples, float distanceGain)
-{
-    // Additively mix source's dry audio into the shared dry bus, scaled by distance.
-    // Without distance scaling, a sound 200m away pumps the same reverb energy as one at 5m.
-    int count = std::min(numSamples, m_frameSize);
-    float* bus = m_dryBusData.data();
-    for (int i = 0; i < count; i++)
-        bus[i] += data[i] * distanceGain;
+    m_hasValidData = false;
 }
 
 void CSteamAudioReverb::UpdateListenerProbe(const Fvector& pos, const Fvector& dir, const Fvector& up)
@@ -321,12 +96,10 @@ void CSteamAudioReverb::UpdateListenerProbe(const Fvector& pos, const Fvector& d
     if (!m_listenerSource)
         return;
 
-    // Convert position to right-handed coords (negate Z)
     m_listenerInputs.source.origin.x = pos.x;
     m_listenerInputs.source.origin.y = pos.y;
     m_listenerInputs.source.origin.z = -pos.z;
 
-    // Set orientation (for reverb probe, orientation affects ray distribution)
     m_listenerInputs.source.ahead.x = dir.x;
     m_listenerInputs.source.ahead.y = dir.y;
     m_listenerInputs.source.ahead.z = -dir.z;
@@ -335,7 +108,6 @@ void CSteamAudioReverb::UpdateListenerProbe(const Fvector& pos, const Fvector& d
     m_listenerInputs.source.up.y = up.y;
     m_listenerInputs.source.up.z = -up.z;
 
-    // Compute right vector
     Fvector right;
     right.crossproduct(up, dir);
     m_listenerInputs.source.right.x = right.x;
@@ -345,194 +117,257 @@ void CSteamAudioReverb::UpdateListenerProbe(const Fvector& pos, const Fvector& d
     iplSourceSetInputs(m_listenerSource, IPL_SIMULATIONFLAGS_REFLECTIONS, &m_listenerInputs);
 }
 
-void CSteamAudioReverb::EndFrame()
+// Helper: exponential smoothing toward target
+static float smooth(float current, float target, float rate, float dt)
 {
-    if (!m_enabled || !m_listenerEffect || !m_decoder || !m_alSource || m_frameSize == 0)
+    float alpha = 1.0f - expf(-rate * dt);
+    return current + (target - current) * alpha;
+}
+
+void CSteamAudioReverb::UpdateProbe(float dt)
+{
+    if (!m_listenerSource)
         return;
 
-    // Fetch listener probe outputs (IR from latest reflection simulation)
-    if (m_listenerSource)
-    {
-        iplSourceGetOutputs(m_listenerSource, IPL_SIMULATIONFLAGS_REFLECTIONS, &m_listenerOutputs);
-    }
+    iplSourceGetOutputs(m_listenerSource, IPL_SIMULATIONFLAGS_REFLECTIONS, &m_listenerOutputs);
 
-    // Track IR validity
-    bool irValid = (m_listenerOutputs.reflections.ir != nullptr);
-    if (irValid && !m_hasValidIR)
+    // In PARAMETRIC mode, there's no IR — check if reverbTimes are nonzero
+    bool valid = (m_listenerOutputs.reflections.reverbTimes[0] > 0.001f ||
+                  m_listenerOutputs.reflections.reverbTimes[1] > 0.001f ||
+                  m_listenerOutputs.reflections.reverbTimes[2] > 0.001f);
+
+    if (valid && !m_hasValidData)
     {
-        m_hasValidIR = true;
-        Msg("STEAM_AUDIO: Listener probe received first valid IR — reverbTimes: [%.3f, %.3f, %.3f]",
+        m_hasValidData = true;
+        Msg("STEAM_AUDIO: Listener probe first valid result — reverbTimes: [%.3f, %.3f, %.3f]",
             m_listenerOutputs.reflections.reverbTimes[0],
             m_listenerOutputs.reflections.reverbTimes[1],
             m_listenerOutputs.reflections.reverbTimes[2]);
     }
 
-    m_dbgFrameCount++;
+    if (!valid)
+        return;
 
-    // Debug logging
-    if (g_SA_DebugLogging && (m_dbgFrameCount % 60 == 0))
+    // Compute raw parameters from current reverbTimes
+    DeriveParameters();
+
+    // Smooth all parameters toward raw values.
+    // Rate of 3/s → ~63% convergence in 333ms, ~95% in 1s. Fast enough to respond
+    // to room changes but slow enough to prevent jarring pops during transitions.
+    constexpr float RATE = 3.0f;
+
+    m_smoothedParams.DecayTime        = smooth(m_smoothedParams.DecayTime,        m_rawParams.DecayTime,        RATE, dt);
+    m_smoothedParams.DecayHFRatio     = smooth(m_smoothedParams.DecayHFRatio,     m_rawParams.DecayHFRatio,     RATE, dt);
+    m_smoothedParams.DecayLFRatio     = smooth(m_smoothedParams.DecayLFRatio,     m_rawParams.DecayLFRatio,     RATE, dt);
+    m_smoothedParams.Room             = smooth(m_smoothedParams.Room,             m_rawParams.Room,             RATE, dt);
+    m_smoothedParams.RoomHF           = smooth(m_smoothedParams.RoomHF,           m_rawParams.RoomHF,           RATE, dt);
+    m_smoothedParams.RoomLF           = smooth(m_smoothedParams.RoomLF,           m_rawParams.RoomLF,           RATE, dt);
+    m_smoothedParams.Density          = smooth(m_smoothedParams.Density,          m_rawParams.Density,          RATE, dt);
+    m_smoothedParams.Diffusion        = smooth(m_smoothedParams.Diffusion,        m_rawParams.Diffusion,        RATE, dt);
+    m_smoothedParams.Reflections      = smooth(m_smoothedParams.Reflections,      m_rawParams.Reflections,      RATE, dt);
+    m_smoothedParams.ReflectionsDelay = smooth(m_smoothedParams.ReflectionsDelay, m_rawParams.ReflectionsDelay, RATE, dt);
+    m_smoothedParams.Reverb           = smooth(m_smoothedParams.Reverb,           m_rawParams.Reverb,           RATE, dt);
+    m_smoothedParams.ReverbDelay      = smooth(m_smoothedParams.ReverbDelay,      m_rawParams.ReverbDelay,      RATE, dt);
+    m_smoothedParams.EchoTime         = smooth(m_smoothedParams.EchoTime,         m_rawParams.EchoTime,         RATE, dt);
+    m_smoothedParams.EchoDepth        = smooth(m_smoothedParams.EchoDepth,        m_rawParams.EchoDepth,        RATE, dt);
+    m_smoothedParams.AirAbsorptionHF  = smooth(m_smoothedParams.AirAbsorptionHF,  m_rawParams.AirAbsorptionHF,  RATE, dt);
+
+    m_smoothedParams.ModulationTime   = smooth(m_smoothedParams.ModulationTime,   m_rawParams.ModulationTime,   RATE, dt);
+    m_smoothedParams.ModulationDepth  = smooth(m_smoothedParams.ModulationDepth,  m_rawParams.ModulationDepth,  RATE, dt);
+
+    // These don't need smoothing — static
+    m_smoothedParams.RoomRolloffFactor = m_rawParams.RoomRolloffFactor;
+    m_smoothedParams.DecayHFLimit      = m_rawParams.DecayHFLimit;
+    m_smoothedParams.HFReference       = m_rawParams.HFReference;
+    m_smoothedParams.LFReference       = m_rawParams.LFReference;
+
+    if (g_SA_DebugLogging)
     {
-        // Measure dry bus energy
-        float dryEnergy = 0.0f;
-        for (int i = 0; i < m_frameSize; i++)
+        static int s_probeLogCounter = 0;
+        s_probeLogCounter++;
+        if (s_probeLogCounter % 60 == 0)
         {
-            float s = m_dryBusData[i];
-            dryEnergy += s * s;
-        }
-
-        Msg("STEAM_AUDIO: Reverb stats - IR valid: %s, dry bus energy: %.8f, reverb times: [%.3f, %.3f, %.3f]",
-            m_hasValidIR ? "yes" : "no", dryEnergy,
-            m_listenerOutputs.reflections.reverbTimes[0],
-            m_listenerOutputs.reflections.reverbTimes[1],
-            m_listenerOutputs.reflections.reverbTimes[2]);
-    }
-
-    // Apply convolution: dry bus → Ambisonics via listener probe's IR
-    // The reflection effect's internal overlap-save state naturally produces tails
-    // when dry input goes silent — no decay pool needed.
-    if (m_hasValidIR)
-    {
-        // nullptr for mixer — output goes directly to Ambisonics buffer
-        iplReflectionEffectApply(m_listenerEffect, &m_listenerOutputs.reflections,
-                                 &m_dryBusBuffer, &m_ambisonicsBuffer, nullptr);
-    }
-    else
-    {
-        // No valid IR yet — zero the Ambisonics buffer
-        memset(m_ambisonicsData.data(), 0, m_ambisonicsData.size() * sizeof(float));
-    }
-
-    // Decode Ambisonics to stereo using binaural HRTF
-    IPLAmbisonicsDecodeEffectParams decodeParams = {};
-    decodeParams.order = AMBISONICS_ORDER;
-    decodeParams.hrtf = m_hrtf;
-    decodeParams.orientation = m_listenerCoords;
-    decodeParams.binaural = psSoundFlags.test(ss_SA_Binaural) ? IPL_TRUE : IPL_FALSE;
-
-    iplAmbisonicsDecodeEffectApply(m_decoder, &decodeParams, &m_ambisonicsBuffer, &m_stereoBuffer);
-
-    // --- Output smoothing cache ---
-    // The dry bus is sparse (~once per 24 frames per source), so raw convolution
-    // output flickers. The cache exponentially blends toward new output and gently
-    // decays when the dry bus is empty, providing temporal continuity.
-    {
-        // Measure current stereo output energy to detect contributions
-        float stereoEnergy = 0.0f;
-        for (int i = 0; i < m_frameSize; i++)
-        {
-            float l = m_stereoChannels[0][i];
-            float r = m_stereoChannels[1][i];
-            stereoEnergy += l * l + r * r;
-        }
-        bool hasContribution = (stereoEnergy > 1e-12f);
-
-        // Time step — frameSize / sampleRate gives seconds per frame
-        float dt = (float)m_frameSize / (float)m_sampleRate;
-
-        float* cacheL = m_cachedStereoChannels[0];
-        float* cacheR = m_cachedStereoChannels[1];
-        float* newL = m_stereoChannels[0];
-        float* newR = m_stereoChannels[1];
-
-        if (hasContribution)
-        {
-            if (!m_hasCachedOutput)
-            {
-                // First contribution ever — snap cache to current output
-                memcpy(cacheL, newL, m_frameSize * sizeof(float));
-                memcpy(cacheR, newR, m_frameSize * sizeof(float));
-                m_hasCachedOutput = true;
-            }
-            else
-            {
-                // Blend cache toward new output: cache += (new - cache) * alpha
-                float alpha = 1.0f - expf(-REVERB_BLEND_RATE * dt);
-                for (int i = 0; i < m_frameSize; i++)
-                {
-                    cacheL[i] += (newL[i] - cacheL[i]) * alpha;
-                    cacheR[i] += (newR[i] - cacheR[i]) * alpha;
-                }
-            }
-        }
-        else if (m_hasCachedOutput)
-        {
-            // No contribution this frame — gently decay the cache
-            float decay = expf(-REVERB_DECAY_RATE * dt);
-            for (int i = 0; i < m_frameSize; i++)
-            {
-                cacheL[i] *= decay;
-                cacheR[i] *= decay;
-            }
-        }
-
-        // Debug: measure output energy
-        if (g_SA_DebugLogging && (m_dbgFrameCount % 60 == 0))
-        {
-            float cacheEnergy = 0.0f;
-            for (int i = 0; i < m_frameSize; i++)
-                cacheEnergy += cacheL[i] * cacheL[i] + cacheR[i] * cacheR[i];
-            Msg("STEAM_AUDIO: [DIAG] Stereo energy: %.8f, Cache energy: %.8f, binaural: %s, wetLevel: %.2f",
-                stereoEnergy, cacheEnergy, decodeParams.binaural ? "ON" : "OFF", m_wetLevel);
+            Msg("STEAM_AUDIO: RT60=[%.3f, %.3f, %.3f] → Decay=%.2f HF=%.2f LF=%.2f Room=%.3f Refl=%.3f/%.4fs Rev=%.2f/%.4fs Dens=%.2f Diff=%.2f",
+                m_listenerOutputs.reflections.reverbTimes[0],
+                m_listenerOutputs.reflections.reverbTimes[1],
+                m_listenerOutputs.reflections.reverbTimes[2],
+                m_smoothedParams.DecayTime,
+                m_smoothedParams.DecayHFRatio,
+                m_smoothedParams.DecayLFRatio,
+                m_smoothedParams.Room,
+                m_smoothedParams.Reflections,
+                m_smoothedParams.ReflectionsDelay,
+                m_smoothedParams.Reverb,
+                m_smoothedParams.ReverbDelay,
+                m_smoothedParams.Density,
+                m_smoothedParams.Diffusion);
         }
     }
+}
 
-    // Convert smoothed cache to interleaved s16 for OpenAL
+void CSteamAudioReverb::DeriveParameters()
+{
+    // reverbTimes[3] = [low, mid, high] frequency band RT60 decay times
+    float rtLow  = std::max(m_listenerOutputs.reflections.reverbTimes[0], 0.01f);
+    float rtMid  = std::max(m_listenerOutputs.reflections.reverbTimes[1], 0.01f);
+    float rtHigh = std::max(m_listenerOutputs.reflections.reverbTimes[2], 0.01f);
+
+    float hfRatio = rtHigh / rtMid;
+    float lfRatio = rtLow / rtMid;
+    float sqrtMid = sqrtf(rtMid);
+    float cbrtMid = powf(rtMid, 0.333f);
+
+    // === Direct mappings ===
+
+    // DecayTime: mid-band RT60 (primary reference)
+    // EFX range: [0.1, 20.0]
+    m_rawParams.DecayTime = std::clamp(rtMid, 0.1f, 20.0f);
+
+    // DecayHFRatio: high/mid ratio
+    // EFX range: [0.1, 2.0]
+    m_rawParams.DecayHFRatio = std::clamp(hfRatio, 0.1f, 2.0f);
+
+    // DecayLFRatio: low/mid ratio
+    // EFX range: [0.1, 2.0]
+    m_rawParams.DecayLFRatio = std::clamp(lfRatio, 0.1f, 2.0f);
+
+    // === Gain parameters ===
+
+    // Room (overall reverb gain): kept relatively flat so DecayTime carries room-size
+    // info while reverb stays audible even in small rooms (short RT60).
+    // Gentle sqrt scaling adds subtle loudness increase in large spaces.
+    // EFX range: [0.0, 1.0]
+    m_rawParams.Room = std::clamp(0.35f + 0.08f * sqrtMid, 0.0f, 1.0f);
+
+    // RoomHF: scales with HF ratio — if HF decays faster, less HF energy in reverb
+    // EFX range: [0.0, 1.0]
+    m_rawParams.RoomHF = std::clamp(0.5f + 0.4f * m_rawParams.DecayHFRatio, 0.1f, 1.0f);
+
+    // RoomLF: scales with LF ratio
+    // EFX range: [0.0, 1.0]
+    m_rawParams.RoomLF = std::clamp(0.5f + 0.4f * m_rawParams.DecayLFRatio, 0.1f, 1.0f);
+
+    // === Spatial character ===
+
+    // Density: how "thick" the reverb tail is
+    // Compute from band similarity — more uniform decay across bands = denser
+    // Use coefficient of variation: stddev/mean. Low CV = high density.
+    // EFX range: [0.0, 1.0]
     {
-        float* left = m_cachedStereoChannels[0];
-        float* right = m_cachedStereoChannels[1];
-        float wet = m_wetLevel;
-        const float scale = 32767.0f * wet;
-
-        for (int i = 0; i < m_frameSize; i++)
-        {
-            float l = left[i] * scale;
-            float r = right[i] * scale;
-            if (l > 32767.0f) l = 32767.0f;
-            if (l < -32768.0f) l = -32768.0f;
-            if (r > 32767.0f) r = 32767.0f;
-            if (r < -32768.0f) r = -32768.0f;
-            m_interleavedOutput[i * 2 + 0] = (s16)l;
-            m_interleavedOutput[i * 2 + 1] = (s16)r;
-        }
+        float mean = (rtLow + rtMid + rtHigh) / 3.0f;
+        float variance = ((rtLow - mean) * (rtLow - mean) +
+                          (rtMid - mean) * (rtMid - mean) +
+                          (rtHigh - mean) * (rtHigh - mean)) / 3.0f;
+        float cv = sqrtf(variance) / std::max(mean, 0.01f);
+        m_rawParams.Density = std::clamp(1.0f - 2.0f * cv, 0.2f, 1.0f);
     }
 
-    // Check for processed buffers to recycle
-    ALint processed = 0;
-    alGetSourcei(m_alSource, AL_BUFFERS_PROCESSED, &processed);
+    // Diffusion: scattered vs distinct reflections
+    // Longer RT60 → more bounces → more diffuse
+    // EFX range: [0.0, 1.0]
+    m_rawParams.Diffusion = std::clamp(0.4f + 0.3f * sqrtMid, 0.0f, 1.0f);
 
-    while (processed > 0)
-    {
-        ALuint bufferID;
-        alSourceUnqueueBuffers(m_alSource, 1, &bufferID);
-        processed--;
+    // === Early reflections ===
 
-        alBufferData(bufferID, AL_FORMAT_STEREO16, m_interleavedOutput.data(),
-                     m_frameSize * 2 * sizeof(s16), m_sampleRate);
-        alSourceQueueBuffers(m_alSource, 1, &bufferID);
-    }
+    // ReflectionsDelay: time to first reflection, scales with room size
+    // Sabine: RT60 ∝ V/A, room dimension ∝ V^(1/3) ∝ RT60^(1/3)
+    // First reflection ≈ 2 * nearestWall / c ∝ RT60^(1/3)
+    // EFX range: [0.0, 0.3]
+    m_rawParams.ReflectionsDelay = std::clamp(0.005f + 0.015f * cbrtMid, 0.0f, 0.3f);
 
-    // Initial buffer fill - queue silence to start streaming
-    if (!m_buffersQueued)
-    {
-        memset(m_interleavedOutput.data(), 0, m_interleavedOutput.size() * sizeof(s16));
+    // Reflections (early gain): smaller rooms → stronger early reflections relative to late
+    // Inverse sqrt relationship — close walls produce dense, prominent early reflections
+    // EFX range: [0.0, 3.16]
+    m_rawParams.Reflections = std::clamp(0.25f / std::max(sqrtMid, 0.1f), 0.0f, 3.16f);
 
-        for (int i = 0; i < NUM_REVERB_BUFFERS; i++)
-        {
-            alBufferData(m_alBuffers[i], AL_FORMAT_STEREO16, m_interleavedOutput.data(),
-                         m_frameSize * 2 * sizeof(s16), m_sampleRate);
-            alSourceQueueBuffers(m_alSource, 1, &m_alBuffers[i]);
-        }
-        m_buffersQueued = true;
-        alSourcePlay(m_alSource);
-    }
+    // === Late reverb ===
 
-    // Ensure source is playing
-    ALint state;
-    alGetSourcei(m_alSource, AL_SOURCE_STATE, &state);
-    if (state != AL_PLAYING)
-    {
-        if (g_SA_DebugLogging)
-            Msg("STEAM_AUDIO: [DIAG] Reverb AL source stopped — restarting");
-        alSourcePlay(m_alSource);
-    }
+    // ReverbDelay: gap between early and late reverb
+    // EFX range: [0.0, 0.1]
+    m_rawParams.ReverbDelay = std::clamp(0.01f + 0.01f * cbrtMid, 0.0f, 0.1f);
+
+    // Reverb (late reverb gain): longer decay = more late reverb energy
+    // EFX range: [0.0, 10.0]
+    m_rawParams.Reverb = std::clamp(0.5f + 0.6f * sqrtMid, 0.0f, 10.0f);
+
+    // === Echo ===
+
+    // EchoTime: flutter echo period. Tight spaces → shorter echo time
+    // EFX range: [0.075, 0.25]
+    m_rawParams.EchoTime = std::clamp(0.25f - 0.05f * std::min(rtMid, 3.0f), 0.075f, 0.25f);
+
+    // EchoDepth: flutter echo strength. More pronounced in tight reflective spaces.
+    // Scale by DecayHFRatio — reflective materials (concrete/metal, HFRatio≈1.0) produce
+    // flutter between parallel walls, while absorptive materials (carpet, HFRatio<0.7) damp it.
+    // EFX range: [0.0, 1.0]
+    m_rawParams.EchoDepth = std::clamp((0.35f - 0.1f * rtMid) * m_rawParams.DecayHFRatio, 0.0f, 1.0f);
+
+    // === Air absorption ===
+
+    // AirAbsorptionHF: derived from HF ratio — faster HF decay means more absorption
+    // EFX range: [0.892, 1.0]
+    m_rawParams.AirAbsorptionHF = std::clamp(0.96f + 0.03f * m_rawParams.DecayHFRatio, 0.892f, 1.0f);
+
+    // === Modulation ===
+
+    // ModulationTime: period of reverb tail modulation. Smaller rooms → faster.
+    // EFX range: [0.004, 4.0]
+    m_rawParams.ModulationTime = std::clamp(0.15f + 0.08f * sqrtMid, 0.04f, 0.25f);
+
+    // ModulationDepth: subtle tail wavering in small reflective spaces.
+    // Reflective materials (high HFRatio) produce more noticeable modulation from
+    // standing-wave interference between parallel surfaces.
+    // EFX range: [0.0, 1.0]
+    m_rawParams.ModulationDepth = std::clamp((0.10f - 0.03f * rtMid) * m_rawParams.DecayHFRatio, 0.0f, 0.15f);
+
+    // === Static parameters ===
+
+    // SA handles distance attenuation on direct path, so reverb shouldn't also roll off
+    m_rawParams.RoomRolloffFactor = 0.0f;
+    m_rawParams.DecayHFLimit = 1;  // AL_TRUE
+
+    // Reference frequencies: SA's 3 bands are roughly Low(<800Hz), Mid(800-5kHz), High(>5kHz)
+    // EAX defaults (5000Hz HF, 250Hz LF) are reasonable matches
+    m_rawParams.HFReference = 5000.0f;
+    m_rawParams.LFReference = 250.0f;
+}
+
+void CSteamAudioReverb::GetEnvironment(CSoundRender_Environment& env) const
+{
+    // Mark as extended so all EAX parameters are sent to OpenAL
+    env.version = sndenv_ver_extended;
+
+    env.DecayTime          = m_smoothedParams.DecayTime;
+    env.DecayHFRatio       = m_smoothedParams.DecayHFRatio;
+    env.DecayLFRatio       = m_smoothedParams.DecayLFRatio;
+    env.DecayHFLimit       = m_smoothedParams.DecayHFLimit;
+
+    env.Room               = m_smoothedParams.Room;
+    env.RoomHF             = m_smoothedParams.RoomHF;
+    env.RoomLF             = m_smoothedParams.RoomLF;
+    env.RoomRolloffFactor  = m_smoothedParams.RoomRolloffFactor;
+
+    env.Density            = m_smoothedParams.Density;
+    env.EnvironmentDiffusion = m_smoothedParams.Diffusion;
+
+    env.Reflections        = m_smoothedParams.Reflections;
+    env.ReflectionsDelay   = m_smoothedParams.ReflectionsDelay;
+    env.ReflectionsPan[0]  = 0.0f;
+    env.ReflectionsPan[1]  = 0.0f;
+    env.ReflectionsPan[2]  = 0.0f;
+
+    env.Reverb             = m_smoothedParams.Reverb;
+    env.ReverbDelay        = m_smoothedParams.ReverbDelay;
+    env.ReverbPan[0]       = 0.0f;
+    env.ReverbPan[1]       = 0.0f;
+    env.ReverbPan[2]       = 0.0f;
+
+    env.EchoTime           = m_smoothedParams.EchoTime;
+    env.EchoDepth          = m_smoothedParams.EchoDepth;
+
+    env.AirAbsorptionHF    = m_smoothedParams.AirAbsorptionHF;
+    env.ModulationTime     = m_smoothedParams.ModulationTime;
+    env.ModulationDepth    = m_smoothedParams.ModulationDepth;
+    env.HFReference        = m_smoothedParams.HFReference;
+    env.LFReference        = m_smoothedParams.LFReference;
 }

@@ -4,6 +4,7 @@
 #include "SoundRender_CoreA.h"
 #include "SoundRender_TargetA.h"
 #include "SoundRender_Environment.h"
+#include <AL/alext.h>
 
 #include "../xrEngine/pure.h"
 #include "../xrEngine/XR_IOConsole.h"
@@ -141,18 +142,9 @@ int CSoundRender_CoreA::load_reverb(ALuint effect_, const EFXEAXREVERBPROPERTIES
 
 void CSoundRender_CoreA::commit()
 {
-	// When Steam Audio reverb is enabled, disable EFX reverb
-	// Steam Audio handles reverb via buffer processing instead
-	if (m_bSteamAudioEnabled && psSoundFlags.test(ss_SA_Reverb) && m_steamReverb && m_steamReverb->IsInitialized())
-	{
-		// Disable EFX reverb by setting slot gain to 0
-		A_CHK(alAuxiliaryEffectSlotf(slot, AL_EFFECTSLOT_GAIN, 0.f));
-		return;
-	}
-
-	// Tell the effect slot to use the loaded effect object. Note that this
-	// effectively copies the effect properties. You can modify or delete the
-	// effect object afterward without affecting the effect slot.
+	// EFX reverb is always active when supported.
+	// SA reverb probe feeds geometry-aware decay times INTO EFX parameters,
+	// it doesn't replace EFX.
 	A_CHK(alAuxiliaryEffectSlotf(slot, AL_EFFECTSLOT_GAIN, 1.f));
 	A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, false));
 	A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_EFFECT, effect));
@@ -251,8 +243,17 @@ void CSoundRender_CoreA::_initialize(int stage)
 	const ALCchar* deviceSpecifier;
 	deviceSpecifier = alcGetString(pDevice, ALC_DEVICE_SPECIFIER);
 
-	// Create context
-	pContext = alcCreateContext(pDevice, NULL);
+	// Create context (with HRTF if requested)
+	if (psSoundFlags.test(ss_HRTF))
+	{
+		ALCint attrs[] = { ALC_HRTF_SOFT, ALC_TRUE, 0 };
+		pContext = alcCreateContext(pDevice, attrs);
+	}
+	else
+	{
+		pContext = alcCreateContext(pDevice, NULL);
+	}
+
 	if (pContext == nullptr) {
 		CHECK_OR_EXIT(0, "SOUND: OpenAL: Failed to create context.");
 		bPresent = FALSE;
@@ -267,6 +268,30 @@ void CSoundRender_CoreA::_initialize(int stage)
 
 	// Set active context
 	AC_CHK(alcMakeContextCurrent(pContext));
+
+	// Log HRTF status
+	{
+		ALCint hrtfStatus = 0;
+		alcGetIntegerv(pDevice, ALC_HRTF_STATUS_SOFT, 1, &hrtfStatus);
+		switch (hrtfStatus)
+		{
+		case ALC_HRTF_ENABLED_SOFT:
+			Msg("SOUND: OpenAL HRTF enabled");
+			break;
+		case ALC_HRTF_DENIED_SOFT:
+			Msg("SOUND: OpenAL HRTF denied by device");
+			break;
+		case ALC_HRTF_REQUIRED_SOFT:
+			Msg("SOUND: OpenAL HRTF required by device");
+			break;
+		case ALC_HRTF_DISABLED_SOFT:
+			if (psSoundFlags.test(ss_HRTF))
+				Msg("! SOUND: OpenAL HRTF requested but not available on this device");
+			break;
+		default:
+			break;
+		}
+	}
 
 	// initialize listener
 	A_CHK(alListener3f (AL_POSITION,0.f,0.f,0.f));
@@ -465,11 +490,10 @@ void CSoundRender_CoreA::update_listener(const Fvector& P, const Fvector& D, con
 	{
 		m_steamScene->SetListenerPosition(P, D, N);
 
-		// Update reverb: listener probe position + HRTF decode orientation
+		// Update reverb probe position
 		if (m_steamReverb && m_steamReverb->IsInitialized())
 		{
 			m_steamReverb->UpdateListenerProbe(P, D, N);
-			m_steamReverb->SetListenerOrientation(D, N);
 		}
 	}
 }

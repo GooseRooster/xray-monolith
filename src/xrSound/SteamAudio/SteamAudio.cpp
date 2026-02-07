@@ -104,21 +104,6 @@ bool CSteamAudio::Initialize()
     m_audioSettings.samplingRate = 44100;
     m_audioSettings.frameSize = 1024;  // ~23ms at 44.1kHz
 
-    // Create HRTF for binaural audio
-    IPLHRTFSettings hrtfSettings = {};
-    hrtfSettings.type = IPL_HRTFTYPE_DEFAULT;
-    hrtfSettings.volume = 1.0f;
-    hrtfSettings.normType = IPL_HRTFNORMTYPE_NONE;
-
-    error = iplHRTFCreate(m_context, &m_audioSettings, &hrtfSettings, &m_hrtf);
-    if (error != IPL_STATUS_SUCCESS)
-    {
-        Msg("! STEAM_AUDIO: Failed to create HRTF (error: %d)", error);
-        iplContextRelease(&m_context);
-        m_context = nullptr;
-        return false;
-    }
-
     m_bInitialized = true;
     s_validationErrorCount = 0;
     s_lastErrorLogTime = 0.0f;
@@ -142,12 +127,6 @@ void CSteamAudio::Shutdown()
 
     if (g_SA_DebugLogging)
         Msg("STEAM_AUDIO: Shutting down...");
-
-    if (m_hrtf)
-    {
-        iplHRTFRelease(&m_hrtf);
-        m_hrtf = nullptr;
-    }
 
     if (m_context)
     {

@@ -9,7 +9,6 @@
 #include "SoundRender_CoreA.h"
 #include "SteamAudio/SteamAudioSource.h"
 #include "SteamAudio/SteamAudioScene.h"
-#include "SteamAudio/SteamAudioReverb.h"
 
 //#define MEASURE_PROCESSING_TIME
 
@@ -383,26 +382,13 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 		bool steamAudioActive = m_steamSource && SoundRenderA && SoundRenderA->IsSteamAudioEnabled();
 
 		// Calc attenuated volume using linear distance model for ALL 3D sounds.
-		// Non-binaural gets DOUBLE attenuation (FSM linear + OpenAL inverse rolloff) which
-		// the game is tuned for. For binaural (OpenAL rolloff=0), we compensate by applying
-		// the equivalent of OpenAL's inverse-distance-clamped model here in the FSM.
+		// This produces DOUBLE attenuation (FSM linear + OpenAL inverse rolloff)
+		// which the game is tuned for.
 		//LostAlphaRus in
 		{
 			float min_max = p_source.max_distance - p_source.min_distance;
 			volume_att = (p_source.max_distance - dist) / min_max;
 			clamp(volume_att, 0.f, p_source.volume);
-		}
-
-		// Binaural rolloff compensation: OpenAL is disabled for binaural (rolloff=0),
-		// so we apply the equivalent inverse-distance model here.
-		// Formula: gain = refDist / (refDist + rolloff * (clampedDist - refDist))
-		// This matches what OpenAL would do for non-binaural sources.
-		bool steamBinauralActive = steamAudioActive && psSoundFlags.test(ss_SA_Binaural);
-		if (steamBinauralActive && dist > p_source.min_distance)
-		{
-			float oalGain = p_source.min_distance /
-				(p_source.min_distance + psSoundRolloff * (dist - p_source.min_distance));
-			volume_att *= oalGain;
 		}
 
 		float fade_scale = bStopping || (p_source.base_volume * p_source.volume * (owner_data->s_type == st_Effect ? psSoundVEffects * psSoundVFactor : psSoundVMusic * psSoundVMusicFactor) < psSoundCull) ? -1.f : 1.f;

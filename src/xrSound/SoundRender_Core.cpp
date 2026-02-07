@@ -206,18 +206,17 @@ void CSoundRender_Core::set_geometry_occ(CDB::MODEL* M)
 						Msg("STEAM_AUDIO: Scene built and simulation started (%d triangles)",
 							M->get_tris_count());
 
-						// Initialize reverb system if enabled
+						// Initialize reverb probe (provides decay times for EFX)
 						CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
 						if (reverb && psSoundFlags.test(ss_SA_Reverb))
 						{
-							IPLHRTF hrtf = CSteamAudio::Instance().GetHRTF();
-							if (reverb->Initialize(scene, hrtf))
+							if (reverb->Initialize(scene))
 							{
-								Msg("STEAM_AUDIO: Reverb system initialized");
+								Msg("STEAM_AUDIO: Reverb probe initialized");
 							}
 							else
 							{
-								Msg("! STEAM_AUDIO: Failed to initialize reverb");
+								Msg("! STEAM_AUDIO: Failed to initialize reverb probe");
 							}
 						}
 					}

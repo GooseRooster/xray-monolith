@@ -78,11 +78,11 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 			scene->FlushCommit();
 		}
 
-		// Clear the reverb dry bus before sources contribute this frame
+		// Update reverb probe with latest simulation outputs
 		CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
 		if (reverb && reverb->IsInitialized() && psSoundFlags.test(ss_SA_Reverb))
 		{
-			reverb->BeginFrame();
+			reverb->UpdateProbe(dt_sec);
 		}
 	}
 
@@ -159,20 +159,37 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 	// update EFX
 	if (m_is_supported)
 	{
-		if (bListenerMoved)
-		{
-			bListenerMoved = FALSE;
-			e_target_ptr = get_environment(P);
-			if (!e_target_ptr)
-				e_target_ptr = &e_identity;
-		}
+		bool saReverbActive = SoundRenderA && SoundRenderA->IsSteamAudioEnabled()
+			&& psSoundFlags.test(ss_SA_Reverb);
 
-		// demonized: Interpolate from e_current to 95% of e_target in close to exact time
-		constexpr float percent = 0.95f;
-		float alpha = 1.0f - std::exp(std::log(1.0f - percent) * dt_sec / snd_efx_environment_change_time);
-		clamp(alpha, 0.f, 1.f);
-		//Msg("interpolating from e_current to e_target %.2f", std::min(e_current.Reverb, e_target_ptr->Reverb) / std::max(e_current.Reverb, e_target_ptr->Reverb));
-		e_current.lerp(e_current, *e_target_ptr, alpha);
+		if (saReverbActive)
+		{
+			// Steam Audio reverb probe drives ALL environment parameters.
+			// Bypass the baked environment lerp entirely — SA's internal
+			// exponential smoothing handles transitions.
+			CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
+			if (reverb && reverb->IsInitialized() && reverb->HasValidData())
+			{
+				reverb->GetEnvironment(e_current);
+			}
+			// else: keep e_current as-is (identity/last known good) until probe warms up
+		}
+		else
+		{
+			// Baked environment path: interpolate from e_current toward SDK-authored target
+			if (bListenerMoved)
+			{
+				bListenerMoved = FALSE;
+				e_target_ptr = get_environment(P);
+				if (!e_target_ptr)
+					e_target_ptr = &e_identity;
+			}
+
+			constexpr float percent = 0.95f;
+			float alpha = 1.0f - std::exp(std::log(1.0f - percent) * dt_sec / snd_efx_environment_change_time);
+			clamp(alpha, 0.f, 1.f);
+			e_current.lerp(e_current, *e_target_ptr, alpha);
+		}
 
 		set_listener(e_current);
 		commit();
@@ -199,17 +216,6 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 
 	// Events
 	update_events();
-
-	// Steam Audio reverb: process accumulated reflections and stream to output
-	// This must happen AFTER all sources have contributed their reflections
-	if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
-	{
-		CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
-		if (reverb && reverb->IsInitialized() && psSoundFlags.test(ss_SA_Reverb))
-		{
-			reverb->EndFrame();
-		}
-	}
 
 	bLocked = FALSE;
 }

@@ -1,29 +1,21 @@
 #pragma once
 
 #include <phonon.h>
-#include <AL/al.h>
 
 class CSteamAudioScene;
+class CSoundRender_Environment;
 
 /**
- * CSteamAudioReverb - Global reverb via a single listener reverb probe.
+ * CSteamAudioReverb - Listener reverb probe for geometry-aware EFX parameters.
  *
- * Instead of per-source reflection effects (which suffer from IR pre-delay
- * that makes transient sounds like gunshots produce zero reverb), this system
- * uses a single persistent IPLSource placed at the listener position.
+ * Maintains a single persistent IPLSource at the listener position that runs
+ * reflections simulation in PARAMETRIC mode. The simulator traces rays and
+ * analyzes the sound field to produce reverbTimes[3] (low/mid/high RT60).
  *
- * Architecture:
- *   Source A ─dry→ ┐
- *   Source B ─dry→ ┼→ DryBus → [ReflectionEffect] → Ambi → Stereo → OpenAL
- *   Source C ─dry→ ┘       ↑
- *                    ListenerProbe IR (always valid)
- *
- * Each source contributes its dry audio (distance-scaled) to a shared mono
- * dry bus via AccumulateDryAudio(). EndFrame() convolves the bus with the
- * listener probe's IR and streams the result to OpenAL.
- *
- * The convolution effect's internal overlap-save state naturally produces
- * reverb tails when dry input stops — no decay pool needed.
+ * All 26 EAX reverb parameters are derived from these three values using
+ * acoustic heuristics, then smoothed internally to prevent jarring transitions.
+ * The result is a complete CSoundRender_Environment that replaces the baked
+ * sound environments entirely when SA reverb is active.
  */
 class CSteamAudioReverb
 {
@@ -31,99 +23,71 @@ public:
     CSteamAudioReverb();
     ~CSteamAudioReverb();
 
-    // Initialize with scene and HRTF
-    bool Initialize(CSteamAudioScene* scene, IPLHRTF hrtf);
+    // Initialize with scene (needs simulator for reflections)
+    bool Initialize(CSteamAudioScene* scene);
     void Destroy();
 
-    bool IsInitialized() const { return m_listenerSource != nullptr && m_alSource != 0; }
-
-    // Frame lifecycle
-    void BeginFrame();   // Zero-fill dry bus before sources contribute
-    void EndFrame();     // Convolve dry bus with listener IR, stream to OpenAL
-
-    // Sources call this to contribute dry audio to the shared reverb bus.
-    // distanceGain = minDist / max(dist, minDist) so distant sounds contribute less.
-    void AccumulateDryAudio(const float* data, int numSamples, float distanceGain);
+    bool IsInitialized() const { return m_listenerSource != nullptr; }
 
     // Update listener probe position (called from update_listener each frame)
     void UpdateListenerProbe(const Fvector& pos, const Fvector& dir, const Fvector& up);
 
-    // Update listener orientation for HRTF decode
-    void SetListenerOrientation(const Fvector& forward, const Fvector& up);
+    // Fetch latest simulation outputs and recompute derived EFX parameters.
+    // Call once per frame (or per reverb update interval).
+    // dt: time delta in seconds for smoothing
+    void UpdateProbe(float dt);
 
-    // Reverb parameters
+    // Whether the probe has received at least one valid reverbTimes result
+    bool HasValidData() const { return m_hasValidData; }
+
+    // Fill environment with SA-derived reverb parameters (all 26 EAX params).
+    // The environment's version is set to sndenv_ver_extended.
+    void GetEnvironment(CSoundRender_Environment& env) const;
+
+    // Reverb enable state
     void SetReverbEnabled(bool enabled) { m_enabled = enabled; }
     bool IsReverbEnabled() const { return m_enabled; }
 
-    void SetWetLevel(float wet) { m_wetLevel = wet; }
-    float GetWetLevel() const { return m_wetLevel; }
-
 private:
+    // Compute raw EFX parameters from reverbTimes[3]
+    void DeriveParameters();
+
     // --- Listener reverb probe ---
-    IPLSource m_listenerSource = nullptr;          // Persistent probe at listener position
-    IPLSimulationInputs m_listenerInputs = {};     // Probe simulation inputs
-    IPLSimulationOutputs m_listenerOutputs = {};   // Probe simulation outputs (contains IR)
-    IPLReflectionEffect m_listenerEffect = nullptr; // Single convolution effect
-    bool m_hasValidIR = false;                     // True once probe has usable IR
+    IPLSource m_listenerSource = nullptr;
+    IPLSimulationInputs m_listenerInputs = {};
+    IPLSimulationOutputs m_listenerOutputs = {};
+    bool m_hasValidData = false;
 
-    // --- Dry bus ---
-    // All sources accumulate their distance-scaled dry audio here each frame.
-    xr_vector<float> m_dryBusData;
-    IPLAudioBuffer m_dryBusBuffer = {};
-    float* m_dryBusPtr = nullptr;  // Points to m_dryBusData.data() for IPLAudioBuffer
+    // --- Smoothed EFX parameters (computed in DeriveParameters, smoothed in UpdateProbe) ---
+    struct EFXParams
+    {
+        float DecayTime = 1.49f;
+        float DecayHFRatio = 0.83f;
+        float DecayLFRatio = 1.0f;
+        float Room = 0.32f;
+        float RoomHF = 0.89f;
+        float RoomLF = 1.0f;
+        float Density = 1.0f;
+        float Diffusion = 1.0f;
+        float Reflections = 0.05f;
+        float ReflectionsDelay = 0.007f;
+        float Reverb = 1.26f;
+        float ReverbDelay = 0.011f;
+        float EchoTime = 0.25f;
+        float EchoDepth = 0.0f;
+        float AirAbsorptionHF = 0.994f;
+        float RoomRolloffFactor = 0.0f;
+        int   DecayHFLimit = 1;
+        float ModulationTime = 0.25f;
+        float ModulationDepth = 0.0f;
+        float HFReference = 5000.0f;
+        float LFReference = 250.0f;
+    };
 
-    // --- Steam Audio objects ---
-    IPLAmbisonicsDecodeEffect m_decoder = nullptr;
-    IPLHRTF m_hrtf = nullptr;
-
-    // --- OpenAL reverb output source ---
-    static constexpr int NUM_REVERB_BUFFERS = 3;
-    ALuint m_alSource = 0;
-    ALuint m_alBuffers[NUM_REVERB_BUFFERS] = {0};
-    int m_sampleRate = 44100;
-
-    // --- Ambisonics buffer (order 2 = 9 channels) ---
-    static constexpr int AMBISONICS_ORDER = 2;
-    static constexpr int AMBISONICS_CHANNELS = (AMBISONICS_ORDER + 1) * (AMBISONICS_ORDER + 1);  // 9
-
-    static constexpr float MAX_REVERB_DURATION = 2.0f;  // seconds
-    int m_irSize = 0;
-
-    xr_vector<float> m_ambisonicsData;
-    xr_vector<float*> m_ambisonicsChannels;
-    IPLAudioBuffer m_ambisonicsBuffer = {};
-
-    // --- Stereo output buffer (deinterleaved) ---
-    xr_vector<float> m_stereoData;
-    xr_vector<float*> m_stereoChannels;
-    IPLAudioBuffer m_stereoBuffer = {};
-
-    // --- Output smoothing cache ---
-    // The dry bus is sparse (fill_block fires ~once per 24 frames per source),
-    // so raw convolution output flickers. The cache provides temporal continuity:
-    // - When new output arrives, blend cache toward it (REVERB_BLEND_RATE)
-    // - When dry bus is silent, gently decay the cache (REVERB_DECAY_RATE)
-    xr_vector<float> m_cachedStereoData;
-    xr_vector<float*> m_cachedStereoChannels;
-    bool m_hasCachedOutput = false;
-    static constexpr float REVERB_BLEND_RATE = 4.0f;   // per second
-    static constexpr float REVERB_DECAY_RATE = 1.0f;    // per second
-
-    // --- Interleaved stereo for OpenAL (s16 format) ---
-    xr_vector<s16> m_interleavedOutput;
-
-    // --- Listener orientation for HRTF decode ---
-    IPLCoordinateSpace3 m_listenerCoords = {};
+    EFXParams m_rawParams;       // Freshly computed from reverbTimes (no smoothing)
+    EFXParams m_smoothedParams;  // Exponentially smoothed for output
 
     // --- State ---
     bool m_enabled = true;
-    bool m_buffersQueued = false;
-    float m_wetLevel = 1.0f;
-    int m_frameSize = 0;
-
-    // Cached simulator handle for cleanup
     IPLSimulator m_simulator = nullptr;
-
-    // --- Debug stats ---
-    int m_dbgFrameCount = 0;
 };

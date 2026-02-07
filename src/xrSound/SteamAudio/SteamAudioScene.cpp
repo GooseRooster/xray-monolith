@@ -197,8 +197,10 @@ bool CSteamAudioScene::CreateSimulator()
     simSettings.maxNumSources = 256;  // Max sources in simulator (per-source direct + 1 listener reverb probe)
     // Note: numBounces is set per-frame in IPLSimulationSharedInputs, not here
 
-    // Reverb effect type - CONVOLUTION used by listener probe's reflection effect
-    simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
+    // PARAMETRIC mode: same ray tracing simulation, but outputs analyzed parametric
+    // data (reverbTimes[3]) instead of opaque IR. We never convolve — we just read
+    // the RT60 values and map them to EFX reverb parameters.
+    simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_PARAMETRIC;
 
     // Threading
     simSettings.numThreads = 4;

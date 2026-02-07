@@ -65,9 +65,9 @@ enum
 	ss_SA_Transmission = (1ul << 5ul),
 	//!< Steam Audio: Enable sound transmission through walls
 	ss_SA_Reverb = (1ul << 6ul),
-	//!< Steam Audio: Enable physics-based reverb (replaces EFX)
-	ss_SA_Binaural = (1ul << 7ul),
-	//!< Steam Audio: Use binaural HRTF for headphone output
+	//!< Steam Audio: Enable geometry-aware reverb decay times (feeds into EFX)
+	ss_HRTF = (1ul << 7ul),
+	//!< Enable OpenAL Soft HRTF for headphone spatialization
 	ss_forcedword = u32(-1)
 };
 

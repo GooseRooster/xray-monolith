@@ -1053,7 +1053,7 @@ void CCC_Register()
 	CMD3(CCC_Mask, "snd_steam_audio_occlusion", &psSoundFlags, ss_SA_Occlusion);
 	CMD3(CCC_Mask, "snd_steam_audio_transmission", &psSoundFlags, ss_SA_Transmission);
 	CMD3(CCC_Mask, "snd_steam_audio_reverb", &psSoundFlags, ss_SA_Reverb);
-	CMD3(CCC_Mask, "snd_steam_audio_binaural", &psSoundFlags, ss_SA_Binaural);
+	CMD3(CCC_Mask, "snd_hrtf", &psSoundFlags, ss_HRTF);
 	CMD4(CCC_Integer, "snd_steam_audio_occlusion_rays", &psSA_OcclusionRays, 1, 32);
 	CMD4(CCC_Integer, "snd_steam_audio_reverb_rays", &psSA_ReverbRays, 256, 8192);
 	CMD4(CCC_Integer, "snd_steam_audio_reverb_bounces", &psSA_ReverbBounces, 2, 16);

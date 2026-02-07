@@ -12,7 +12,6 @@ class CSteamAudioReverb;
  *
  * Responsible for:
  * - IPLContext creation and destruction
- * - HRTF initialization for binaural audio
  * - Audio settings configuration
  * - Global enable/disable state
  */
@@ -28,7 +27,6 @@ public:
 
     // Accessors for child systems
     IPLContext GetContext() const { return m_context; }
-    IPLHRTF GetHRTF() const { return m_hrtf; }
     const IPLAudioSettings& GetAudioSettings() const { return m_audioSettings; }
 
     // Error tracking for rate-limited logging
@@ -48,7 +46,6 @@ private:
 
     bool m_bInitialized = false;
     IPLContext m_context = nullptr;
-    IPLHRTF m_hrtf = nullptr;
     IPLAudioSettings m_audioSettings = {};
 
     // Rate-limiting for validation error logging

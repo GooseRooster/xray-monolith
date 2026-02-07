@@ -27,6 +27,13 @@ class CGamePersistent :
 
 	bool m_bPickableDOF;
 
+	// OWA: Per-mode DOF state
+	bool m_bAutoFocusActive;  // Auto-focus raycast active
+	bool m_bUIDOF;            // UI DOF currently active (inventory/trade/etc)
+	bool m_bDialogDOF;        // Dialog DOF active (uses pickable focus)
+	Fvector m_dof_pre_ui;     // DOF state saved before UI opened
+	float m_dof_speed_override; // Temporary speed override (0 = use console value)
+
 	CUISequencer* m_intro;
 	EVENT eQuickLoad;
 	Fvector m_dof [4]; // 0-dest 1-current 2-from 3-original
@@ -90,6 +97,13 @@ public:
 	void SetPickableEffectorDOF(bool bSet);
 	void SetEffectorDOF(const Fvector& needed_dof);
 	void RestoreEffectorDOF();
+
+	// OWA: Per-mode DOF control
+	void SetUIDOF(const Fvector& dof);
+	void SetDialogDOF();
+	void RestoreUIDOF();
+	void UpdateAutoFocus();
+	void SetDofSpeedOverride(float speed) { m_dof_speed_override = speed; }
 
 	virtual void GetCurrentDof(Fvector3& dof);
 	virtual void SetBaseDof(const Fvector3& dof);

@@ -487,6 +487,25 @@ Fvector3 ps_r2_dof = { -1.25f, 0.f, 600.f };
 float ps_r2_dof_sky = 30; //	distance to sky
 float ps_r2_dof_kernel_size = 0.25f; //	7.0f
 
+// OWA: Per-mode DOF toggles and parameters
+int   ps_r2_dof_autofocus = 0;         // General auto-focus (off by default)
+int   ps_r2_dof_aim = 1;               // ADS/zoom DOF (on by default)
+int   ps_r2_dof_reload = 1;            // Reload DOF (on by default)
+int   ps_r2_dof_ui = 1;                // Inventory/trade/upgrade DOF (on by default)
+int   ps_r2_dof_dialog = 1;            // Dialog DOF (on by default)
+float ps_r2_dof_focus_speed = 6.0f;    // Focus transition speed
+float ps_r2_dof_peripheral_softness = 0.0f; // Peripheral blur (0 = disabled)
+float ps_r2_dof_max_blur = 0.7f;       // Maximum blur factor
+float ps_r2_dof_coc_power = 3.0f;      // CoC curve power
+// OWA: Auto-computed reload DOF parameters
+float ps_r2_dof_reload_near  = -0.3f;
+float ps_r2_dof_reload_focus =  0.7f;
+float ps_r2_dof_reload_far   = 12.0f;
+// OWA: UI DOF parameters
+float ps_r2_dof_ui_near  = -0.5f;
+float ps_r2_dof_ui_focus =  1.5f;
+float ps_r2_dof_ui_far   = 15.0f;
+
 float ps_r3_dyn_wet_surf_near = 10.f; // 10.0f
 float ps_r3_dyn_wet_surf_far = 30.f; // 30.0f
 int ps_r3_dyn_wet_surf_sm_res = 256; // 256
@@ -1430,8 +1449,24 @@ void xrRender_initconsole()
 	ps_r2_ls_flags.set(R2FLAG_DOF, FALSE);
 	CMD3(CCC_Mask, "r2_dof_enable", &ps_r2_ls_flags, R2FLAG_DOF);
 
-	//	float		ps_r2_dof_near			= 0.f;					// 0.f
-	//	float		ps_r2_dof_focus			= 1.4f;					// 1.4f
+	// OWA: Per-mode DOF toggles
+	CMD4(CCC_Integer, "r2_dof_autofocus", &ps_r2_dof_autofocus, 0, 1);
+	CMD4(CCC_Integer, "r2_dof_aim", &ps_r2_dof_aim, 0, 1);
+	CMD4(CCC_Integer, "r2_dof_reload", &ps_r2_dof_reload, 0, 1);
+	CMD4(CCC_Integer, "r2_dof_ui", &ps_r2_dof_ui, 0, 1);
+	CMD4(CCC_Integer, "r2_dof_dialog", &ps_r2_dof_dialog, 0, 1);
+	CMD4(CCC_Float, "r2_dof_focus_speed", &ps_r2_dof_focus_speed, 1.f, 20.f);
+	CMD4(CCC_Float, "r2_dof_peripheral_softness", &ps_r2_dof_peripheral_softness, 0.f, 0.5f);
+	CMD4(CCC_Float, "r2_dof_max_blur", &ps_r2_dof_max_blur, 0.f, 1.f);
+	CMD4(CCC_Float, "r2_dof_coc_power", &ps_r2_dof_coc_power, 0.5f, 5.f);
+	// OWA: Reload DOF tuning
+	CMD4(CCC_Float, "r2_dof_reload_near", &ps_r2_dof_reload_near, -5.f, 0.f);
+	CMD4(CCC_Float, "r2_dof_reload_focus", &ps_r2_dof_reload_focus, 0.1f, 3.f);
+	CMD4(CCC_Float, "r2_dof_reload_far", &ps_r2_dof_reload_far, 3.f, 50.f);
+	// OWA: UI DOF tuning
+	CMD4(CCC_Float, "r2_dof_ui_near", &ps_r2_dof_ui_near, -5.f, 0.f);
+	CMD4(CCC_Float, "r2_dof_ui_focus", &ps_r2_dof_ui_focus, 0.5f, 5.f);
+	CMD4(CCC_Float, "r2_dof_ui_far", &ps_r2_dof_ui_far, 5.f, 50.f);
 
 	CMD3(CCC_Mask, "r2_volumetric_lights", &ps_r2_ls_flags, R2FLAG_VOLUMETRIC_LIGHTS);
 	//	CMD3(CCC_Mask,		"r2_sun_shafts",				&ps_r2_ls_flags,			R2FLAG_SUN_SHAFTS);

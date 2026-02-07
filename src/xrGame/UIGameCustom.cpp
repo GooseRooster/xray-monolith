@@ -19,6 +19,10 @@
 #include "xrEngine/x_ray.h"
 
 #include "ui\UICellItem.h" //Alundaio
+
+// OWA: DOF control for inventory/dialog modes
+#include "GamePersistent.h"
+#include "../Layers/xrRender/xrRender_console.h"
 //#include "script_game_object.h" //Alundaio
 
 EGameIDs ParseStringToGameType(const char* str);
@@ -173,7 +177,19 @@ bool CUIGameCustom::ShowActorMenu()
 		if (ai().script_engine().functor("actor_menu_inventory.CUIActorMenu_OnMode_Inventory", funct1))
 		{
 			if (funct1())
+			{
+				// OWA: Lua inventory intercepted — trigger UI DOF here since
+				// SetMenuMode(mmInventory) → CurModeToScript() won't be reached
+				if (ps_r2_dof_ui)
+				{
+					Fvector ui_dof;
+					ui_dof.x = ps_r2_dof_ui_near;
+					ui_dof.y = ps_r2_dof_ui_focus;
+					ui_dof.z = ps_r2_dof_ui_far;
+					GamePersistent().SetUIDOF(ui_dof);
+				}
 				return true;
+			}
 		}
 		//---------------------------------------------------------
 	
@@ -190,7 +206,11 @@ void CUIGameCustom::HideActorMenu()
 {
 	if (ActorMenu->IsShown())
 		ActorMenu->HideDialog();
-	
+
+	// OWA: Restore DOF when any actor menu closes (covers both C++ and Lua inventory paths)
+	// Idempotent — safe if CurModeToScript(mmUndefined) already restored via HideDialog above
+	GamePersistent().RestoreUIDOF();
+
 	//-------------------------------
 	::luabind::functor<void> funct1;
 	if (ai().script_engine().functor("actor_menu_inventory.CUIActorMenu_OnHideActorMenu", funct1))

@@ -301,6 +301,25 @@ extern ECORE_API Fvector3 ps_r2_dof;
 extern ECORE_API float ps_r2_dof_sky; //	distance to sky
 extern ECORE_API float ps_r2_dof_kernel_size;
 
+// OWA: Per-mode DOF toggles and parameters
+extern ECORE_API int   ps_r2_dof_autofocus;       // General auto-focus during gameplay
+extern ECORE_API int   ps_r2_dof_aim;             // ADS/zoom DOF
+extern ECORE_API int   ps_r2_dof_reload;          // Reload animation DOF
+extern ECORE_API int   ps_r2_dof_ui;              // Inventory/trade/upgrade DOF
+extern ECORE_API int   ps_r2_dof_dialog;          // Dialog DOF
+extern ECORE_API float ps_r2_dof_focus_speed;     // Focus transition speed (higher = faster)
+extern ECORE_API float ps_r2_dof_peripheral_softness; // Peripheral blur strength (0 = disabled)
+extern ECORE_API float ps_r2_dof_max_blur;        // Maximum blur factor (0-1)
+extern ECORE_API float ps_r2_dof_coc_power;       // CoC curve power
+// OWA: Auto-computed reload DOF parameters
+extern ECORE_API float ps_r2_dof_reload_near;
+extern ECORE_API float ps_r2_dof_reload_focus;
+extern ECORE_API float ps_r2_dof_reload_far;
+// OWA: UI DOF parameters
+extern ECORE_API float ps_r2_dof_ui_near;
+extern ECORE_API float ps_r2_dof_ui_focus;
+extern ECORE_API float ps_r2_dof_ui_far;
+
 extern ECORE_API float ps_r3_dyn_wet_surf_near; // 10.0f
 extern ECORE_API float ps_r3_dyn_wet_surf_far; // 30.0f
 extern ECORE_API int ps_r3_dyn_wet_surf_sm_res; // 256

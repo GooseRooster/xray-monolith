@@ -46,9 +46,9 @@ void CRenderTarget::phase_dof()
 	RCache.set_Element(s_dof->E[0]);
 
 	//Set paramterers
-	//RCache.set_c("taa_params", ps_taa_params.x, ps_taa_params.y, 0, 0);
-	RCache.set_c("dof_params", dof.x, dof.y, dof.z, ps_r2_dof_sky);	
-	RCache.set_c("dof_kernel", vDofKernel.x, vDofKernel.y, ps_r2_dof_kernel_size, 0);
+	RCache.set_c("dof_params", dof.x, dof.y, dof.z, ps_r2_dof_sky);
+	RCache.set_c("dof_kernel", vDofKernel.x, vDofKernel.y, ps_r2_dof_kernel_size, ps_r2_dof_peripheral_softness);
+	RCache.set_c("dof_control", ps_r2_dof_max_blur, ps_r2_dof_coc_power, 0.f, 0.f);
 	
 	//Set geometry
 	RCache.set_Geometry(g_combine);

@@ -2066,10 +2066,10 @@ void CWeapon::OnZoomIn()
 	else
 		SetZoomFactor(CurrentZoomFactor());
 
-	if (m_zoom_params.m_bZoomDofEnabled && !IsScopeAttached())
+	if (ps_r2_dof_aim && m_zoom_params.m_bZoomDofEnabled && !IsScopeAttached())
 		GamePersistent().SetEffectorDOF(m_zoom_params.m_ZoomDof);
 
-	if (GetHUDmode())
+	if (ps_r2_dof_aim && GetHUDmode())
 		GamePersistent().SetPickableEffectorDOF(true);
 
 	if (m_zoom_params.m_sUseBinocularVision.size() && IsScopeAttached() && NULL == m_zoom_params.m_pVision)
@@ -3170,25 +3170,28 @@ void CWeapon::OnStateSwitch(u32 S, u32 oldState)
 	inherited::OnStateSwitch(S, oldState);
 	m_BriefInfo_CalcFrame = 0;
 
+	// OWA: Smooth DOF restore when leaving reload state
+	// Uses reduced speed (~35% of normal) so blur fades out gently instead of snapping
+	if (oldState == eReload && GetState() != eReload)
+	{
+		if (ps_r2_dof_reload && H_Parent() == Level().CurrentEntity())
+		{
+			GamePersistent().SetDofSpeedOverride(ps_r2_dof_focus_speed * 0.35f);
+			GamePersistent().RestoreEffectorDOF();
+		}
+	}
+
 	if (GetState() == eReload)
 	{
-		if (iAmmoElapsed == 0) //Swartz: re-written to use reload empty DOF
+		// OWA: Auto-computed reload DOF — consistent shallow near-field focus across all weapons
+		// Uses SetEffectorDOF path for smooth exponential ease interpolation
+		if (ps_r2_dof_reload && H_Parent() == Level().CurrentEntity())
 		{
-			if (H_Parent() == Level().CurrentEntity() && !fsimilar(m_zoom_params.m_ReloadEmptyDof.w, -1.0f))
-			{
-				CActor* current_actor = smart_cast<CActor*>(H_Parent());
-				if (current_actor)
-					current_actor->Cameras().AddCamEffector(xr_new<CEffectorDOF>(m_zoom_params.m_ReloadEmptyDof));
-			}
-		}
-		else
-		{
-			if (H_Parent() == Level().CurrentEntity() && !fsimilar(m_zoom_params.m_ReloadDof.w, -1.0f))
-			{
-				CActor* current_actor = smart_cast<CActor*>(H_Parent());
-				if (current_actor)
-					current_actor->Cameras().AddCamEffector(xr_new<CEffectorDOF>(m_zoom_params.m_ReloadDof));
-			}
+			Fvector reload_dof;
+			reload_dof.x = ps_r2_dof_reload_near;
+			reload_dof.y = ps_r2_dof_reload_focus;
+			reload_dof.z = ps_r2_dof_reload_far;
+			GamePersistent().SetEffectorDOF(reload_dof);
 		}
 	}
 

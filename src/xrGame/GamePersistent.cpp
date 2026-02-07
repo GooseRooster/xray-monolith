@@ -55,6 +55,11 @@
 CGamePersistent::CGamePersistent(void)
 {
 	m_bPickableDOF = false;
+	m_bAutoFocusActive = false;
+	m_bUIDOF = false;
+	m_bDialogDOF = false;
+	m_dof_pre_ui.set(0, 0, 0);
+	m_dof_speed_override = 0.f;
 	m_game_params.m_e_game_type = eGameIDNoGame;
 	ambient_effect_next_time = 0;
 	ambient_effect_stop_time = 0;
@@ -772,6 +777,7 @@ void CGamePersistent::OnFrame()
     if ((m_last_stats_frame + 1) < m_frame_counter)
         profiler().clear();
 #endif
+	UpdateAutoFocus();
 	UpdateDof();
 }
 
@@ -955,6 +961,9 @@ bool CGamePersistent::CanBePaused()
 
 void CGamePersistent::SetPickableEffectorDOF(bool bSet)
 {
+	// OWA: Don't let weapon code clear pickable DOF while dialog is using it
+	if (!bSet && m_bDialogDOF) return;
+
 	m_bPickableDOF = bSet;
 	if (!bSet)
 		RestoreEffectorDOF();
@@ -973,8 +982,9 @@ void CGamePersistent::SetBaseDof(const Fvector3& dof)
 void CGamePersistent::SetEffectorDOF(const Fvector& needed_dof)
 {
 	if (m_bPickableDOF) return;
+	// OWA: Don't let weapon DOF (aim/reload restore) override active UI/dialog DOF
+	if (m_bUIDOF || m_bDialogDOF) return;
 	m_dof[0] = needed_dof;
-	m_dof[2] = m_dof[1]; //current
 }
 
 void CGamePersistent::RestoreEffectorDOF()
@@ -983,12 +993,23 @@ void CGamePersistent::RestoreEffectorDOF()
 }
 
 #include "hudmanager.h"
+#include "../Layers/xrRender/xrRender_console.h"
 
 //	m_dof		[4];	// 0-dest 1-current 2-from 3-original
 void CGamePersistent::UpdateDof()
 {
-	static float diff_far = pSettings->r_float("zone_pick_dof", "far"); //70.0f;
-	static float diff_near = pSettings->r_float("zone_pick_dof", "near"); //-70.0f;
+	static float diff_far = pSettings->r_float("zone_pick_dof", "far");
+	static float diff_near = pSettings->r_float("zone_pick_dof", "near");
+
+	// OWA: Auto-focus — raycast from screen center when enabled and no UI/weapon DOF active
+	if (m_bAutoFocusActive && !m_bPickableDOF && !m_bUIDOF && !m_bDialogDOF)
+	{
+		Fvector auto_dof;
+		auto_dof.y = HUD().GetRQ().range;
+		auto_dof.x = auto_dof.y + diff_near;
+		auto_dof.z = auto_dof.y + diff_far;
+		m_dof[0] = auto_dof;
+	}
 
 	if (m_bPickableDOF)
 	{
@@ -997,19 +1018,61 @@ void CGamePersistent::UpdateDof()
 		pick_dof.x = pick_dof.y + diff_near;
 		pick_dof.z = pick_dof.y + diff_far;
 		m_dof[0] = pick_dof;
-		m_dof[2] = m_dof[1]; //current
 	}
-	if (m_dof[1].similar(m_dof[0]))
-		return;
 
-	float td = Device.fTimeDelta;
-	Fvector diff;
-	diff.sub(m_dof[0], m_dof[2]);
-	diff.mul(td / 0.2f); //0.2 sec
-	m_dof[1].add(diff);
-	(m_dof[0].x < m_dof[2].x) ? clamp(m_dof[1].x, m_dof[0].x, m_dof[2].x) : clamp(m_dof[1].x, m_dof[2].x, m_dof[0].x);
-	(m_dof[0].y < m_dof[2].y) ? clamp(m_dof[1].y, m_dof[0].y, m_dof[2].y) : clamp(m_dof[1].y, m_dof[2].y, m_dof[0].y);
-	(m_dof[0].z < m_dof[2].z) ? clamp(m_dof[1].z, m_dof[0].z, m_dof[2].z) : clamp(m_dof[1].z, m_dof[2].z, m_dof[0].z);
+	if (m_dof[1].similar(m_dof[0]))
+	{
+		m_dof_speed_override = 0.f; // Reset speed override when target reached
+		return;
+	}
+
+	// OWA: Exponential ease — matches human eye accommodation (~250ms to 95%)
+	// Speed override allows gentler out-transitions (e.g., reload DOF fading out)
+	float speed = (m_dof_speed_override > 0.f) ? m_dof_speed_override : ps_r2_dof_focus_speed;
+	float alpha = 1.0f - expf(-Device.fTimeDelta * speed);
+	m_dof[1].x += (m_dof[0].x - m_dof[1].x) * alpha;
+	m_dof[1].y += (m_dof[0].y - m_dof[1].y) * alpha;
+	m_dof[1].z += (m_dof[0].z - m_dof[1].z) * alpha;
+}
+
+void CGamePersistent::UpdateAutoFocus()
+{
+	// Enable auto-focus only when the console toggle is on
+	// and no higher-priority DOF mode is active
+	m_bAutoFocusActive = (ps_r2_dof_autofocus != 0);
+}
+
+void CGamePersistent::SetUIDOF(const Fvector& dof)
+{
+	if (!m_bUIDOF) // Only save pre-UI state on first activation (idempotent)
+		m_dof_pre_ui = m_dof[0];
+	m_bUIDOF = true;
+	m_dof[0] = dof;
+}
+
+void CGamePersistent::SetDialogDOF()
+{
+	if (!m_bDialogDOF && !m_bUIDOF) // Only save pre-UI state on first activation
+		m_dof_pre_ui = m_dof[0];
+	m_bDialogDOF = true;
+	SetPickableEffectorDOF(true); // NPC in focus via raycast
+}
+
+void CGamePersistent::RestoreUIDOF()
+{
+	if (!m_bUIDOF && !m_bDialogDOF) return; // Nothing to restore
+
+	if (m_bDialogDOF)
+	{
+		// Clear dialog flag FIRST so SetPickableEffectorDOF isn't blocked by our own guard
+		m_bDialogDOF = false;
+		m_bPickableDOF = false; // Directly clear — bypasses the guard
+	}
+
+	m_bUIDOF = false;
+
+	// Restore pre-UI DOF destination
+	m_dof[0] = m_dof_pre_ui;
 }
 
 #include "ui\uimainingamewnd.h"

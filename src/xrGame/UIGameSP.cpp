@@ -23,6 +23,10 @@
 
 #include "Inventory.h"
 
+// OWA: DOF control for UI modes
+#include "GamePersistent.h"
+#include "../Layers/xrRender/xrRender_console.h"
+
 
 CUIGameSP::CUIGameSP()
 	: m_game(NULL), m_game_objective(NULL)
@@ -174,7 +178,11 @@ void CUIGameSP::StartTrade(CInventoryOwner* pActorInv, CInventoryOwner* pOtherOw
 	{
 		CGameObject* GO = smart_cast<CGameObject*>(pOtherOwner);
 		if (funct1(GO->lua_game_object()))
+		{
+			// OWA: Lua intercepted — trigger UI DOF since SetMenuMode won't be reached
+			if (ps_r2_dof_ui) { Fvector d; d.set(ps_r2_dof_ui_near, ps_r2_dof_ui_focus, ps_r2_dof_ui_far); GamePersistent().SetUIDOF(d); }
 			return;
+		}
 	}
 	//---------------------------------------------------------
 	
@@ -195,7 +203,11 @@ void CUIGameSP::StartUpgrade(CInventoryOwner* pActorInv, CInventoryOwner* pMech)
 	{
 		CGameObject* GO = smart_cast<CGameObject*>(pMech);
 		if (funct1(GO->lua_game_object()))
+		{
+			// OWA: Lua intercepted — trigger UI DOF since SetMenuMode won't be reached
+			if (ps_r2_dof_ui) { Fvector d; d.set(ps_r2_dof_ui_near, ps_r2_dof_ui_focus, ps_r2_dof_ui_far); GamePersistent().SetUIDOF(d); }
 			return;
+		}
 	}
 	//---------------------------------------------------------
 	
@@ -219,14 +231,18 @@ void CUIGameSP::StartTalk(bool disable_break)
 void CUIGameSP::StartCarBody(CInventoryOwner* pActorInv, CInventoryOwner* pOtherOwner) //Deadbody search
 {
 	if (TopInputReceiver()) return;
-	
+
 	//---- before Loot mode ---------------------------
 	::luabind::functor<bool> funct1;
 	if (ai().script_engine().functor("actor_menu_inventory.CUIActorMenu_OnMode_DeadBodySearch", funct1))
 	{
 		CGameObject* GO = smart_cast<CGameObject*>(pOtherOwner);
 		if (funct1(GO->lua_game_object()))
+		{
+			// OWA: Lua intercepted — trigger UI DOF since SetMenuMode won't be reached
+			if (ps_r2_dof_ui) { Fvector d; d.set(ps_r2_dof_ui_near, ps_r2_dof_ui_focus, ps_r2_dof_ui_far); GamePersistent().SetUIDOF(d); }
 			return;
+		}
 	}
 	//---------------------------------------------------------
 		
@@ -240,14 +256,18 @@ void CUIGameSP::StartCarBody(CInventoryOwner* pActorInv, CInventoryOwner* pOther
 void CUIGameSP::StartCarBody(CInventoryOwner* pActorInv, CInventoryBox* pBox) //Deadbody search
 {
 	if (TopInputReceiver()) return;
-	
+
 	//---- before Loot mode ---------------------------
 	::luabind::functor<bool> funct1;
 	if (ai().script_engine().functor("actor_menu_inventory.CUIActorMenu_OnMode_DeadBodySearch", funct1))
 	{
 		CGameObject* GO = smart_cast<CGameObject*>(pBox);
 		if (funct1(GO->lua_game_object()))
+		{
+			// OWA: Lua intercepted — trigger UI DOF since SetMenuMode won't be reached
+			if (ps_r2_dof_ui) { Fvector d; d.set(ps_r2_dof_ui_near, ps_r2_dof_ui_focus, ps_r2_dof_ui_far); GamePersistent().SetUIDOF(d); }
 			return;
+		}
 	}
 	//---------------------------------------------------------
 	

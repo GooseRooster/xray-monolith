@@ -23,6 +23,8 @@
 #include "eatable_item.h"
 
 #include "UIPdaWnd.h"
+#include "../gamepersistent.h"
+#include "../../Layers/xrRender/xrRender_console.h"
 #include "UITabControl.h"
 
 #include "UIMainIngameWnd.h"
@@ -180,6 +182,30 @@ bool CUIActorMenu::CanUpgradeItem(PIItem item)
 void CUIActorMenu::CurModeToScript()
 {
 	int mode = (int)m_currMenuMode;
+
+	// OWA: Trigger UI/dialog DOF based on menu mode
+	switch (m_currMenuMode)
+	{
+	case mmInventory:
+	case mmTrade:
+	case mmUpgrade:
+	case mmDeadBodySearch:
+		if (ps_r2_dof_ui)
+		{
+			Fvector ui_dof;
+			ui_dof.x = ps_r2_dof_ui_near;
+			ui_dof.y = ps_r2_dof_ui_focus;
+			ui_dof.z = ps_r2_dof_ui_far;
+			GamePersistent().SetUIDOF(ui_dof);
+		}
+		break;
+	case mmUndefined:
+		GamePersistent().RestoreUIDOF();
+		break;
+	default:
+		break;
+	}
+
 	::luabind::functor<void> funct;
 	R_ASSERT(ai().script_engine().functor( "actor_menu.actor_menu_mode", funct ));
 	funct(mode);

@@ -16,6 +16,8 @@
 
 #include "../ai_space.h"
 #include "../../xrServerEntities/script_engine.h"
+#include "../gamepersistent.h"
+#include "../../Layers/xrRender/xrRender_console.h"
 
 #include "../Include/xrRender/UIShader.h"
 
@@ -561,6 +563,10 @@ void InventoryUtilities::SendInfoToLuaScripts(shared_str info)
 	if (GameID() != eGameIDSingle) return;
 	if (info == shared_str("ui_talk_show"))
 	{
+		// OWA: Dialog DOF — NPC stays in focus via pickable raycast
+		if (ps_r2_dof_dialog)
+			GamePersistent().SetDialogDOF();
+
 		int mode = 10; // now Menu is Talk Dialog (show)
 		::luabind::functor<void> funct;
 		R_ASSERT(ai().script_engine().functor( "pda.actor_menu_mode", funct ));
@@ -568,6 +574,9 @@ void InventoryUtilities::SendInfoToLuaScripts(shared_str info)
 	}
 	if (info == shared_str("ui_talk_hide"))
 	{
+		// OWA: Restore DOF when dialog closes
+		GamePersistent().RestoreUIDOF();
+
 		int mode = 11; // Talk Dialog hide
 		::luabind::functor<void> funct;
 		R_ASSERT(ai().script_engine().functor( "pda.actor_menu_mode", funct ));

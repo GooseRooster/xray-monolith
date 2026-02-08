@@ -46,7 +46,7 @@ bool CSteamAudioReverb::Initialize(CSteamAudioScene* scene)
 
     // Initialize listener probe inputs
     m_listenerInputs.flags = IPL_SIMULATIONFLAGS_REFLECTIONS;
-    m_listenerInputs.reverbScale[0] = 1.0f;
+    m_listenerInputs.reverbScale[0] = 0.6f;
     m_listenerInputs.reverbScale[1] = 1.0f;
     m_listenerInputs.reverbScale[2] = 1.0f;
     m_listenerInputs.hybridReverbTransitionTime = 1.0f;

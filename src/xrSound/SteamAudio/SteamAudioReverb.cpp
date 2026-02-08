@@ -529,7 +529,7 @@ bool CSteamAudioReverb::InitializeConvolution(CSteamAudioScene* scene)
     alSource3f(m_reverbSource, AL_POSITION, 0.0f, 0.0f, 0.0f);
     alSourcef(m_reverbSource, AL_ROLLOFF_FACTOR, 0.0f);
     alSourcei(m_reverbSource, AL_LOOPING, AL_FALSE);
-    alSourcef(m_reverbSource, AL_GAIN, 0.5f);
+    alSourcef(m_reverbSource, AL_GAIN, 1.0f);
     // NOT routed to EFX slot — no reverb-of-reverb
 
     // Pre-fill buffers with silence and queue them
@@ -605,10 +605,6 @@ void CSteamAudioReverb::UpdateConvolution()
     if (!m_convolutionInitialized || !m_reflectionEffect || !m_ambisonicsDecoder)
         return;
 
-    // --- Gate on OpenAL consumption ---
-    // Only run the convolution pipeline when OpenAL has consumed a buffer.
-    // iplReflectionEffectApply advances internal convolution state each call,
-    // so we must run at exactly the audio consumption rate (~44100/1024 ≈ 43Hz).
     ALint processed = 0;
     alGetSourcei(m_reverbSource, AL_BUFFERS_PROCESSED, &processed);
 
@@ -617,17 +613,28 @@ void CSteamAudioReverb::UpdateConvolution()
 
     const auto& sources = CSteamAudioSource::GetActiveSources();
 
-    // --- Process each consumed buffer independently with fresh source audio ---
-    // When multiple buffers are consumed (game hitch), each gets a unique mix
-    // from the per-source ring buffers rather than duplicated frames.
+    // Snapshot the reflection params ONCE per UpdateConvolution call.
+    // Reuse for all iterations so the IR doesn't change mid-burst
+    // if the simulation thread completes between iterations.
+    IPLReflectionEffectParams reflParams = m_listenerOutputs.reflections;
+    reflParams.type = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
+    reflParams.numChannels = AMBI_CHANNELS;
+    // Don't override irSize — let it use whatever the simulation produced.
+    // The simulator sets this field based on actual ray-traced IR content.
+    // Hardcoding to maxDuration * sampleRate tells the convolver the IR is
+    // longer than it actually is, which can cause premature tail cutoff
+    // when the effect reads past valid IR data into zeros.
+
     while (processed > 0)
     {
         // --- Mix one frame from each active source's ring ---
         memset(m_monoInputData.data(), 0, m_frameSize * sizeof(float));
+        bool hasSourceAudio = false;
         for (auto* src : sources)
         {
             if (src->PopFrame(m_tempDrainFrame.data()))
             {
+                hasSourceAudio = true;
                 for (int i = 0; i < m_frameSize; i++)
                     m_monoInputData[i] += m_tempDrainFrame[i];
             }
@@ -649,12 +656,29 @@ void CSteamAudioReverb::UpdateConvolution()
         ambiOutBuf.numSamples = m_frameSize;
         ambiOutBuf.data = ambiPtrs;
 
-        IPLReflectionEffectParams reflParams = m_listenerOutputs.reflections;
-        reflParams.type = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
-        reflParams.numChannels = AMBI_CHANNELS;
-        reflParams.irSize = (IPLint32)(2.0f * m_samplingRate);
+        IPLAudioEffectState effectState = iplReflectionEffectApply(
+            m_reflectionEffect, &reflParams, &monoInBuf, &ambiOutBuf, nullptr);
 
-        iplReflectionEffectApply(m_reflectionEffect, &reflParams, &monoInBuf, &ambiOutBuf, nullptr);
+        // If no sources are playing AND the tail is complete, output silence
+        // to avoid burning CPU on decode/convert for zero-energy frames.
+        if (!hasSourceAudio && effectState == IPL_AUDIOEFFECTSTATE_TAILCOMPLETE)
+        {
+            // Still need to feed OpenAL so it doesn't underrun.
+            // Queue silence for remaining processed buffers.
+            memset(m_stereoS16.data(), 0, m_stereoS16.size() * sizeof(s16));
+            while (processed > 0)
+            {
+                ALuint bufId = 0;
+                alSourceUnqueueBuffers(m_reverbSource, 1, &bufId);
+                alBufferData(bufId, AL_FORMAT_STEREO16,
+                             m_stereoS16.data(),
+                             (ALsizei)(m_stereoS16.size() * sizeof(s16)),
+                             m_samplingRate);
+                alSourceQueueBuffers(m_reverbSource, 1, &bufId);
+                processed--;
+            }
+            break;
+        }
 
         // --- Decode ambisonics → stereo ---
         float* stereoPtrs[STEREO_CHANNELS];
@@ -675,11 +699,7 @@ void CSteamAudioReverb::UpdateConvolution()
         iplAmbisonicsDecodeEffectApply(m_ambisonicsDecoder, &decodeParams, &ambiOutBuf, &stereoOutBuf);
 
         // --- Gain + s16 conversion ---
-        float rtMid = std::clamp(m_filteredRT60[1], 0.01f, 2.0f);
-        float enclosureFactor = 1.0f / (1.0f + expf(-4.0f * (rtMid - 0.7f)));
-        float targetGain = (0.4f + 0.3f * enclosureFactor) * psSA_ConvolutionGain;
-        targetGain = std::clamp(targetGain, 0.0f, 2.0f);
-
+        float targetGain = std::clamp(psSA_ConvolutionGain, 0.0f, 2.0f);
         float frameDt = (float)m_frameSize / (float)m_samplingRate;
         m_smoothedConvGain = smooth(m_smoothedConvGain, targetGain, 2.0f, frameDt);
 
@@ -693,7 +713,7 @@ void CSteamAudioReverb::UpdateConvolution()
             m_stereoS16[i * 2 + 1] = (s16)R;
         }
 
-        // --- Queue this buffer ---
+        // --- Queue buffer ---
         ALuint bufId = 0;
         alSourceUnqueueBuffers(m_reverbSource, 1, &bufId);
         alBufferData(bufId, AL_FORMAT_STEREO16,

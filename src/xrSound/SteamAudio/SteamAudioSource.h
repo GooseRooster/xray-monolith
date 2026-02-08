@@ -65,6 +65,10 @@ public:
     void PushFrame(const float* data, int count, float gain = 1.0f);  // Write one frame to ring
     bool PopFrame(float* out);                      // Read one frame (false if empty)
 
+    // Push raw s16 audio to ring buffer (for 2D sounds that skip ProcessBuffer).
+    // No direct effects applied — sound is at listener position.
+    void PushRawAudio(const s16* buffer, int numSamples);
+
     // Source registry for convolution mixer
     static const xr_vector<CSteamAudioSource*>& GetActiveSources();
 
@@ -87,8 +91,10 @@ private:
     bool m_outputsValid = false;
     float m_smoothedOcclusion = 1.0f;  // Start with no occlusion (1.0 = sound passes through)
 
-    // Per-source ring buffer for convolution reverb
-    static constexpr int RING_FRAMES = 20;  // ~464ms at 1024/44100
+    // Per-source ring buffer for convolution reverb.
+    // Must hold the initial render burst: sdef_target_count(3) × ~17 frames = 51 frames.
+    // 64 provides headroom for timing jitter during steady-state operation.
+    static constexpr int RING_FRAMES = 64;  // ~1.5s at 1024/44100
     xr_vector<float> m_ringBuffer;          // RING_FRAMES * frameSize floats
     int m_ringWritePos = 0;                 // frame-granularity write cursor
     int m_ringReadPos = 0;                  // frame-granularity read cursor

@@ -313,6 +313,29 @@ const xr_vector<CSteamAudioSource*>& CSteamAudioSource::GetActiveSources()
     return s_activeSources;
 }
 
+void CSteamAudioSource::PushRawAudio(const s16* buffer, int numSamples)
+{
+    if (m_ringFrameSize <= 0 || m_inputBuffer.empty())
+        return;
+
+    const float scale = 1.0f / 32768.0f;
+    const int frameSize = m_ringFrameSize;
+
+    for (int offset = 0; offset < numSamples; offset += frameSize)
+    {
+        int chunkSamples = std::min(frameSize, numSamples - offset);
+
+        // Convert s16 to float
+        for (int i = 0; i < chunkSamples; i++)
+            m_inputBuffer[i] = buffer[offset + i] * scale;
+        for (int i = chunkSamples; i < frameSize; i++)
+            m_inputBuffer[i] = 0.0f;
+
+        // Push with gain 1.0 — no distance attenuation for 2D sounds at listener
+        PushFrame(m_inputBuffer.data(), chunkSamples, 1.0f);
+    }
+}
+
 void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRate)
 {
     // Ensure we have fresh outputs before processing

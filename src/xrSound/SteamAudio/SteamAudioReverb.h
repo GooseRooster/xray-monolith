@@ -127,7 +127,7 @@ private:
     // Processing buffers
     static constexpr int AMBI_CHANNELS = 4;   // 1st-order ambisonics
     static constexpr int STEREO_CHANNELS = 2;
-    static constexpr int NUM_AL_BUFFERS = 4;  // Ring buffer depth (~93ms)
+    static constexpr int NUM_AL_BUFFERS = 8;  // Ring buffer depth (~186ms)
 
     int m_frameSize = 0;
     int m_samplingRate = 0;

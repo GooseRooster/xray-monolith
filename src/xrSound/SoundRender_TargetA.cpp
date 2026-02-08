@@ -229,6 +229,15 @@ void CSoundRender_TargetA::fill_block(ALuint BufferID)
 			m_pEmitter->m_steamSource->ProcessBuffer(
 				(s16*)&g_target_temp_data.front(), numSamples, sampleRate);
 		}
+		// 2D sounds (player footsteps, weapons) skip direct effects but should
+		// still contribute to convolution reverb. Push raw audio at full gain
+		// since the sound originates at the listener position.
+		else if (psSA_Convolution && m_pEmitter->m_steamSource && m_pEmitter->b2D)
+		{
+			int numSamples = buf_block / sizeof(s16);
+			m_pEmitter->m_steamSource->PushRawAudio(
+				(s16*)&g_target_temp_data.front(), numSamples);
+		}
 
 		A_CHK(alBufferData(BufferID, format, &g_target_temp_data.front(), buf_block,
 		                    m_pEmitter->source()->m_wformat.nSamplesPerSec));

@@ -703,7 +703,7 @@ void CSteamAudioReverb::UpdateConvolution()
         decodeParams.order = 1;
         decodeParams.hrtf = m_hrtf;
         decodeParams.orientation = m_listenerInputs.source;
-        decodeParams.binaural = IPL_FALSE;
+        decodeParams.binaural = IPL_TRUE;
 
         iplAmbisonicsDecodeEffectApply(m_ambisonicsDecoder, &decodeParams, &ambiOutBuf, &stereoOutBuf);
 

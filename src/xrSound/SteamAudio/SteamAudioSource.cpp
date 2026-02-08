@@ -4,6 +4,7 @@
 #include "SteamAudioScene.h"
 #include "../SoundRender_CoreA.h"
 
+#include <algorithm>
 #include <atomic>
 
 // Debug counters for tracking source lifecycle - helps diagnose memory leaks
@@ -14,9 +15,8 @@ static std::atomic<int> s_totalSourcesDestroyed{0};
 // When enabled, logs detailed Steam Audio diagnostics
 int g_SA_DebugLogging = 0;
 
-// Static accumulation buffer for convolution reverb — shared by all sources
-static xr_vector<float> s_accumBuffer;
-static int s_accumMaxSamples = 0;
+// Static source registry — convolution mixer iterates this to drain all rings
+xr_vector<CSteamAudioSource*> CSteamAudioSource::s_activeSources;
 
 CSteamAudioSource::CSteamAudioSource()
 {
@@ -117,11 +117,23 @@ bool CSteamAudioSource::Initialize(CSteamAudioScene* scene)
     m_inputs.distanceAttenuationModel.type = IPL_DISTANCEATTENUATIONTYPE_DEFAULT;
     m_inputs.airAbsorptionModel.type = IPL_AIRABSORPTIONTYPE_DEFAULT;
 
+    // Register for convolution mixer and init ring buffer
+    if (psSA_Convolution)
+        InitRing(audioSettings.frameSize);
+    s_activeSources.push_back(this);
+
     return true;
 }
 
 void CSteamAudioSource::Destroy()
 {
+    // Unregister from source registry
+    auto it = std::find(s_activeSources.begin(), s_activeSources.end(), this);
+    if (it != s_activeSources.end())
+        s_activeSources.erase(it);
+
+    DestroyRing();
+
     if (m_directEffect)
     {
         iplDirectEffectRelease(&m_directEffect);
@@ -243,26 +255,62 @@ float CSteamAudioSource::GetDistanceAttenuation() const
     return m_outputs.direct.distanceAttenuation;
 }
 
-void CSteamAudioSource::InitAccumulationBuffer(int frameSize)
+// --- Per-source ring buffer for convolution reverb ---
+
+void CSteamAudioSource::InitRing(int frameSize)
 {
-    s_accumMaxSamples = frameSize;
-    s_accumBuffer.assign(frameSize, 0.0f);
+    m_ringFrameSize = frameSize;
+    m_ringBuffer.assign(RING_FRAMES * frameSize, 0.0f);
+    m_ringWritePos = 0;
+    m_ringReadPos = 0;
 }
 
-void CSteamAudioSource::ClearAccumulationBuffer()
+void CSteamAudioSource::DestroyRing()
 {
-    if (!s_accumBuffer.empty())
-        memset(s_accumBuffer.data(), 0, s_accumMaxSamples * sizeof(float));
+    m_ringBuffer.clear();
+    m_ringFrameSize = 0;
+    m_ringWritePos = 0;
+    m_ringReadPos = 0;
 }
 
-float* CSteamAudioSource::GetAccumulationBuffer()
+void CSteamAudioSource::PushFrame(const float* data, int count, float gain)
 {
-    return s_accumBuffer.empty() ? nullptr : s_accumBuffer.data();
+    if (m_ringFrameSize <= 0 || m_ringBuffer.empty())
+        return;
+
+    // If ring is full, advance read pos (drop oldest frame)
+    if (m_ringWritePos - m_ringReadPos >= RING_FRAMES)
+        m_ringReadPos = m_ringWritePos - RING_FRAMES + 1;
+
+    int slot = m_ringWritePos % RING_FRAMES;
+    float* dst = &m_ringBuffer[slot * m_ringFrameSize];
+    int toCopy = std::min(count, m_ringFrameSize);
+
+    // Apply gain during copy (used for distance attenuation on reverb input)
+    for (int i = 0; i < toCopy; i++)
+        dst[i] = data[i] * gain;
+
+    // Zero-pad if count < frameSize
+    if (toCopy < m_ringFrameSize)
+        memset(dst + toCopy, 0, (m_ringFrameSize - toCopy) * sizeof(float));
+
+    m_ringWritePos++;
 }
 
-int CSteamAudioSource::GetAccumulationSampleCount()
+bool CSteamAudioSource::PopFrame(float* out)
 {
-    return s_accumMaxSamples;
+    if (m_ringReadPos >= m_ringWritePos)
+        return false;  // Empty
+
+    int slot = m_ringReadPos % RING_FRAMES;
+    memcpy(out, &m_ringBuffer[slot * m_ringFrameSize], m_ringFrameSize * sizeof(float));
+    m_ringReadPos++;
+    return true;
+}
+
+const xr_vector<CSteamAudioSource*>& CSteamAudioSource::GetActiveSources()
+{
+    return s_activeSources;
 }
 
 void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRate)
@@ -349,12 +397,13 @@ void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRat
         // Apply direct effect (transmission, air absorption)
         iplDirectEffectApply(m_directEffect, &params, &inBuf, &outBuf);
 
-        // Accumulate first chunk into shared buffer for convolution reverb
-        if (psSA_Convolution && !s_accumBuffer.empty() && offset == 0)
+        // Push every chunk into per-source ring buffer for convolution reverb.
+        // Scale by SA's inverse-distance attenuation so distant sources don't
+        // dominate the reverb mix. (Direct path uses FSM+OpenAL for distance
+        // rolloff, but the ring buffer input needs its own attenuation.)
+        if (psSA_Convolution && m_ringFrameSize > 0)
         {
-            int count = std::min(chunkSamples, s_accumMaxSamples);
-            for (int i = 0; i < count; i++)
-                s_accumBuffer[i] += m_outputBuffer[i];
+            PushFrame(m_outputBuffer.data(), chunkSamples, m_outputs.direct.distanceAttenuation);
         }
 
         // Convert float back to s16 (only the real samples, not zero-padding)

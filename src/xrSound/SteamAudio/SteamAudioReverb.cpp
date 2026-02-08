@@ -504,8 +504,8 @@ bool CSteamAudioReverb::InitializeConvolution(CSteamAudioScene* scene)
         m_stereoChannelData[ch].assign(m_frameSize, 0.0f);
     m_stereoS16.assign(m_frameSize * STEREO_CHANNELS, 0);
 
-    // --- Initialize source accumulation buffer ---
-    CSteamAudioSource::InitAccumulationBuffer(m_frameSize);
+    // --- Initialize temp drain buffer for per-source ring draining ---
+    m_tempDrainFrame.assign(m_frameSize, 0.0f);
 
     // --- Create OpenAL streaming source and buffers ---
     alGenSources(1, &m_reverbSource);
@@ -588,6 +588,7 @@ void CSteamAudioReverb::DestroyConvolution()
 
     // Free processing buffers
     m_monoInputData.clear();
+    m_tempDrainFrame.clear();
     for (int ch = 0; ch < AMBI_CHANNELS; ch++)
         m_ambiChannelData[ch].clear();
     for (int ch = 0; ch < STEREO_CHANNELS; ch++)
@@ -605,95 +606,94 @@ void CSteamAudioReverb::UpdateConvolution()
         return;
 
     // --- Gate on OpenAL consumption ---
-    // Do NOT run the convolution pipeline unless OpenAL has consumed a buffer.
-    // iplReflectionEffectApply advances internal convolution state each call.
-    // If we run it at 60fps but only capture output at 43Hz, the skipped frames
-    // create periodic gaps → the tremolo/gating artifact.
-    // By gating on processed > 0, the convolution runs at exactly the audio
-    // consumption rate (~44100/1024 ≈ 43Hz), which is the correct cadence.
+    // Only run the convolution pipeline when OpenAL has consumed a buffer.
+    // iplReflectionEffectApply advances internal convolution state each call,
+    // so we must run at exactly the audio consumption rate (~44100/1024 ≈ 43Hz).
     ALint processed = 0;
     alGetSourcei(m_reverbSource, AL_BUFFERS_PROCESSED, &processed);
 
     if (processed <= 0)
-        return;  // OpenAL doesn't need data yet — don't advance convolution state
-
-    // --- Snapshot and clear accumulation buffer ---
-    // Sources have been accumulating post-occlusion audio since the last time
-    // we consumed. This may span 1-2 game frames (~16-33ms of source audio).
-    // That's fine — reverb is a diffuse effect, timing smear is inaudible.
-    float* accumBuf = CSteamAudioSource::GetAccumulationBuffer();
-    int accumCount = CSteamAudioSource::GetAccumulationSampleCount();
-    if (!accumBuf || accumCount != m_frameSize)
         return;
 
-    memcpy(m_monoInputData.data(), accumBuf, m_frameSize * sizeof(float));
-    CSteamAudioSource::ClearAccumulationBuffer();
+    const auto& sources = CSteamAudioSource::GetActiveSources();
 
-    // --- Convolution pipeline ---
-    float* monoPtr = m_monoInputData.data();
-    IPLAudioBuffer monoInBuf = {};
-    monoInBuf.numChannels = 1;
-    monoInBuf.numSamples = m_frameSize;
-    monoInBuf.data = &monoPtr;
-
-    float* ambiPtrs[AMBI_CHANNELS];
-    for (int ch = 0; ch < AMBI_CHANNELS; ch++)
-        ambiPtrs[ch] = m_ambiChannelData[ch].data();
-
-    IPLAudioBuffer ambiOutBuf = {};
-    ambiOutBuf.numChannels = AMBI_CHANNELS;
-    ambiOutBuf.numSamples = m_frameSize;
-    ambiOutBuf.data = ambiPtrs;
-
-    IPLReflectionEffectParams reflParams = m_listenerOutputs.reflections;
-    reflParams.type = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
-    reflParams.numChannels = AMBI_CHANNELS;
-    reflParams.irSize = (IPLint32)(2.0f * m_samplingRate);
-
-    iplReflectionEffectApply(m_reflectionEffect, &reflParams, &monoInBuf, &ambiOutBuf, nullptr);
-
-    // --- Decode ambisonics → stereo ---
-    float* stereoPtrs[STEREO_CHANNELS];
-    for (int ch = 0; ch < STEREO_CHANNELS; ch++)
-        stereoPtrs[ch] = m_stereoChannelData[ch].data();
-
-    IPLAudioBuffer stereoOutBuf = {};
-    stereoOutBuf.numChannels = STEREO_CHANNELS;
-    stereoOutBuf.numSamples = m_frameSize;
-    stereoOutBuf.data = stereoPtrs;
-
-    IPLAmbisonicsDecodeEffectParams decodeParams = {};
-    decodeParams.order = 1;
-    decodeParams.hrtf = m_hrtf;
-    decodeParams.orientation = m_listenerInputs.source;
-    decodeParams.binaural = IPL_FALSE;
-
-    iplAmbisonicsDecodeEffectApply(m_ambisonicsDecoder, &decodeParams, &ambiOutBuf, &stereoOutBuf);
-
-    // --- Gain + s16 conversion ---
-    float rtMid = std::clamp(m_filteredRT60[1], 0.01f, 2.0f);
-    float enclosureFactor = 1.0f / (1.0f + expf(-4.0f * (rtMid - 0.7f)));
-    float targetGain = (0.4f + 0.3f * enclosureFactor) * psSA_ConvolutionGain;
-    targetGain = std::clamp(targetGain, 0.0f, 2.0f);
-
-    float frameDt = (float)m_frameSize / (float)m_samplingRate;
-    m_smoothedConvGain = smooth(m_smoothedConvGain, targetGain, 2.0f, frameDt);
-
-    for (int i = 0; i < m_frameSize; i++)
-    {
-        float L = m_stereoChannelData[0][i] * m_smoothedConvGain * 32767.0f;
-        float R = m_stereoChannelData[1][i] * m_smoothedConvGain * 32767.0f;
-        L = std::clamp(L, -32768.0f, 32767.0f);
-        R = std::clamp(R, -32768.0f, 32767.0f);
-        m_stereoS16[i * 2]     = (s16)L;
-        m_stereoS16[i * 2 + 1] = (s16)R;
-    }
-
-    // --- Queue to ALL available buffer slots ---
-    // If the game hitched and 2+ buffers finished, fill them all to prevent
-    // queue drain. Repeating the same reverb frame is inaudible for diffuse tails.
+    // --- Process each consumed buffer independently with fresh source audio ---
+    // When multiple buffers are consumed (game hitch), each gets a unique mix
+    // from the per-source ring buffers rather than duplicated frames.
     while (processed > 0)
     {
+        // --- Mix one frame from each active source's ring ---
+        memset(m_monoInputData.data(), 0, m_frameSize * sizeof(float));
+        for (auto* src : sources)
+        {
+            if (src->PopFrame(m_tempDrainFrame.data()))
+            {
+                for (int i = 0; i < m_frameSize; i++)
+                    m_monoInputData[i] += m_tempDrainFrame[i];
+            }
+        }
+
+        // --- Convolution: mono → 4ch ambisonics ---
+        float* monoPtr = m_monoInputData.data();
+        IPLAudioBuffer monoInBuf = {};
+        monoInBuf.numChannels = 1;
+        monoInBuf.numSamples = m_frameSize;
+        monoInBuf.data = &monoPtr;
+
+        float* ambiPtrs[AMBI_CHANNELS];
+        for (int ch = 0; ch < AMBI_CHANNELS; ch++)
+            ambiPtrs[ch] = m_ambiChannelData[ch].data();
+
+        IPLAudioBuffer ambiOutBuf = {};
+        ambiOutBuf.numChannels = AMBI_CHANNELS;
+        ambiOutBuf.numSamples = m_frameSize;
+        ambiOutBuf.data = ambiPtrs;
+
+        IPLReflectionEffectParams reflParams = m_listenerOutputs.reflections;
+        reflParams.type = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
+        reflParams.numChannels = AMBI_CHANNELS;
+        reflParams.irSize = (IPLint32)(2.0f * m_samplingRate);
+
+        iplReflectionEffectApply(m_reflectionEffect, &reflParams, &monoInBuf, &ambiOutBuf, nullptr);
+
+        // --- Decode ambisonics → stereo ---
+        float* stereoPtrs[STEREO_CHANNELS];
+        for (int ch = 0; ch < STEREO_CHANNELS; ch++)
+            stereoPtrs[ch] = m_stereoChannelData[ch].data();
+
+        IPLAudioBuffer stereoOutBuf = {};
+        stereoOutBuf.numChannels = STEREO_CHANNELS;
+        stereoOutBuf.numSamples = m_frameSize;
+        stereoOutBuf.data = stereoPtrs;
+
+        IPLAmbisonicsDecodeEffectParams decodeParams = {};
+        decodeParams.order = 1;
+        decodeParams.hrtf = m_hrtf;
+        decodeParams.orientation = m_listenerInputs.source;
+        decodeParams.binaural = IPL_FALSE;
+
+        iplAmbisonicsDecodeEffectApply(m_ambisonicsDecoder, &decodeParams, &ambiOutBuf, &stereoOutBuf);
+
+        // --- Gain + s16 conversion ---
+        float rtMid = std::clamp(m_filteredRT60[1], 0.01f, 2.0f);
+        float enclosureFactor = 1.0f / (1.0f + expf(-4.0f * (rtMid - 0.7f)));
+        float targetGain = (0.4f + 0.3f * enclosureFactor) * psSA_ConvolutionGain;
+        targetGain = std::clamp(targetGain, 0.0f, 2.0f);
+
+        float frameDt = (float)m_frameSize / (float)m_samplingRate;
+        m_smoothedConvGain = smooth(m_smoothedConvGain, targetGain, 2.0f, frameDt);
+
+        for (int i = 0; i < m_frameSize; i++)
+        {
+            float L = m_stereoChannelData[0][i] * m_smoothedConvGain * 32767.0f;
+            float R = m_stereoChannelData[1][i] * m_smoothedConvGain * 32767.0f;
+            L = std::clamp(L, -32768.0f, 32767.0f);
+            R = std::clamp(R, -32768.0f, 32767.0f);
+            m_stereoS16[i * 2]     = (s16)L;
+            m_stereoS16[i * 2 + 1] = (s16)R;
+        }
+
+        // --- Queue this buffer ---
         ALuint bufId = 0;
         alSourceUnqueueBuffers(m_reverbSource, 1, &bufId);
         alBufferData(bufId, AL_FORMAT_STEREO16,

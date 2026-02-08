@@ -59,12 +59,14 @@ public:
     // Input/Output: mono s16 PCM, modified in-place.
     void ProcessBuffer(s16* buffer, int numSamples, int sampleRate);
 
-    // --- Static accumulation buffer for convolution reverb ---
-    // Shared by all sources: mono float mix of post-occlusion audio, one frameSize per frame.
-    static void InitAccumulationBuffer(int frameSize);
-    static void ClearAccumulationBuffer();
-    static float* GetAccumulationBuffer();
-    static int GetAccumulationSampleCount();
+    // --- Per-source ring buffer for convolution reverb ---
+    void InitRing(int frameSize);
+    void DestroyRing();
+    void PushFrame(const float* data, int count, float gain = 1.0f);  // Write one frame to ring
+    bool PopFrame(float* out);                      // Read one frame (false if empty)
+
+    // Source registry for convolution mixer
+    static const xr_vector<CSteamAudioSource*>& GetActiveSources();
 
 private:
     IPLSource m_source = nullptr;
@@ -84,4 +86,14 @@ private:
     Fvector m_position = {0, 0, 0};
     bool m_outputsValid = false;
     float m_smoothedOcclusion = 1.0f;  // Start with no occlusion (1.0 = sound passes through)
+
+    // Per-source ring buffer for convolution reverb
+    static constexpr int RING_FRAMES = 20;  // ~464ms at 1024/44100
+    xr_vector<float> m_ringBuffer;          // RING_FRAMES * frameSize floats
+    int m_ringWritePos = 0;                 // frame-granularity write cursor
+    int m_ringReadPos = 0;                  // frame-granularity read cursor
+    int m_ringFrameSize = 0;               // cached SA frameSize (1024)
+
+    // Static source registry — convolution mixer iterates this to drain all rings
+    static xr_vector<CSteamAudioSource*> s_activeSources;
 };

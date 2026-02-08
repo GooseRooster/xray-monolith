@@ -143,4 +143,7 @@ private:
 
     // Gain control
     float m_smoothedConvGain = 0.5f;
+
+    // Temp buffer for draining per-source ring buffers (reused each UpdateConvolution call)
+    xr_vector<float> m_tempDrainFrame;
 };

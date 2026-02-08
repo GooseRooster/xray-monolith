@@ -10,6 +10,9 @@ void SteamAudioSource_LogStats();
 // Global debug logging flag - controlled via snd_sa_debug console command
 extern int g_SA_DebugLogging;
 
+// Convolution cvar
+extern int psSA_Convolution;
+
 /**
  * CSteamAudioSource - Per-emitter Steam Audio wrapper.
  *
@@ -37,7 +40,8 @@ public:
 
     // Update source position for next simulation
     // minDistance: radius (meters) at which sound is at full volume (from OGG metadata)
-    void UpdatePosition(const Fvector& pos, float minDistance = 1.0f);
+    // listenerDist: distance from listener (meters), used to scale occlusion radius
+    void UpdatePosition(const Fvector& pos, float minDistance = 1.0f, float listenerDist = 0.0f);
 
     // Get simulation results (call after simulation completes)
     float GetOcclusion() const;
@@ -54,6 +58,13 @@ public:
     // Process audio buffer with direct effects (occlusion, transmission, air absorption).
     // Input/Output: mono s16 PCM, modified in-place.
     void ProcessBuffer(s16* buffer, int numSamples, int sampleRate);
+
+    // --- Static accumulation buffer for convolution reverb ---
+    // Shared by all sources: mono float mix of post-occlusion audio, one frameSize per frame.
+    static void InitAccumulationBuffer(int frameSize);
+    static void ClearAccumulationBuffer();
+    static float* GetAccumulationBuffer();
+    static int GetAccumulationSampleCount();
 
 private:
     IPLSource m_source = nullptr;

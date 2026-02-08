@@ -3,11 +3,12 @@
 #include <phonon.h>
 
 /**
- * SteamAudioMaterials - Maps X-Ray material IDs to acoustic properties.
+ * SteamAudioMaterials - Maps X-Ray material indices to acoustic properties.
  *
- * X-Ray stores a 14-bit material ID in each collision triangle.
- * This namespace provides mapping from those IDs to Steam Audio's
- * IPLMaterial acoustic properties (absorption, scattering, transmission).
+ * CDB collision triangles store a 14-bit material vector index (translated
+ * from gamemtl IDs by Level_load.cpp). The config file uses gamemtl IDs
+ * for readability; LoadConfig() parses gamemtl.xr to remap keys to vector
+ * indices so MapMaterialId() lookups match what CDB stores.
  *
  * Acoustic properties are 3-band (low, mid, high frequency):
  * - absorption: How much sound is absorbed (0=reflect all, 1=absorb all)
@@ -46,10 +47,15 @@ namespace SteamAudioMaterials
     // Get the array of material presets
     xr_vector<IPLMaterial> GetMaterialPresets();
 
-    // Map X-Ray material ID to preset index
-    // Returns index into the presets array
-    IPLint32 MapMaterialId(u32 xrayMaterialId);
+    // Map material vector index to preset index.
+    // Takes the vector index stored in CDB::TRI.material (translated from
+    // gamemtl ID by Level_load.cpp). Returns index into the presets array.
+    IPLint32 MapMaterialId(u32 vectorIndex);
 
     // Get a specific material preset by index
     IPLMaterial GetMaterialPreset(MaterialPreset preset);
+
+    // Diagnostics: track unmapped material IDs hitting the heuristic fallback
+    void ResetDiagnostics();
+    void LogUnmappedSummary();
 }

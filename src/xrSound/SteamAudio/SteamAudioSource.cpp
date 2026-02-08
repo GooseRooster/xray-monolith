@@ -14,6 +14,10 @@ static std::atomic<int> s_totalSourcesDestroyed{0};
 // When enabled, logs detailed Steam Audio diagnostics
 int g_SA_DebugLogging = 0;
 
+// Static accumulation buffer for convolution reverb — shared by all sources
+static xr_vector<float> s_accumBuffer;
+static int s_accumMaxSamples = 0;
+
 CSteamAudioSource::CSteamAudioSource()
 {
     ++s_totalSourcesCreated;
@@ -141,7 +145,7 @@ void CSteamAudioSource::Destroy()
     m_outputsValid = false;
 }
 
-void CSteamAudioSource::UpdatePosition(const Fvector& pos, float minDistance)
+void CSteamAudioSource::UpdatePosition(const Fvector& pos, float minDistance, float listenerDist)
 {
     m_position = pos;
 
@@ -165,8 +169,13 @@ void CSteamAudioSource::UpdatePosition(const Fvector& pos, float minDistance)
     // Set minDistance from OGG metadata
     m_inputs.distanceAttenuationModel.minDistance = minDistance;
 
-    // Scale occlusion radius with source size
-    m_inputs.occlusionRadius = std::max(2.0f, minDistance);
+    // Scale occlusion radius with distance for reliable volumetric sampling.
+    // At close range: use source physical radius (minDistance or 2m minimum).
+    // At far range: expand sampling sphere so rays probe wider area.
+    // Ramps from base at 10m to ~3x at 50m, capped at 8m.
+    float baseRadius = std::max(2.0f, minDistance);
+    float distFactor = 1.0f + 0.05f * std::max(0.0f, listenerDist - 10.0f);
+    m_inputs.occlusionRadius = std::min(baseRadius * distFactor, 8.0f);
 
     // Push inputs to Steam Audio
     if (m_source)
@@ -206,9 +215,11 @@ float CSteamAudioSource::GetSmoothedOcclusion(float dt)
 
     m_smoothedOcclusion += (raw - m_smoothedOcclusion) * alpha;
 
-    const float MIN_OCCLUSION = 0.15f;
-    if (m_smoothedOcclusion < MIN_OCCLUSION)
-        m_smoothedOcclusion = MIN_OCCLUSION;
+    // Configurable occlusion floor via snd_steam_audio_occlusion_min cvar.
+    // Default 0.0 allows full occlusion; transmission handles what leaks through.
+    // Set to 0.15 to restore old behavior if full occlusion feels too aggressive.
+    if (m_smoothedOcclusion < psSA_OcclusionMin)
+        m_smoothedOcclusion = psSA_OcclusionMin;
 
     return m_smoothedOcclusion;
 }
@@ -230,6 +241,28 @@ float CSteamAudioSource::GetDistanceAttenuation() const
     if (!m_outputsValid)
         return 1.0f;
     return m_outputs.direct.distanceAttenuation;
+}
+
+void CSteamAudioSource::InitAccumulationBuffer(int frameSize)
+{
+    s_accumMaxSamples = frameSize;
+    s_accumBuffer.assign(frameSize, 0.0f);
+}
+
+void CSteamAudioSource::ClearAccumulationBuffer()
+{
+    if (!s_accumBuffer.empty())
+        memset(s_accumBuffer.data(), 0, s_accumMaxSamples * sizeof(float));
+}
+
+float* CSteamAudioSource::GetAccumulationBuffer()
+{
+    return s_accumBuffer.empty() ? nullptr : s_accumBuffer.data();
+}
+
+int CSteamAudioSource::GetAccumulationSampleCount()
+{
+    return s_accumMaxSamples;
 }
 
 void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRate)
@@ -315,6 +348,14 @@ void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRat
 
         // Apply direct effect (transmission, air absorption)
         iplDirectEffectApply(m_directEffect, &params, &inBuf, &outBuf);
+
+        // Accumulate first chunk into shared buffer for convolution reverb
+        if (psSA_Convolution && !s_accumBuffer.empty() && offset == 0)
+        {
+            int count = std::min(chunkSamples, s_accumMaxSamples);
+            for (int i = 0; i < count; i++)
+                s_accumBuffer[i] += m_outputBuffer[i];
+        }
 
         // Convert float back to s16 (only the real samples, not zero-padding)
         for (int i = 0; i < chunkSamples; i++)

@@ -12,8 +12,10 @@
 #include "SteamAudio/SteamAudioSimulator.h"
 #include "SteamAudio/SteamAudioReverb.h"
 #include "SteamAudio/SteamAudioScene.h"
+#include "SteamAudio/SteamAudioSource.h"
 
 extern float psSA_ReverbUpdateRate;
+extern int psSA_Convolution;
 
 CSoundRender_Emitter* CSoundRender_Core::i_play(ref_sound* S, BOOL _loop, float delay)
 {
@@ -84,6 +86,8 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 		{
 			reverb->UpdateProbe(dt_sec);
 		}
+
+
 	}
 
 	// Firstly update emitters, which are now being rendered
@@ -211,6 +215,16 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 			if (m_is_supported)
 				Ptr->SetSlot(Core->slot);
 			Ptr->render();
+		}
+	}
+
+	// Convolution reverb: convolve accumulated source mix with IR and stream to OpenAL
+	if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled() && psSA_Convolution)
+	{
+		CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
+		if (reverb && reverb->IsConvolutionActive())
+		{
+			reverb->UpdateConvolution();
 		}
 	}
 

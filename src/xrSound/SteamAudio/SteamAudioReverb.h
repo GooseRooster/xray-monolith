@@ -1,21 +1,33 @@
 #pragma once
 
 #include <phonon.h>
+#include <algorithm>
+#include <AL/al.h>
 
 class CSteamAudioScene;
 class CSoundRender_Environment;
 
+extern int psSA_Convolution;
+extern float psSA_ConvolutionGain;
+
 /**
- * CSteamAudioReverb - Listener reverb probe for geometry-aware EFX parameters.
+ * CSteamAudioReverb - Listener reverb probe for geometry-aware reverb.
  *
- * Maintains a single persistent IPLSource at the listener position that runs
- * reflections simulation in PARAMETRIC mode. The simulator traces rays and
- * analyzes the sound field to produce reverbTimes[3] (low/mid/high RT60).
+ * Two modes of operation:
  *
- * All 26 EAX reverb parameters are derived from these three values using
- * acoustic heuristics, then smoothed internally to prevent jarring transitions.
- * The result is a complete CSoundRender_Environment that replaces the baked
- * sound environments entirely when SA reverb is active.
+ * PARAMETRIC (psSA_Convolution=0):
+ *   Maintains a single persistent IPLSource at the listener position that runs
+ *   reflections simulation in PARAMETRIC mode. The simulator traces rays and
+ *   analyzes the sound field to produce reverbTimes[3] (low/mid/high RT60).
+ *   All 26 EAX reverb parameters are derived from these three values using
+ *   acoustic heuristics, then smoothed and fed to EFX.
+ *
+ * CONVOLUTION (psSA_Convolution=1):
+ *   The simulator produces an actual impulse response (IR) instead of parametric
+ *   RT60 values. The accumulated source mix is convolved with this IR via
+ *   iplReflectionEffectApply, decoded from ambisonics to stereo, and streamed
+ *   to a dedicated OpenAL source. EFX is disabled when this is active.
+ *   reverbTimes are still available for gain control heuristics.
  */
 class CSteamAudioReverb
 {
@@ -37,7 +49,7 @@ public:
     // dt: time delta in seconds for smoothing
     void UpdateProbe(float dt);
 
-    // Whether the probe has received at least one valid reverbTimes result
+    // Whether the probe has received at least one valid result
     bool HasValidData() const { return m_hasValidData; }
 
     // Fill environment with SA-derived reverb parameters (all 26 EAX params).
@@ -48,9 +60,17 @@ public:
     void SetReverbEnabled(bool enabled) { m_enabled = enabled; }
     bool IsReverbEnabled() const { return m_enabled; }
 
+    // Convolution reverb
+    bool IsConvolutionActive() const { return m_convolutionInitialized; }
+    void UpdateConvolution();
+
 private:
     // Compute raw EFX parameters from reverbTimes[3]
     void DeriveParameters();
+
+    // Convolution reverb init/destroy
+    bool InitializeConvolution(CSteamAudioScene* scene);
+    void DestroyConvolution();
 
     // --- Listener reverb probe ---
     IPLSource m_listenerSource = nullptr;
@@ -87,7 +107,40 @@ private:
     EFXParams m_rawParams;       // Freshly computed from reverbTimes (no smoothing)
     EFXParams m_smoothedParams;  // Exponentially smoothed for output
 
+    // --- Median-of-3 filter for RT60 spike rejection ---
+    float m_rt60History[3][3] = {};  // [band][sample] ring buffer
+    float m_filteredRT60[3] = {};
+    int m_historyIndex = 0;
+
     // --- State ---
     bool m_enabled = true;
     IPLSimulator m_simulator = nullptr;
+
+    // --- Convolution reverb state ---
+    bool m_convolutionInitialized = false;
+
+    // IPL processing objects
+    IPLReflectionEffect m_reflectionEffect = nullptr;
+    IPLAmbisonicsDecodeEffect m_ambisonicsDecoder = nullptr;
+    IPLHRTF m_hrtf = nullptr;  // Required by ambisonics decode API but we use PANNING mode
+
+    // Processing buffers
+    static constexpr int AMBI_CHANNELS = 4;   // 1st-order ambisonics
+    static constexpr int STEREO_CHANNELS = 2;
+    static constexpr int NUM_AL_BUFFERS = 4;  // Ring buffer depth (~93ms)
+
+    int m_frameSize = 0;
+    int m_samplingRate = 0;
+
+    xr_vector<float> m_monoInputData;                      // frameSize
+    xr_vector<float> m_ambiChannelData[AMBI_CHANNELS];     // frameSize each
+    xr_vector<float> m_stereoChannelData[STEREO_CHANNELS]; // frameSize each
+    xr_vector<s16>   m_stereoS16;                          // frameSize * 2 (interleaved)
+
+    // OpenAL streaming
+    ALuint m_reverbSource = 0;
+    ALuint m_reverbBuffers[NUM_AL_BUFFERS] = {};
+
+    // Gain control
+    float m_smoothedConvGain = 0.5f;
 };

@@ -35,10 +35,13 @@ int psSoundCacheSizeMB = 256;
 float snd_efx_environment_change_time = 1.66f;
 
 // Steam Audio tuning parameters
-int psSA_OcclusionRays = 8;          // Default: 8 rays per source
+int psSA_OcclusionRays = 16;         // Default: 16 rays per source
+float psSA_OcclusionMin = 0.0f;      // Default: full occlusion possible (0.0 = no floor)
 int psSA_ReverbRays = 4096;          // Default: 4096 rays for reverb
 int psSA_ReverbBounces = 8;          // Default: 8 bounces
 float psSA_ReverbUpdateRate = 0.2f;  // Default: 200ms update interval
+int psSA_Convolution = 0;            // Default: parametric (EFX) reverb
+float psSA_ConvolutionGain = 1.0f;   // Default: unity gain
 
 CSoundRender_Core* SoundRender = nullptr;
 CSound_manager_interface* Sound = nullptr;

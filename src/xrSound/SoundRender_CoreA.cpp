@@ -142,9 +142,16 @@ int CSoundRender_CoreA::load_reverb(ALuint effect_, const EFXEAXREVERBPROPERTIES
 
 void CSoundRender_CoreA::commit()
 {
-	// EFX reverb is always active when supported.
-	// SA reverb probe feeds geometry-aware decay times INTO EFX parameters,
-	// it doesn't replace EFX.
+	// When convolution reverb is active, disable the EFX slot entirely.
+	// The convolution path streams reverb through a dedicated OpenAL source instead.
+	// Per-source aux sends remain wired to the slot but it's a no-op.
+	if (m_bSteamAudioEnabled && m_steamReverb && m_steamReverb->IsConvolutionActive())
+	{
+		A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_EFFECT, AL_EFFECT_NULL));
+		return;
+	}
+
+	// Parametric path: EFX reverb active, SA probe feeds geometry-aware parameters.
 	A_CHK(alAuxiliaryEffectSlotf(slot, AL_EFFECTSLOT_GAIN, 1.f));
 	A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, false));
 	A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_EFFECT, effect));

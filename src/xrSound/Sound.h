@@ -50,6 +50,9 @@ XRSOUND_API extern int psSA_OcclusionRays;        // Number of occlusion rays pe
 XRSOUND_API extern int psSA_ReverbRays;           // Number of reverb rays (256-8192)
 XRSOUND_API extern int psSA_ReverbBounces;        // Max ray bounces for reverb (2-16)
 XRSOUND_API extern float psSA_ReverbUpdateRate;   // Reverb update interval in seconds (0.1-1.0)
+XRSOUND_API extern float psSA_OcclusionMin;       // Minimum occlusion floor (0.0=full occlusion, 0.15=old behavior)
+XRSOUND_API extern int psSA_Convolution;           // Enable convolution reverb (0=parametric EFX, 1=convolution)
+XRSOUND_API extern float psSA_ConvolutionGain;     // Convolution reverb gain multiplier (0.0-2.0)
 
 // Flags
 enum

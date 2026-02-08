@@ -405,7 +405,7 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 		// CRITICAL: Without this, reflection simulation won't produce IR for this source!
 		if (steamAudioActive)
 		{
-			m_steamSource->UpdatePosition(p_source.position, p_source.min_distance);
+			m_steamSource->UpdatePosition(p_source.position, p_source.min_distance, dist);
 			m_steamSource->FetchOutputs();
 		}
 
@@ -419,22 +419,18 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 			// This maps directly to volume multiplier (1.0 = full volume, 0.0 = silent)
 			occ = m_steamSource->GetSmoothedOcclusion(dt);
 
-			// Prevent multiplicative double-dipping with transmission.
-			// ProcessBuffer applies frequency-dependent transmission to PCM;
-			// occlusion here reduces AL_GAIN. Together they'd give ~-38dB through concrete.
-			// Use average transmission as floor so AL_GAIN stays high enough
-			// for the frequency filtering to remain audible.
+			// Additive occlusion + transmission blend (physically correct).
+			// Occlusion = direct path fraction. Transmission = through-wall fraction.
+			// When fully occluded (occ=0), you hear ONLY the transmitted signal.
+			// When partially occluded, transmission adds a small boost from the wall path.
+			// Formula: effective = occ + (1-occ) * maxTrans
+			// Extremes: occ=0 → maxTrans, occ=1 → 1.0 (both correct).
 			if (psSoundFlags.test(ss_SA_Transmission))
 			{
 				float trans[3];
 				m_steamSource->GetTransmission(trans);
-				// Use loudest transmitted band as floor, not average.
-				// Average understates the dominant band (e.g. concrete: low=0.12, high=0.05,
-				// avg=0.08 loses the low-freq component). Max keeps the frequency filtering
-				// in ProcessBuffer audible.
 				float maxTrans = std::max({trans[0], trans[1], trans[2]});
-				if (occ < maxTrans)
-					occ = maxTrans;
+				occ = occ + (1.0f - occ) * maxTrans;
 			}
 		}
 		else

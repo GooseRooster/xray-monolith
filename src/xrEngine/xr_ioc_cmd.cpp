@@ -1055,9 +1055,13 @@ void CCC_Register()
 	CMD3(CCC_Mask, "snd_steam_audio_reverb", &psSoundFlags, ss_SA_Reverb);
 	CMD3(CCC_Mask, "snd_hrtf", &psSoundFlags, ss_HRTF);
 	CMD4(CCC_Integer, "snd_steam_audio_occlusion_rays", &psSA_OcclusionRays, 1, 32);
+	CMD4(CCC_Float, "snd_steam_audio_occlusion_min", &psSA_OcclusionMin, 0.0f, 0.5f);
 	CMD4(CCC_Integer, "snd_steam_audio_reverb_rays", &psSA_ReverbRays, 256, 8192);
 	CMD4(CCC_Integer, "snd_steam_audio_reverb_bounces", &psSA_ReverbBounces, 2, 16);
 	CMD4(CCC_Float, "snd_steam_audio_reverb_update_rate", &psSA_ReverbUpdateRate, 0.05f, 1.0f);
+	// Steam Audio convolution reverb (requires level reload to take effect)
+	CMD4(CCC_Integer, "snd_sa_convolution", &psSA_Convolution, 0, 1);
+	CMD4(CCC_Float, "snd_sa_convolution_gain", &psSA_ConvolutionGain, 0.0f, 2.0f);
 	// Steam Audio debug logging (0=off, 1=on)
 	extern int g_SA_DebugLogging;
 	CMD4(CCC_Integer, "snd_sa_debug", &g_SA_DebugLogging, 0, 1);

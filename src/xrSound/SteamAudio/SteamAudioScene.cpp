@@ -7,6 +7,7 @@
 extern int g_SA_DebugLogging;
 extern int psSA_ReverbRays;
 extern int psSA_ReverbBounces;
+extern int psSA_Convolution;
 
 CSteamAudioScene::CSteamAudioScene()
 {
@@ -31,11 +32,14 @@ bool CSteamAudioScene::BuildFromCDBModel(CDB::MODEL* model)
         return false;
     }
 
-    // Load material configuration (if not already loaded)
-    SteamAudioMaterials::LoadConfig();
-
-    // Clear any existing geometry
+    // Clear any existing geometry (also resets material config via Reset())
     Clear();
+
+    // Load material configuration AFTER Clear() — Clear() calls Reset()
+    // which wipes s_customMappings and s_configLoaded, so LoadConfig() must
+    // run after to re-populate the mappings before MapMaterialId() is called.
+    SteamAudioMaterials::LoadConfig();
+    SteamAudioMaterials::ResetDiagnostics();
 
     if (g_SA_DebugLogging)
         Msg("STEAM_AUDIO: Building scene from CDB model (%d vertices, %d triangles)",
@@ -77,10 +81,13 @@ bool CSteamAudioScene::BuildFromCDBModel(CDB::MODEL* model)
         m_triangles[i].indices[1] = xrTris[i].verts[2];  // Swap 1 and 2 to reverse winding
         m_triangles[i].indices[2] = xrTris[i].verts[1];  // after Z negation
 
-        // Extract 14-bit material ID from dummy field
-        u32 matId = xrTris[i].material & 0x3FFF;
-        m_materialIndices[i] = SteamAudioMaterials::MapMaterialId(matId);
+        // CDB stores vector index (translated from gamemtl ID by Level_load.cpp)
+        u32 vecIdx = xrTris[i].material & 0x3FFF;
+        m_materialIndices[i] = SteamAudioMaterials::MapMaterialId(vecIdx);
     }
+
+    // Log which material IDs lack explicit mappings — helps populate steam_audio_materials.ltx
+    SteamAudioMaterials::LogUnmappedSummary();
 
     // Get material presets
     m_materials = SteamAudioMaterials::GetMaterialPresets();
@@ -193,14 +200,22 @@ bool CSteamAudioScene::CreateSimulator()
     simSettings.maxNumRays = 4096;
     simSettings.numDiffuseSamples = 32;
     simSettings.maxDuration = 2.0f;  // Max reverb tail in seconds
-    simSettings.maxOrder = 2;        // Ambisonics order (2 = 9 channels)
     simSettings.maxNumSources = 256;  // Max sources in simulator (per-source direct + 1 listener reverb probe)
     // Note: numBounces is set per-frame in IPLSimulationSharedInputs, not here
 
-    // PARAMETRIC mode: same ray tracing simulation, but outputs analyzed parametric
-    // data (reverbTimes[3]) instead of opaque IR. We never convolve — we just read
-    // the RT60 values and map them to EFX reverb parameters.
-    simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_PARAMETRIC;
+    // Branch on convolution mode:
+    // - PARAMETRIC: outputs analyzed RT60 values mapped to EFX reverb parameters
+    // - CONVOLUTION: outputs actual IR for convolution reverb (replaces EFX entirely)
+    if (psSA_Convolution)
+    {
+        simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
+        simSettings.maxOrder = 1;   // 1st-order ambisonics (4ch) — sufficient for stereo decode
+    }
+    else
+    {
+        simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_PARAMETRIC;
+        simSettings.maxOrder = 2;   // 2nd-order (9ch, unused but was the original setting)
+    }
 
     // Threading
     simSettings.numThreads = 4;
@@ -330,7 +345,7 @@ void CSteamAudioScene::SetListenerPosition(const Fvector& pos, const Fvector& di
     sharedInputs.numRays = psSA_ReverbRays;
     sharedInputs.numBounces = psSA_ReverbBounces;
     sharedInputs.duration = 2.0f;
-    sharedInputs.order = 2;
+    sharedInputs.order = psSA_Convolution ? 1 : 2;
     sharedInputs.irradianceMinDistance = 1.0f;
 
     iplSimulatorSetSharedInputs(m_simulator, (IPLSimulationFlags)(IPL_SIMULATIONFLAGS_DIRECT | IPL_SIMULATIONFLAGS_REFLECTIONS), &sharedInputs);

@@ -586,6 +586,9 @@ void CSteamAudioReverb::DestroyConvolution()
         m_reflectionEffect = nullptr;
     }
 
+    // Discard any orphaned ring buffers (level unload — no point draining them)
+    CSteamAudioSource::ClearOrphanedRings();
+
     // Free processing buffers
     m_monoInputData.clear();
     m_tempDrainFrame.clear();
@@ -639,6 +642,12 @@ void CSteamAudioReverb::UpdateConvolution()
                     m_monoInputData[i] += m_tempDrainFrame[i];
             }
         }
+
+        // Drain orphaned ring buffers from recently destroyed sources.
+        // These hold the last frames of finished sounds that haven't been
+        // convolved yet — without this, reverb tails are abruptly cut off.
+        if (CSteamAudioSource::DrainOrphanedFrames(m_monoInputData.data(), m_frameSize, m_tempDrainFrame.data()))
+            hasSourceAudio = true;
 
         // --- Convolution: mono → 4ch ambisonics ---
         float* monoPtr = m_monoInputData.data();

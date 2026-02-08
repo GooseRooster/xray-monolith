@@ -40,8 +40,9 @@ public:
 
     // Update source position for next simulation
     // minDistance: radius (meters) at which sound is at full volume (from OGG metadata)
+    // maxDistance: maximum audible distance (meters), used for reverb attenuation
     // listenerDist: distance from listener (meters), used to scale occlusion radius
-    void UpdatePosition(const Fvector& pos, float minDistance = 1.0f, float listenerDist = 0.0f);
+    void UpdatePosition(const Fvector& pos, float minDistance = 1.0f, float listenerDist = 0.0f, float maxDistance = 50.0f);
 
     // Get simulation results (call after simulation completes)
     float GetOcclusion() const;
@@ -72,6 +73,28 @@ public:
     // Source registry for convolution mixer
     static const xr_vector<CSteamAudioSource*>& GetActiveSources();
 
+    // Orphaned ring buffers from destroyed sources — convolution mixer drains these
+    // so the last frames of a finished sound still get reverb applied.
+    struct OrphanedRing
+    {
+        xr_vector<float> buffer;
+        int writePos;
+        int readPos;
+        int frameSize;
+        int ringFrames;
+
+        bool PopFrame(float* out);
+        bool IsEmpty() const { return readPos >= writePos; }
+    };
+
+    // Drain one frame from each orphaned ring into mixBuffer (additive).
+    // Removes empty orphans. Called from UpdateConvolution().
+    // Returns true if any audio was contributed.
+    static bool DrainOrphanedFrames(float* mixBuffer, int frameSize, float* tempFrame);
+
+    // Discard all orphaned rings (called during level unload / convolution destroy).
+    static void ClearOrphanedRings();
+
 private:
     IPLSource m_source = nullptr;
     IPLSimulator m_simulator = nullptr;  // Cached for defensive iplSourceRemove in Destroy
@@ -91,6 +114,15 @@ private:
     bool m_outputsValid = false;
     float m_smoothedOcclusion = 1.0f;  // Start with no occlusion (1.0 = sound passes through)
 
+    // Cached distance parameters for reverb attenuation (matching direct path model)
+    float m_listenerDist = 0.0f;
+    float m_minDist = 1.0f;
+    float m_maxDist = 50.0f;
+
+    // Compute combined FSM linear × OpenAL inverse-distance-clamped attenuation.
+    // This matches the exact attenuation curve the direct sound path experiences.
+    float ComputeDirectAttenuation() const;
+
     // Per-source ring buffer for convolution reverb.
     // Must hold the initial render burst: sdef_target_count(3) × ~17 frames = 51 frames.
     // 64 provides headroom for timing jitter during steady-state operation.
@@ -102,4 +134,7 @@ private:
 
     // Static source registry — convolution mixer iterates this to drain all rings
     static xr_vector<CSteamAudioSource*> s_activeSources;
+
+    // Orphaned ring buffers awaiting drain by convolution mixer
+    static xr_vector<OrphanedRing> s_orphanedRings;
 };

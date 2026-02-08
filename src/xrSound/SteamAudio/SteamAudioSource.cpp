@@ -18,6 +18,9 @@ int g_SA_DebugLogging = 0;
 // Static source registry — convolution mixer iterates this to drain all rings
 xr_vector<CSteamAudioSource*> CSteamAudioSource::s_activeSources;
 
+// Orphaned ring buffers from destroyed sources, awaiting drain
+xr_vector<CSteamAudioSource::OrphanedRing> CSteamAudioSource::s_orphanedRings;
+
 CSteamAudioSource::CSteamAudioSource()
 {
     ++s_totalSourcesCreated;
@@ -157,9 +160,12 @@ void CSteamAudioSource::Destroy()
     m_outputsValid = false;
 }
 
-void CSteamAudioSource::UpdatePosition(const Fvector& pos, float minDistance, float listenerDist)
+void CSteamAudioSource::UpdatePosition(const Fvector& pos, float minDistance, float listenerDist, float maxDistance)
 {
     m_position = pos;
+    m_listenerDist = listenerDist;
+    m_minDist = minDistance;
+    m_maxDist = maxDistance;
 
     // Convert X-Ray left-handed to Steam Audio right-handed: negate Z
     m_inputs.source.origin.x = pos.x;
@@ -255,6 +261,28 @@ float CSteamAudioSource::GetDistanceAttenuation() const
     return m_outputs.direct.distanceAttenuation;
 }
 
+float CSteamAudioSource::ComputeDirectAttenuation() const
+{
+    float dist = m_listenerDist;
+    float minD = m_minDist;
+    float maxD = m_maxDist;
+
+    // FSM linear model (from update_culling in SoundRender_Emitter_FSM.cpp)
+    float minMax = maxD - minD;
+    float fsmLinear = (minMax > 0.001f) ? (maxD - dist) / minMax : 1.0f;
+    if (fsmLinear < 0.0f) fsmLinear = 0.0f;
+    if (fsmLinear > 1.0f) fsmLinear = 1.0f;
+
+    // OpenAL inverse-distance-clamped model (AL_INVERSE_DISTANCE_CLAMPED default)
+    // gain = refDist / (refDist + rolloff * (clamp(dist, refDist, maxDist) - refDist))
+    float clampedDist = dist;
+    if (clampedDist < minD) clampedDist = minD;
+    if (clampedDist > maxD) clampedDist = maxD;
+    float openalInverse = minD / (minD + psSoundRolloff * (clampedDist - minD));
+
+    return fsmLinear * openalInverse;
+}
+
 // --- Per-source ring buffer for convolution reverb ---
 
 void CSteamAudioSource::InitRing(int frameSize)
@@ -267,6 +295,20 @@ void CSteamAudioSource::InitRing(int frameSize)
 
 void CSteamAudioSource::DestroyRing()
 {
+    // If there are unread frames, orphan the ring buffer so the convolution
+    // mixer can finish draining them. Without this, the reverb tail of the
+    // last ~400ms of audio is abruptly cut off when a sound ends.
+    if (m_ringFrameSize > 0 && m_ringWritePos > m_ringReadPos && !m_ringBuffer.empty())
+    {
+        OrphanedRing orphan;
+        orphan.buffer = std::move(m_ringBuffer);
+        orphan.writePos = m_ringWritePos;
+        orphan.readPos = m_ringReadPos;
+        orphan.frameSize = m_ringFrameSize;
+        orphan.ringFrames = RING_FRAMES;
+        s_orphanedRings.push_back(std::move(orphan));
+    }
+
     m_ringBuffer.clear();
     m_ringFrameSize = 0;
     m_ringWritePos = 0;
@@ -311,6 +353,44 @@ bool CSteamAudioSource::PopFrame(float* out)
 const xr_vector<CSteamAudioSource*>& CSteamAudioSource::GetActiveSources()
 {
     return s_activeSources;
+}
+
+// --- Orphaned ring buffer support ---
+
+bool CSteamAudioSource::OrphanedRing::PopFrame(float* out)
+{
+    if (readPos >= writePos)
+        return false;
+
+    int slot = readPos % ringFrames;
+    memcpy(out, &buffer[slot * frameSize], frameSize * sizeof(float));
+    readPos++;
+    return true;
+}
+
+bool CSteamAudioSource::DrainOrphanedFrames(float* mixBuffer, int frameSize, float* tempFrame)
+{
+    bool contributed = false;
+    for (auto it = s_orphanedRings.begin(); it != s_orphanedRings.end(); )
+    {
+        if (it->PopFrame(tempFrame))
+        {
+            contributed = true;
+            for (int i = 0; i < frameSize; i++)
+                mixBuffer[i] += tempFrame[i];
+        }
+
+        if (it->IsEmpty())
+            it = s_orphanedRings.erase(it);
+        else
+            ++it;
+    }
+    return contributed;
+}
+
+void CSteamAudioSource::ClearOrphanedRings()
+{
+    s_orphanedRings.clear();
 }
 
 void CSteamAudioSource::PushRawAudio(const s16* buffer, int numSamples)
@@ -421,12 +501,11 @@ void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRat
         iplDirectEffectApply(m_directEffect, &params, &inBuf, &outBuf);
 
         // Push every chunk into per-source ring buffer for convolution reverb.
-        // Scale by SA's inverse-distance attenuation so distant sources don't
-        // dominate the reverb mix. (Direct path uses FSM+OpenAL for distance
-        // rolloff, but the ring buffer input needs its own attenuation.)
+        // Scale by the same FSM linear × OpenAL inverse attenuation the direct
+        // path uses, so wet/dry ratio stays consistent at all distances.
         if (psSA_Convolution && m_ringFrameSize > 0)
         {
-            PushFrame(m_outputBuffer.data(), chunkSamples, m_outputs.direct.distanceAttenuation);
+            PushFrame(m_outputBuffer.data(), chunkSamples, ComputeDirectAttenuation());
         }
 
         // Convert float back to s16 (only the real samples, not zero-padding)

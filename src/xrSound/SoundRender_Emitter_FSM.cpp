@@ -405,7 +405,7 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 		// CRITICAL: Without this, reflection simulation won't produce IR for this source!
 		if (steamAudioActive)
 		{
-			m_steamSource->UpdatePosition(p_source.position, p_source.min_distance, dist);
+			m_steamSource->UpdatePosition(p_source.position, p_source.min_distance, dist, p_source.max_distance);
 			m_steamSource->FetchOutputs();
 		}
 

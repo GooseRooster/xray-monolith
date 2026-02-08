@@ -483,7 +483,7 @@ bool CSteamAudioReverb::InitializeConvolution(CSteamAudioScene* scene)
     IPLAmbisonicsDecodeEffectSettings decodeSettings = {};
     decodeSettings.speakerLayout.type = IPL_SPEAKERLAYOUTTYPE_STEREO;
     decodeSettings.hrtf = m_hrtf;
-    decodeSettings.maxOrder = 1;
+    decodeSettings.maxOrder = 2;
 
     error = iplAmbisonicsDecodeEffectCreate(context, &audioSettings, &decodeSettings, &m_ambisonicsDecoder);
     if (error != IPL_STATUS_SUCCESS)
@@ -588,6 +588,10 @@ void CSteamAudioReverb::DestroyConvolution()
 
     // Discard any orphaned ring buffers (level unload — no point draining them)
     CSteamAudioSource::ClearOrphanedRings();
+
+    // Reset LP filter state
+    m_lpStateL = 0.0f;
+    m_lpStateR = 0.0f;
 
     // Free processing buffers
     m_monoInputData.clear();
@@ -700,12 +704,27 @@ void CSteamAudioReverb::UpdateConvolution()
         stereoOutBuf.data = stereoPtrs;
 
         IPLAmbisonicsDecodeEffectParams decodeParams = {};
-        decodeParams.order = 1;
+        decodeParams.order = 2;
         decodeParams.hrtf = m_hrtf;
         decodeParams.orientation = m_listenerInputs.source;
         decodeParams.binaural = IPL_TRUE;
 
         iplAmbisonicsDecodeEffectApply(m_ambisonicsDecoder, &decodeParams, &ambiOutBuf, &stereoOutBuf);
+
+        // --- Gentle 1-pole low-pass to darken reverb tail ---
+        // Real-world reverb accumulates HF absorption from air and wall bounces.
+        // alpha ≈ 0.6 → -3dB at ~6kHz. Value of 1.0 disables (output = input).
+        float lpAlpha = std::clamp(psSA_ConvolutionLPF, 0.1f, 1.0f);
+        if (lpAlpha < 1.0f)
+        {
+            for (int i = 0; i < m_frameSize; i++)
+            {
+                m_lpStateL += lpAlpha * (m_stereoChannelData[0][i] - m_lpStateL);
+                m_lpStateR += lpAlpha * (m_stereoChannelData[1][i] - m_lpStateR);
+                m_stereoChannelData[0][i] = m_lpStateL;
+                m_stereoChannelData[1][i] = m_lpStateR;
+            }
+        }
 
         // --- Gain + s16 conversion ---
         float targetGain = std::clamp(psSA_ConvolutionGain, 0.0f, 2.0f);

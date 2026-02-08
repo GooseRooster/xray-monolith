@@ -53,6 +53,7 @@ XRSOUND_API extern float psSA_ReverbUpdateRate;   // Reverb update interval in s
 XRSOUND_API extern float psSA_OcclusionMin;       // Minimum occlusion floor (0.0=full occlusion, 0.15=old behavior)
 XRSOUND_API extern int psSA_Convolution;           // Enable convolution reverb (0=parametric EFX, 1=convolution)
 XRSOUND_API extern float psSA_ConvolutionGain;     // Convolution reverb gain multiplier (0.0-2.0)
+XRSOUND_API extern float psSA_ConvolutionLPF;      // Convolution reverb LP filter alpha (0.1=dark, 1.0=disabled)
 
 // Flags
 enum

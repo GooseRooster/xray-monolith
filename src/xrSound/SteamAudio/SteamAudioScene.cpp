@@ -209,7 +209,7 @@ bool CSteamAudioScene::CreateSimulator()
     if (psSA_Convolution)
     {
         simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
-        simSettings.maxOrder = 1;   // 1st-order ambisonics (4ch) — sufficient for stereo decode
+        simSettings.maxOrder = 2;   // 2nd-order ambisonics (9ch) — sharper early reflections
     }
     else
     {
@@ -345,7 +345,7 @@ void CSteamAudioScene::SetListenerPosition(const Fvector& pos, const Fvector& di
     sharedInputs.numRays = psSA_ReverbRays;
     sharedInputs.numBounces = psSA_ReverbBounces;
     sharedInputs.duration = 2.0f;
-    sharedInputs.order = psSA_Convolution ? 1 : 2;
+    sharedInputs.order = 2;
     sharedInputs.irradianceMinDistance = 1.0f;
 
     iplSimulatorSetSharedInputs(m_simulator, (IPLSimulationFlags)(IPL_SIMULATIONFLAGS_DIRECT | IPL_SIMULATIONFLAGS_REFLECTIONS), &sharedInputs);

@@ -42,6 +42,7 @@ int psSA_ReverbBounces = 8;          // Default: 8 bounces
 float psSA_ReverbUpdateRate = 0.2f;  // Default: 200ms update interval
 int psSA_Convolution = 0;            // Default: parametric (EFX) reverb
 float psSA_ConvolutionGain = 1.0f;   // Default: unity gain
+float psSA_ConvolutionLPF = 0.6f;    // Default: gentle HF rolloff (1.0 = disabled)
 
 CSoundRender_Core* SoundRender = nullptr;
 CSound_manager_interface* Sound = nullptr;

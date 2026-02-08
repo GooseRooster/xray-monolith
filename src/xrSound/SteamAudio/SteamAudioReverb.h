@@ -9,6 +9,7 @@ class CSoundRender_Environment;
 
 extern int psSA_Convolution;
 extern float psSA_ConvolutionGain;
+extern float psSA_ConvolutionLPF;
 
 /**
  * CSteamAudioReverb - Listener reverb probe for geometry-aware reverb.
@@ -125,7 +126,7 @@ private:
     IPLHRTF m_hrtf = nullptr;  // Required by ambisonics decode API but we use PANNING mode
 
     // Processing buffers
-    static constexpr int AMBI_CHANNELS = 4;   // 1st-order ambisonics
+    static constexpr int AMBI_CHANNELS = 9;   // 2nd-order ambisonics
     static constexpr int STEREO_CHANNELS = 2;
     static constexpr int NUM_AL_BUFFERS = 8;  // Ring buffer depth (~186ms)
 
@@ -143,6 +144,10 @@ private:
 
     // Gain control
     float m_smoothedConvGain = 0.5f;
+
+    // Low-pass filter state for reverb tail darkening
+    float m_lpStateL = 0.0f;
+    float m_lpStateR = 0.0f;
 
     // Temp buffer for draining per-source ring buffers (reused each UpdateConvolution call)
     xr_vector<float> m_tempDrainFrame;

@@ -1062,6 +1062,7 @@ void CCC_Register()
 	// Steam Audio convolution reverb (requires level reload to take effect)
 	CMD4(CCC_Integer, "snd_sa_convolution", &psSA_Convolution, 0, 1);
 	CMD4(CCC_Float, "snd_sa_convolution_gain", &psSA_ConvolutionGain, 0.0f, 2.0f);
+	CMD4(CCC_Float, "snd_sa_convolution_lpf", &psSA_ConvolutionLPF, 0.1f, 1.0f);
 	// Steam Audio debug logging (0=off, 1=on)
 	extern int g_SA_DebugLogging;
 	CMD4(CCC_Integer, "snd_sa_debug", &g_SA_DebugLogging, 0, 1);

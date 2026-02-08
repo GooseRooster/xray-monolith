@@ -484,6 +484,17 @@ void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRat
         for (int i = chunkSamples; i < frameSize; i++)
             m_inputBuffer[i] = 0.0f;
 
+        // Push PRE-OCCLUSION audio into per-source ring buffer for convolution reverb.
+        // Uses m_inputBuffer (clean signal) rather than m_outputBuffer (post-occlusion)
+        // so reverb remains audible even when the direct path is fully occluded —
+        // matching real acoustics where reflected sound reaches the listener via
+        // ceilings, openings, and other surfaces even when the source is behind a wall.
+        // Scale by FSM linear × OpenAL inverse attenuation for consistent wet/dry ratio.
+        if (psSA_Convolution && m_ringFrameSize > 0)
+        {
+            PushFrame(m_inputBuffer.data(), chunkSamples, ComputeDirectAttenuation());
+        }
+
         float* inPtr = m_inputBuffer.data();
         float* outPtr = m_outputBuffer.data();
 
@@ -497,16 +508,8 @@ void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRat
         outBuf.numSamples = frameSize;
         outBuf.data = &outPtr;
 
-        // Apply direct effect (transmission, air absorption)
+        // Apply direct effect (transmission, air absorption) — only affects direct path
         iplDirectEffectApply(m_directEffect, &params, &inBuf, &outBuf);
-
-        // Push every chunk into per-source ring buffer for convolution reverb.
-        // Scale by the same FSM linear × OpenAL inverse attenuation the direct
-        // path uses, so wet/dry ratio stays consistent at all distances.
-        if (psSA_Convolution && m_ringFrameSize > 0)
-        {
-            PushFrame(m_outputBuffer.data(), chunkSamples, ComputeDirectAttenuation());
-        }
 
         // Convert float back to s16 (only the real samples, not zero-padding)
         for (int i = 0; i < chunkSamples; i++)

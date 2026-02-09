@@ -306,6 +306,42 @@ void destroyEngine()
 void execUserScript()
 {
 	Console->Execute("default_controls");
+
+	// OWA: Load mod defaults before user overrides.
+	// user_default.ltx in $fs_root$ (game root) provides sane baseline values
+	// for all OWA console variables. user.ltx then overrides with player prefs.
+	// Note: Both FS.exist() and FS.r_open() use the VFS index, which doesn't
+	// include loose files in $fs_root$. We bypass VFS entirely and use fopen()
+	// with the full path from update_path().
+	string_path cfg_default;
+	FS.update_path(cfg_default, "$fs_root$", "user_default.ltx");
+	if (GetFileAttributes(cfg_default) != INVALID_FILE_ATTRIBUTES)
+	{
+		Log("* OWA: Applying mod defaults from user_default.ltx");
+		FILE* f = fopen(cfg_default, "r");
+		if (f)
+		{
+			char buf[1024];
+			while (fgets(buf, sizeof(buf), f))
+			{
+				// Strip trailing newline/CR
+				size_t len = strlen(buf);
+				while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r'))
+					buf[--len] = 0;
+				// Skip empty lines and comments
+				if (len == 0 || buf[0] == ';' || (buf[0] == '/' && buf[1] == '/'))
+					continue;
+				Console->Execute(buf);
+			}
+			fclose(f);
+			Log("* OWA: user_default.ltx applied successfully");
+		}
+		else
+		{
+			Msg("! OWA: Failed to open user_default.ltx at [%s]", cfg_default);
+		}
+	}
+
 	Console->ExecuteScript(Console->ConfigFile);
 }
 

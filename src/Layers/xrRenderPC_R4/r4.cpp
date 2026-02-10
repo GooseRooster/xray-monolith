@@ -372,6 +372,21 @@ void CRender::create()
 	// OWA: GTAO/SSDO - simple direct check like OGSR (no legacy flags needed)
 	o.ssao_gtao = (ps_r_ssao_mode == AO_MODE_GTAO) && (ps_r_ssao != 0);
 
+	// OWA: Force GTAO when IL/probes active — IL pipeline requires bent normals + visibility
+	if (ps_r3_ssfx_il && !o.staticlighting)
+	{
+		if (!o.ssao_gtao)
+		{
+			o.ssao_gtao = TRUE;
+			Msg("* [OWA] GTAO force-enabled: IL pipeline requires bent normal + visibility data");
+		}
+		if (ps_r_ssao == 0)
+		{
+			ps_r_ssao = 1;
+			Msg("* [OWA] SSAO force-enabled: IL pipeline requires AO data");
+		}
+	}
+
 	o.dx10_sm4_1 = ps_r2_ls_flags.test((u32)R3FLAG_USE_DX10_1);
 	o.dx10_sm4_1 = o.dx10_sm4_1 && (HW.FeatureLevel >= D3D_FEATURE_LEVEL_10_1);
 

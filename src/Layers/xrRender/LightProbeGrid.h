@@ -1,16 +1,15 @@
 #pragma once
 
 #include "../../xrCDB/xrCDB.h"
-#include <set>
 
 // Forward declarations
-class CSector;
 class CPortal;
+class ISpatial;
 
 //////////////////////////////////////////////////////////////////////////
 // Constants
 //////////////////////////////////////////////////////////////////////////
-static const float OUTDOOR_GRID_SPACING = 3.0f;     // meters between probes outdoors
+static const float OUTDOOR_GRID_SPACING = 2.0f;     // meters between probes outdoors
 static const float INDOOR_GRID_SPACING = 1.5f;      // meters between probes indoors
 static const u32   PROBES_PER_ROW = 256;            // 2D texture layout: probes per texture row
 static const float PORTAL_BRIDGE_OFFSET = 0.5f;     // offset from portal plane
@@ -26,34 +25,49 @@ static const float SUN_ALIGNMENT_THRESHOLD = 0.5f;  // cos(60°) - rays within 6
 static const float RECEIVED_LIGHT_WEIGHT = 0.35f;    // how much received light affects sunVisibility
 
 // Spatial hash constants
-static const int   MAX_PROBES_PER_CELL = 8;         // max probes stored per hash cell
-static const float DEFAULT_HASH_CELL_SIZE = 2.0f;   // spatial hash cell size (finer than probe spacing)
+static const int   MAX_PROBES_PER_CELL = 4;         // max probes stored per hash cell (1 texel @ R32G32B32A32_UINT)
+static const float DEFAULT_HASH_CELL_SIZE = 4.0f;   // spatial hash cell size (2x outdoor spacing)
+static const float INDOOR_RAY_RANGE = 30.0f;         // upward ray range for indoor detection
+static const int   INDOOR_RAY_COUNT = 5;             // number of upward rays for indoor detection
+static const int   INDOOR_RAY_THRESHOLD = 4;         // hits needed to classify as indoor
 static const int   DEFAULT_PROPAGATION_ITERS = 2;   // light propagation iterations
 static const int   DEFAULT_PROPAGATION_RATE = 30;   // frames between propagation passes
 
+// Point light injection constants
+static const float POINT_LIGHT_SEARCH_RADIUS = 20.0f;  // max distance to query lights
+static const int   MAX_POINT_LIGHTS_PER_PROBE = 5;     // cap per-probe to bound worst case
+
 //////////////////////////////////////////////////////////////////////////
-// GPU-compatible probe data structure (32 bytes, must match HLSL)
+// GPU-compatible probe data structure (64 bytes, must match HLSL)
 //////////////////////////////////////////////////////////////////////////
 struct GPUProbeData
 {
-    Fvector3 position;      // 12 bytes
-    float    skyVisibility; // 4 bytes
-    Fvector3 ambient;       // 12 bytes
-    float    sunVisibility; // 4 bytes
-};                          // Total: 32 bytes
+    Fvector3 position;          // texel 0: xyz   (12 bytes)
+    float    skyVisibility;     // texel 0: w     (4 bytes)
+    Fvector3 ambient;           // texel 1: xyz   (12 bytes)
+    float    sunVisibility;     // texel 1: w     (4 bytes)
+    Fvector3 dominantDir;       // texel 2: xyz   (12 bytes)
+    float    directionalRatio;  // texel 2: w     (4 bytes)
+    Fvector3 pointLightColor;   // texel 3: xyz   (12 bytes)
+    float    pointLightIntensity; // texel 3: w   (4 bytes)
+};                              // Total: 64 bytes
 
 //////////////////////////////////////////////////////////////////////////
 // CPU-side probe data with additional tracking info
 //////////////////////////////////////////////////////////////////////////
 struct CLightProbe
 {
-    Fvector3 position;       // World-space position
-    float    skyVisibility;  // 0-1 sky visibility fraction
-    Fvector3 ambient;        // Accumulated ambient (includes bounce)
-    float    sunVisibility;  // 0-1 direct sun visibility
-    Fvector3 bounce;         // Indirect sun contribution (debug)
-    u16      sectorId;       // For update prioritization
-    u16      lastUpdateFrame; // Frame counter for staggering
+    Fvector3 position;           // World-space position
+    float    skyVisibility;      // 0-1 sky visibility fraction
+    Fvector3 ambient;            // Accumulated ambient (includes bounce)
+    float    sunVisibility;      // 0-1 direct sun visibility
+    Fvector3 bounce;             // Indirect sun contribution (debug)
+    Fvector3 dominantDir;        // Energy-weighted primary light direction
+    float    directionalRatio;   // 0=uniform, 1=all from one direction
+    Fvector3 pointLightColor;    // Accumulated point/spot light color
+    float    pointLightIntensity; // Point light luminance
+    u16      sectorId;           // Reserved (0xFFFF) — preserves GPU layout
+    u16      lastUpdateFrame;    // Frame counter for staggering
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -61,9 +75,9 @@ struct CLightProbe
 //////////////////////////////////////////////////////////////////////////
 struct SpatialHashCell
 {
-    u16 probeIndices[MAX_PROBES_PER_CELL];  // Probe indices in this cell
+    u32 probeIndices[MAX_PROBES_PER_CELL];  // Probe indices (u32 supports >65K probes)
     u8  count;                               // Number of valid entries
-    u8  _pad;                                // Padding for alignment
+    u8  _pad[3];                             // Padding for alignment
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -71,7 +85,7 @@ struct SpatialHashCell
 //////////////////////////////////////////////////////////////////////////
 struct ProbeNeighbors
 {
-    u16   indices[6];    // Neighbor probe indices: +X, -X, +Y, -Y, +Z, -Z (0xFFFF = none)
+    u32   indices[6];    // Neighbor probe indices: +X, -X, +Y, -Y, +Z, -Z (0xFFFFFFFF = none)
     float distances[6];  // Distance to each neighbor
 };
 
@@ -115,11 +129,12 @@ public:
 private:
     // Probe storage
     xr_vector<CLightProbe>  m_probes;
-    std::set<u16>           m_visibleSectors;
 
-    // GPU resources (Texture2D: width=2, height=probeCount, RGBA32F)
-    // Texel (x,0): position.xyz, skyVisibility
-    // Texel (x,1): ambient.xyz, sunVisibility
+    // GPU resources (Texture2D: PROBES_PER_ROW*4 wide, RGBA32F)
+    // Texel 0: position.xyz, skyVisibility
+    // Texel 1: ambient.xyz, sunVisibility
+    // Texel 2: dominantDir.xyz, directionalRatio
+    // Texel 3: pointLightColor.xyz, pointLightIntensity
     ID3D11Texture2D*          m_pProbeTexture;
     ID3D11ShaderResourceView* m_pProbeSRV;
     bool  m_gpuBufferDirty;
@@ -128,11 +143,11 @@ private:
     // Update state
     CDB::COLLIDER m_collider;    // Own instance for thread safety
     u32   m_updateBudget;
-    u32   m_nextProbeIndex;
     u32   m_currentFrame;
     float m_bounceIntensity;
     float m_lastUpdateTimeMs;
     bool  m_debugEnabled;
+    u32   m_farRobinIndex;   // Round-robin index for far/distant tier updates
 
     // Grid bounds (computed during Build)
     Fvector m_boundsMin;
@@ -152,20 +167,25 @@ private:
 
     // Neighbor connectivity for light propagation
     xr_vector<ProbeNeighbors> m_probeNeighbors;
+
+    // Reusable spatial query buffer for point light injection
+    xr_vector<ISpatial*> m_lightQueryResults;
     int   m_propagationIters;
     int   m_propagationRate;
 
-    // Internal methods
-    void PlaceProbesInSector(CSector* sector, u32 sectorIndex, bool isIndoor);
+    // Internal methods — placement
     void PlacePortalBridgeProbes(CPortal* portal);
     bool IsValidProbePosition(const Fvector& pos);
-    bool IsSectorIndoor(CSector* sector);
+    bool IsPositionIndoor(const Fvector& pos);
+    CLightProbe MakeDefaultProbe(const Fvector& pos, bool isIndoor);
+    bool HasNearbyProbe(const Fvector& pos, float minDist) const;
+    void ComputeGridBounds();
+
+    // Internal methods — update
     void UpdateProbe(CLightProbe& probe, u32 probeIndex);
+    u32  UpdateProbesInRadius(const Fvector& center, float minDist, float maxDist, u32 budget);
     void CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal, Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor);
     Fvector ComputeTriangleNormal(const CDB::RESULT& hit);
-    void BuildVisibleSectorSet();
-    bool IsProbeInVisibleSector(const CLightProbe& probe);
-    void ComputeGridBounds();
 
     // Spatial hash methods
     void BuildSpatialHash();

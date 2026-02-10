@@ -2,11 +2,12 @@
 #include "LightProbeGrid.h"
 #include "xrRender_console.h"
 #include "r__sector.h"
-#include "FBasicVisual.h"
 #include "../../xrEngine/xr_object.h"
 #include "../../xrEngine/IGame_Persistent.h"
 #include "../../xrEngine/IGame_Level.h"
 #include "../../xrEngine/Environment.h"
+#include "light.h"
+#include "../../xrCDB/ISpatial.h"
 
 // External console variables
 extern int   ps_r_probe_update_rate;
@@ -55,7 +56,6 @@ CLightProbeGrid::CLightProbeGrid()
     , m_gpuBufferDirty(true)
     , m_gpuTextureHeight(0)
     , m_updateBudget(50)
-    , m_nextProbeIndex(0)
     , m_currentFrame(0)
     , m_bounceIntensity(DEFAULT_BOUNCE_INTENSITY)
     , m_lastUpdateTimeMs(0)
@@ -66,6 +66,7 @@ CLightProbeGrid::CLightProbeGrid()
     , m_hashCellSize(DEFAULT_HASH_CELL_SIZE)
     , m_propagationIters(DEFAULT_PROPAGATION_ITERS)
     , m_propagationRate(DEFAULT_PROPAGATION_RATE)
+    , m_farRobinIndex(0)
 {
     m_boundsMin.set(0, 0, 0);
     m_boundsMax.set(0, 0, 0);
@@ -84,7 +85,6 @@ CLightProbeGrid::~CLightProbeGrid()
 void CLightProbeGrid::Clear()
 {
     m_probes.clear();
-    m_visibleSectors.clear();
     m_spatialHash.clear();
     m_probeNeighbors.clear();
 
@@ -112,88 +112,55 @@ void CLightProbeGrid::Clear()
     m_gpuTextureHeight = 0;
     m_gpuBufferDirty = true;
     m_hashDirty = true;
-    m_nextProbeIndex = 0;
+    m_farRobinIndex = 0;
 }
 
-bool CLightProbeGrid::IsSectorIndoor(CSector* sector)
+bool CLightProbeGrid::IsPositionIndoor(const Fvector& pos)
 {
-    if (!sector) return false;
-
-    // Simple heuristic: cast rays up from sector center to check sky visibility
-    // If most rays hit geometry, it's likely indoor
-    dxRender_Visual* visual = sector->root();
-    if (!visual) return false;
-
-    Fbox bounds = visual->getVisData().box;
-    Fvector center;
-    bounds.getcenter(center);
-
     if (!g_pGameLevel) return false;
+
     CDB::MODEL* staticModel = g_pGameLevel->ObjectSpace.GetStaticModel();
     if (!staticModel) return false;
 
-    // Cast a few rays upward
+    // Cast 5 upward rays from the candidate position
+    // If 4+ rays hit geometry overhead, classify as indoor
     int hits = 0;
     m_collider.ray_options(CDB::OPT_ONLYNEAREST);
 
-    Fvector upDirs[4] = {
-        { 0, 1, 0 },
-        { 0.3f, 0.95f, 0 },
-        { -0.3f, 0.95f, 0 },
-        { 0, 0.95f, 0.3f }
+    Fvector upDirs[INDOOR_RAY_COUNT] = {
+        {  0.0f, 1.0f,   0.0f },
+        {  0.2f, 0.98f,  0.0f },
+        { -0.2f, 0.98f,  0.0f },
+        {  0.0f, 0.98f,  0.2f },
+        {  0.0f, 0.98f, -0.2f }
     };
 
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < INDOOR_RAY_COUNT; i++)
     {
         upDirs[i].normalize();
-        m_collider.ray_query(staticModel, center, upDirs[i], 50.0f);
+        m_collider.ray_query(staticModel, pos, upDirs[i], INDOOR_RAY_RANGE);
         if (m_collider.r_count() > 0)
             hits++;
     }
 
-    // If 3+ rays hit, consider it indoor
-    return hits >= 3;
+    return hits >= INDOOR_RAY_THRESHOLD;
 }
 
-void CLightProbeGrid::PlaceProbesInSector(CSector* sector, u32 sectorIndex, bool isIndoor)
+CLightProbe CLightProbeGrid::MakeDefaultProbe(const Fvector& pos, bool isIndoor)
 {
-    if (!sector) return;
-
-    float spacing = isIndoor ? INDOOR_GRID_SPACING : OUTDOOR_GRID_SPACING;
-
-    // Use the sector's root visual for bounds
-    dxRender_Visual* visual = sector->root();
-    if (!visual) return;
-
-    Fbox bounds = visual->getVisData().box;
-    Fvector boundsMin = bounds.min;
-    Fvector boundsMax = bounds.max;
-
-    // Grid the sector volume
-    for (float x = boundsMin.x; x <= boundsMax.x; x += spacing)
-    {
-        for (float y = boundsMin.y; y <= boundsMax.y; y += spacing)
-        {
-            for (float z = boundsMin.z; z <= boundsMax.z; z += spacing)
-            {
-                Fvector pos = { x, y, z };
-
-                if (!IsValidProbePosition(pos))
-                    continue;
-
-                CLightProbe probe;
-                probe.position = pos;
-                probe.skyVisibility = 0.5f;  // Initial guess
-                probe.ambient.set(0.1f, 0.1f, 0.1f);
-                probe.sunVisibility = 0.5f;
-                probe.bounce.set(0, 0, 0);
-                probe.sectorId = (u16)(sectorIndex & 0xFFFF);  // Use index as ID
-                probe.lastUpdateFrame = 0;
-
-                m_probes.push_back(probe);
-            }
-        }
-    }
+    CLightProbe probe;
+    probe.position = pos;
+    probe.skyVisibility = 0.0f;
+    probe.ambient.set(0, 0, 0);
+    probe.sunVisibility = 0.0f;
+    probe.bounce.set(0, 0, 0);
+    probe.dominantDir.set(0, 1, 0);
+    probe.directionalRatio = 0.0f;
+    probe.pointLightColor.set(0, 0, 0);
+    probe.pointLightIntensity = 0.0f;
+    probe.sectorId = 0xFFFF;  // Unused — placement is CFORM-based
+    probe.lastUpdateFrame = 0;
+    return probe;
 }
 
 void CLightProbeGrid::PlacePortalBridgeProbes(CPortal* portal)
@@ -205,28 +172,14 @@ void CLightProbeGrid::PlacePortalBridgeProbes(CPortal* portal)
     Fvector normal = portal->P.n;  // Plane normal
 
     // Place probes on both sides of the portal
-    CLightProbe probe1, probe2;
+    Fvector pos1, pos2;
+    pos1.mad(center, normal, PORTAL_BRIDGE_OFFSET);
+    pos2.mad(center, normal, -PORTAL_BRIDGE_OFFSET);
 
-    probe1.position.mad(center, normal, PORTAL_BRIDGE_OFFSET);
-    probe1.skyVisibility = 0.5f;
-    probe1.ambient.set(0.1f, 0.1f, 0.1f);
-    probe1.sunVisibility = 0.5f;
-    probe1.bounce.set(0, 0, 0);
-    probe1.sectorId = 0xFFFF;  // Special portal marker
-    probe1.lastUpdateFrame = 0;
-
-    probe2.position.mad(center, normal, -PORTAL_BRIDGE_OFFSET);
-    probe2.skyVisibility = 0.5f;
-    probe2.ambient.set(0.1f, 0.1f, 0.1f);
-    probe2.sunVisibility = 0.5f;
-    probe2.bounce.set(0, 0, 0);
-    probe2.sectorId = 0xFFFF;
-    probe2.lastUpdateFrame = 0;
-
-    if (IsValidProbePosition(probe1.position))
-        m_probes.push_back(probe1);
-    if (IsValidProbePosition(probe2.position))
-        m_probes.push_back(probe2);
+    if (IsValidProbePosition(pos1))
+        m_probes.push_back(MakeDefaultProbe(pos1, false));
+    if (IsValidProbePosition(pos2))
+        m_probes.push_back(MakeDefaultProbe(pos2, false));
 }
 
 bool CLightProbeGrid::IsValidProbePosition(const Fvector& pos)
@@ -274,17 +227,79 @@ void CLightProbeGrid::Build()
     // Initialize rays if not done
     InitializeHemisphereRays();
 
-    // Place probes in each sector
-    for (u32 i = 0; i < RImplementation.Sectors.size(); i++)
-    {
-        CSector* sector = (CSector*)RImplementation.Sectors[i];
-        if (!sector) continue;
+    if (!g_pGameLevel) return;
 
-        bool isIndoor = IsSectorIndoor(sector);
-        PlaceProbesInSector(sector, i, isIndoor);
+    // Get CFORM level bounds — the actual geometric extent of the level
+    const Fbox& levelBounds = g_pGameLevel->ObjectSpace.GetBoundingVolume();
+    Fvector bMin = levelBounds.min;
+    Fvector bMax = levelBounds.max;
+
+    Msg("* [LightProbeGrid] CFORM bounds: (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)",
+        bMin.x, bMin.y, bMin.z, bMax.x, bMax.y, bMax.z);
+
+    // =====================================================================
+    // Pass 1: Outdoor sweep at OUTDOOR_GRID_SPACING (2.0m)
+    // Covers the entire level uniformly; tags indoor positions for pass 2.
+    // =====================================================================
+    u32 outdoorCount = 0;
+    u32 indoorTagged = 0;
+
+    for (float x = bMin.x; x <= bMax.x; x += OUTDOOR_GRID_SPACING)
+    for (float z = bMin.z; z <= bMax.z; z += OUTDOOR_GRID_SPACING)
+    for (float y = bMin.y; y <= bMax.y; y += OUTDOOR_GRID_SPACING)
+    {
+        Fvector pos = { x, y, z };
+
+        if (!IsValidProbePosition(pos))
+            continue;
+
+        bool isIndoor = IsPositionIndoor(pos);
+        if (isIndoor) indoorTagged++;
+
+        m_probes.push_back(MakeDefaultProbe(pos, isIndoor));
+        outdoorCount++;
     }
 
-    // Place portal bridge probes
+    Msg("* [LightProbeGrid] Pass 1 (outdoor sweep): %d probes (%d tagged indoor)", outdoorCount, indoorTagged);
+
+    // Build interim spatial hash — needed for HasNearbyProbe() in pass 2
+    ComputeGridBounds();
+    BuildSpatialHash();
+
+    // =====================================================================
+    // Pass 2: Indoor densification at INDOOR_GRID_SPACING (1.5m)
+    // Fills gaps in indoor areas where the coarser outdoor grid misses detail.
+    // Only places probes where no existing probe is within 80% of indoor spacing.
+    // =====================================================================
+    u32 indoorDensified = 0;
+    float minSep = INDOOR_GRID_SPACING * 0.8f;
+
+    for (float x = bMin.x; x <= bMax.x; x += INDOOR_GRID_SPACING)
+    for (float z = bMin.z; z <= bMax.z; z += INDOOR_GRID_SPACING)
+    for (float y = bMin.y; y <= bMax.y; y += INDOOR_GRID_SPACING)
+    {
+        Fvector pos = { x, y, z };
+
+        // Skip if already covered by pass 1
+        if (HasNearbyProbe(pos, minSep))
+            continue;
+
+        if (!IsValidProbePosition(pos))
+            continue;
+
+        // Only densify indoor areas
+        if (!IsPositionIndoor(pos))
+            continue;
+
+        m_probes.push_back(MakeDefaultProbe(pos, true));
+        indoorDensified++;
+    }
+
+    Msg("* [LightProbeGrid] Pass 2 (indoor densify): %d probes", indoorDensified);
+
+    // =====================================================================
+    // Portal bridge probes — placed at sector transitions for smooth lighting
+    // =====================================================================
     for (u32 i = 0; i < RImplementation.Portals.size(); i++)
     {
         CPortal* portal = (CPortal*)RImplementation.Portals[i];
@@ -293,8 +308,7 @@ void CLightProbeGrid::Build()
         PlacePortalBridgeProbes(portal);
     }
 
-    Msg("* [LightProbeGrid] Placed %d probes from %d sectors and %d portals",
-        m_probes.size(), RImplementation.Sectors.size(), RImplementation.Portals.size());
+    Msg("* [LightProbeGrid] Total probes after portal bridges: %d", m_probes.size());
 
     if (m_probes.empty())
     {
@@ -302,18 +316,15 @@ void CLightProbeGrid::Build()
         return;
     }
 
-    // Compute grid bounds first (needed for spatial hash)
+    // Rebuild spatial hash with all probes (including pass 2 + portals)
     ComputeGridBounds();
-
-    // Build spatial hash acceleration structure
-    Msg("* [LightProbeGrid] Building spatial hash...");
     BuildSpatialHash();
 
     // Build neighbor connectivity for light propagation
     Msg("* [LightProbeGrid] Building neighbor connectivity...");
     BuildNeighborConnectivity();
 
-    // Initial full update
+    // Initial full update of all probes
     Msg("* [LightProbeGrid] Performing initial probe update...");
     for (u32 i = 0; i < m_probes.size(); i++)
         UpdateProbe(m_probes[i], i);
@@ -412,34 +423,77 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
     }
 }
 
-void CLightProbeGrid::BuildVisibleSectorSet()
+u32 CLightProbeGrid::UpdateProbesInRadius(const Fvector& center, float minDist, float maxDist, u32 budget)
 {
-    m_visibleSectors.clear();
+    if (budget == 0 || m_probes.empty()) return 0;
 
-    // Get visible sectors from portal traverser
-    // r_sectors contains IRender_Sector* but they're actually CSector*
-    for (u32 i = 0; i < PortalTraverser.r_sectors.size(); i++)
+    float minDistSq = minDist * minDist;
+    float maxDistSq = (maxDist < FLT_MAX) ? maxDist * maxDist : FLT_MAX;
+    u32 updated = 0;
+
+    // For near/medium tiers (small radius), iterate spatial hash cells within range.
+    // For far/distant tiers (large radius), use round-robin to avoid iterating 100K+ cells.
+    if (maxDist <= 60.0f && !m_spatialHash.empty())
     {
-        IRender_Sector* isector = PortalTraverser.r_sectors[i];
-        if (!isector) continue;
+        int cellRadius = (int)ceilf(maxDist / m_hashCellSize) + 1;
+        Ivector centerCell = WorldToHashCell(center);
 
-        // Find the index of this sector in RImplementation.Sectors
-        for (u32 j = 0; j < RImplementation.Sectors.size(); j++)
+        for (int dz = -cellRadius; dz <= cellRadius && updated < budget; dz++)
+        for (int dy = -cellRadius; dy <= cellRadius && updated < budget; dy++)
+        for (int dx = -cellRadius; dx <= cellRadius && updated < budget; dx++)
         {
-            if (RImplementation.Sectors[j] == isector)
+            int cx = centerCell.x + dx;
+            int cy = centerCell.y + dy;
+            int cz = centerCell.z + dz;
+
+            if (cx < 0 || cx >= m_hashDims.x) continue;
+            if (cy < 0 || cy >= m_hashDims.y) continue;
+            if (cz < 0 || cz >= m_hashDims.z) continue;
+
+            int cellIndex = cz * (m_hashDims.x * m_hashDims.y)
+                          + cy * m_hashDims.x
+                          + cx;
+
+            const SpatialHashCell& cell = m_spatialHash[cellIndex];
+            for (u8 p = 0; p < cell.count && updated < budget; p++)
             {
-                m_visibleSectors.insert((u16)j);
-                break;
+                u32 idx = cell.probeIndices[p];
+                if (idx >= m_probes.size()) continue;
+
+                // Skip if already updated this frame
+                if (m_probes[idx].lastUpdateFrame == (u16)(m_currentFrame & 0xFFFF))
+                    continue;
+
+                float distSq = center.distance_to_sqr(m_probes[idx].position);
+                if (distSq < minDistSq || distSq >= maxDistSq) continue;
+
+                UpdateProbe(m_probes[idx], idx);
+                updated++;
             }
         }
     }
-}
+    else
+    {
+        // Round-robin scan with distance filter
+        u32 probeCount = (u32)m_probes.size();
+        for (u32 i = 0; i < probeCount && updated < budget; i++)
+        {
+            u32 idx = (m_farRobinIndex + i) % probeCount;
 
-bool CLightProbeGrid::IsProbeInVisibleSector(const CLightProbe& probe)
-{
-    if (probe.sectorId == 0xFFFF)  // Portal probe - always update
-        return true;
-    return m_visibleSectors.find(probe.sectorId) != m_visibleSectors.end();
+            // Skip if already updated this frame
+            if (m_probes[idx].lastUpdateFrame == (u16)(m_currentFrame & 0xFFFF))
+                continue;
+
+            float distSq = center.distance_to_sqr(m_probes[idx].position);
+            if (distSq < minDistSq || distSq >= maxDistSq) continue;
+
+            UpdateProbe(m_probes[idx], idx);
+            updated++;
+        }
+        m_farRobinIndex = (m_farRobinIndex + budget) % _max(1u, (u32)m_probes.size());
+    }
+
+    return updated;
 }
 
 void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
@@ -450,6 +504,14 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
     float totalRays = 0;
     Fvector ambientAccum = { 0, 0, 0 };
     Fvector bounceAccum = { 0, 0, 0 };
+
+    // Dominant direction accumulators
+    Fvector dirAccum = { 0, 0, 0 };
+    float   energyAccum = 0;
+
+    // Point light accumulators
+    Fvector pointLightAccum = { 0, 0, 0 };
+    float   pointIntensityAccum = 0;
 
     // Get current environment data
     if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv)
@@ -486,6 +548,11 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
             skyHits += 1.0f;
             ambientAccum.add(skyColor);
 
+            // Sky direction contribution to dominant direction
+            float skyLum = skyColor.x * 0.2126f + skyColor.y * 0.7152f + skyColor.z * 0.0722f;
+            dirAccum.mad(dir, skyLum);
+            energyAccum += skyLum;
+
             // Check if this sky ray is toward the sun (receiving direct sunlight through opening)
             float sunAlignment = dir.dotproduct(sunDir);
             if (sunAlignment > SUN_ALIGNMENT_THRESHOLD)
@@ -496,13 +563,23 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
         }
         else
         {
-            // Ray hit geometry - compute bounce
+            // Ray hit geometry - compute bounce with direction tracking
             CDB::RESULT* hit = m_collider.r_begin();
             Fvector hitNormal = ComputeTriangleNormal(*hit);
             Fvector hitPos;
             hitPos.mad(probe.position, dir, hit->range);
 
+            // Capture bounce delta for direction accumulation
+            Fvector bounceBefore = bounceAccum;
             CastBounceRay(hitPos, hitNormal, bounceAccum, sunDir, sunColor);
+            Fvector bounceContrib;
+            bounceContrib.sub(bounceAccum, bounceBefore);
+            float bounceLum = bounceContrib.x * 0.2126f + bounceContrib.y * 0.7152f + bounceContrib.z * 0.0722f;
+            if (bounceLum > 0)
+            {
+                dirAccum.mad(dir, bounceLum);
+                energyAccum += bounceLum;
+            }
 
             // Check if the surface we hit is sunlit (receiving reflected sunlight)
             m_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
@@ -575,7 +652,7 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
 
         for (int n = 0; n < 6; n++)
         {
-            if (neighbors.indices[n] == 0xFFFF) continue;
+            if (neighbors.indices[n] == 0xFFFFFFFF) continue;
 
             const CLightProbe& neighbor = m_probes[neighbors.indices[n]];
 
@@ -600,7 +677,81 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
         }
     }
 
-    // Finalize with temporal smoothing (70% old, 30% new)
+    // =========================================================================
+    // Point Light Injection
+    // Query nearby point/spot lights via spatial DB, shadow-test, accumulate
+    // =========================================================================
+    if (g_SpatialSpace)
+    {
+        m_lightQueryResults.clear();
+        g_SpatialSpace->q_sphere(m_lightQueryResults, 0,
+            STYPE_LIGHTSOURCE | STYPE_LIGHTSOURCEHEMI,
+            probe.position, POINT_LIGHT_SEARCH_RADIUS);
+
+        int lightsProcessed = 0;
+        for (u32 li = 0; li < m_lightQueryResults.size() && lightsProcessed < MAX_POINT_LIGHTS_PER_PROBE; li++)
+        {
+            ISpatial* spatial = m_lightQueryResults[li];
+            if (!spatial) continue;
+            IRender_Light* ilight = spatial->dcast_Light();
+            if (!ilight) continue;
+            light* L = (light*)ilight;
+            if (!L->flags.bActive) continue;
+            if (L->flags.type != IRender_Light::POINT && L->flags.type != IRender_Light::SPOT) continue;
+
+            Fvector dirToLight;
+            dirToLight.sub(L->position, probe.position);
+            float distToLight = dirToLight.magnitude();
+            if (distToLight >= L->range || distToLight < 0.01f) continue;
+            dirToLight.div(distToLight);
+
+            // D3D-style attenuation with range fade
+            float atten = 1.0f / (L->attenuation0 + L->attenuation1 * distToLight
+                                  + L->attenuation2 * distToLight * distToLight);
+            float rangeFade = 1.0f - _min(distToLight / L->range, 1.0f);
+            atten *= rangeFade * rangeFade;  // Quadratic fade at range boundary
+            if (atten < 0.001f) continue;
+
+            // Shadow test — is the light visible from the probe?
+            m_collider.ray_options(CDB::OPT_ONLYNEAREST);
+            m_collider.ray_query(staticModel, probe.position, dirToLight, distToLight - 0.05f);
+            if (m_collider.r_count() > 0) continue;  // Occluded
+
+            // Accumulate attenuated light color
+            Fvector lightContrib;
+            lightContrib.set(L->color.r, L->color.g, L->color.b);
+            lightContrib.mul(atten);
+            pointLightAccum.add(lightContrib);
+            float lightLum = lightContrib.x * 0.2126f + lightContrib.y * 0.7152f + lightContrib.z * 0.0722f;
+            pointIntensityAccum += lightLum;
+
+            // Contribute to dominant direction
+            dirAccum.mad(dirToLight, lightLum);
+            energyAccum += lightLum;
+            lightsProcessed++;
+        }
+    }
+
+    // =========================================================================
+    // Finalize dominant direction
+    // =========================================================================
+    Fvector newDominantDir;
+    float newDirectionalRatio;
+    float dirMag = dirAccum.magnitude();
+    if (energyAccum > 0.001f && dirMag > 0.001f)
+    {
+        newDominantDir.set(dirAccum).div(dirMag);
+        newDirectionalRatio = _min(dirMag / energyAccum, 1.0f);
+    }
+    else
+    {
+        newDominantDir.set(0, 1, 0);
+        newDirectionalRatio = 0.0f;
+    }
+
+    // =========================================================================
+    // Temporal smoothing (70% old, 30% new)
+    // =========================================================================
     float newSkyVis = totalRays > 0 ? (skyHits / totalRays) : 0.0f;
     probe.skyVisibility = probe.skyVisibility * 0.7f + newSkyVis * 0.3f;
 
@@ -613,6 +764,20 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
 
     probe.ambient.lerp(probe.ambient, newAmbient, 0.3f);
     probe.bounce.lerp(probe.bounce, bounceAccum, 0.3f);
+
+    // Dominant direction: lerp then re-normalize (prevents vector shrinking)
+    Fvector smoothedDir;
+    smoothedDir.lerp(probe.dominantDir, newDominantDir, 0.3f);
+    float smoothedMag = smoothedDir.magnitude();
+    if (smoothedMag > 0.001f)
+        probe.dominantDir.set(smoothedDir).div(smoothedMag);
+    else
+        probe.dominantDir.set(0, 1, 0);
+    probe.directionalRatio = probe.directionalRatio * 0.7f + newDirectionalRatio * 0.3f;
+
+    // Point light color and intensity
+    probe.pointLightColor.lerp(probe.pointLightColor, pointLightAccum, 0.3f);
+    probe.pointLightIntensity = probe.pointLightIntensity * 0.7f + pointIntensityAccum * 0.3f;
 
     m_gpuBufferDirty = true;
 }
@@ -629,46 +794,33 @@ void CLightProbeGrid::Update()
     CTimer updateTimer;
     updateTimer.Start();
 
-    // Build visible sector set for prioritization
-    BuildVisibleSectorSet();
+    Fvector playerPos = Device.vCameraPosition;
 
-    u32 updated = 0;
+    // Distance-based tier budgets
+    u32 nearBudget = (m_updateBudget * 50) / 100;   // 50% — 0-15m, every frame
+    u32 medBudget  = (m_updateBudget * 30) / 100;   // 30% — 15-50m, every 4 frames
+    u32 farBudget  = (m_updateBudget * 15) / 100;   // 15% — 50-150m, every 16 frames
+    u32 distBudget = m_updateBudget - nearBudget - medBudget - farBudget;  // 5% — 150m+, every 64 frames
 
-    // First pass: update visible sector probes (75% of budget)
-    u32 visibleBudget = (m_updateBudget * 3) / 4;
-    for (u32 i = 0; i < m_probes.size() && updated < visibleBudget; i++)
-    {
-        u32 idx = (m_nextProbeIndex + i) % m_probes.size();
-        CLightProbe& probe = m_probes[idx];
+    // Near tier: always update (most responsive to time-of-day changes)
+    UpdateProbesInRadius(playerPos, 0.0f, 15.0f, nearBudget);
 
-        if (IsProbeInVisibleSector(probe))
-        {
-            UpdateProbe(probe, idx);
-            updated++;
-        }
-    }
+    // Medium tier: every 4 frames
+    if (m_currentFrame % 4 == 0)
+        UpdateProbesInRadius(playerPos, 15.0f, 50.0f, medBudget);
 
-    // Second pass: update remaining probes
-    for (u32 i = 0; i < m_probes.size() && updated < m_updateBudget; i++)
-    {
-        u32 idx = (m_nextProbeIndex + i) % m_probes.size();
-        CLightProbe& probe = m_probes[idx];
+    // Far tier: every 16 frames (round-robin)
+    if (m_currentFrame % 16 == 0)
+        UpdateProbesInRadius(playerPos, 50.0f, 150.0f, farBudget);
 
-        // Skip if already updated this frame
-        if (probe.lastUpdateFrame == (u16)(m_currentFrame & 0xFFFF))
-            continue;
-
-        UpdateProbe(probe, idx);
-        updated++;
-    }
+    // Distant tier: every 64 frames (round-robin)
+    if (m_currentFrame % 64 == 0)
+        UpdateProbesInRadius(playerPos, 150.0f, FLT_MAX, distBudget);
 
     // Periodic light propagation pass
     if (m_currentFrame % m_propagationRate == 0)
-    {
         PropagateLight(m_propagationIters);
-    }
 
-    m_nextProbeIndex = (m_nextProbeIndex + m_updateBudget) % _max(1u, (u32)m_probes.size());
     m_lastUpdateTimeMs = updateTimer.GetElapsed_sec() * 1000.0f;
 
     // Upload updated data to GPU
@@ -687,8 +839,8 @@ void CLightProbeGrid::PrepareGPUBuffer()
     u32 probeCount = (u32)m_probes.size();
 
     // 2D texture layout: multiple probes per row to support millions of probes
-    // Each probe uses 2 texels (position+skyVis, ambient+sunVis)
-    // Width = PROBES_PER_ROW * 2, Height = ceil(probeCount / PROBES_PER_ROW)
+    // Each probe uses 4 texels (pos+skyVis, ambient+sunVis, dominantDir+ratio, pointLight+intensity)
+    // Width = PROBES_PER_ROW * 4, Height = ceil(probeCount / PROBES_PER_ROW)
     // Max capacity: 256 * 16384 = 4,194,304 probes
     const u32 MAX_TEXTURE_DIM = 16384;
     const u32 MAX_PROBES = PROBES_PER_ROW * MAX_TEXTURE_DIM;
@@ -699,7 +851,7 @@ void CLightProbeGrid::PrepareGPUBuffer()
         probeCount = MAX_PROBES;
     }
 
-    u32 texWidth = PROBES_PER_ROW * 2;  // 512 texels wide
+    u32 texWidth = PROBES_PER_ROW * 4;  // 1024 texels wide (4 texels per probe)
     u32 texHeight = (probeCount + PROBES_PER_ROW - 1) / PROBES_PER_ROW;  // ceil division
 
     // Reallocate if needed
@@ -749,15 +901,15 @@ void CLightProbeGrid::PrepareGPUBuffer()
         if (SUCCEEDED(HW.pContext->Map(m_pProbeTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
         {
             // 2D layout: PROBES_PER_ROW probes per texture row
-            // Each probe uses 2 texels (8 floats = 32 bytes)
-            // Probe i is at row (i / PROBES_PER_ROW), column (i % PROBES_PER_ROW) * 2
+            // Each probe uses 4 texels (16 floats = 64 bytes)
+            // Probe i is at row (i / PROBES_PER_ROW), column (i % PROBES_PER_ROW) * 4
             u8* basePtr = (u8*)mapped.pData;
             const u32 texelSize = 4 * sizeof(float);  // 16 bytes per RGBA32F texel
 
             for (u32 i = 0; i < probeCount; i++)
             {
                 u32 row = i / PROBES_PER_ROW;
-                u32 col = (i % PROBES_PER_ROW) * 2;
+                u32 col = (i % PROBES_PER_ROW) * 4;
 
                 // Calculate pointer to this probe's texels
                 u8* rowPtr = basePtr + row * mapped.RowPitch;
@@ -774,6 +926,18 @@ void CLightProbeGrid::PrepareGPUBuffer()
                 texels[5] = m_probes[i].ambient.y;
                 texels[6] = m_probes[i].ambient.z;
                 texels[7] = m_probes[i].sunVisibility;
+
+                // Texel 2: dominantDir.xyz, directionalRatio
+                texels[8]  = m_probes[i].dominantDir.x;
+                texels[9]  = m_probes[i].dominantDir.y;
+                texels[10] = m_probes[i].dominantDir.z;
+                texels[11] = m_probes[i].directionalRatio;
+
+                // Texel 3: pointLightColor.xyz, pointLightIntensity
+                texels[12] = m_probes[i].pointLightColor.x;
+                texels[13] = m_probes[i].pointLightColor.y;
+                texels[14] = m_probes[i].pointLightColor.z;
+                texels[15] = m_probes[i].pointLightIntensity;
             }
 
             HW.pContext->Unmap(m_pProbeTexture, 0);
@@ -845,6 +1009,49 @@ Ivector CLightProbeGrid::GetHashDimensions() const
 }
 
 //////////////////////////////////////////////////////////////////////////
+// Proximity Check
+//////////////////////////////////////////////////////////////////////////
+
+bool CLightProbeGrid::HasNearbyProbe(const Fvector& pos, float minDist) const
+{
+    // Use spatial hash for O(1) proximity check
+    if (m_spatialHash.empty()) return false;
+
+    float minDistSq = minDist * minDist;
+    Ivector center = WorldToHashCell(pos);
+
+    // Check 3x3x3 neighborhood
+    for (int dz = -1; dz <= 1; dz++)
+    for (int dy = -1; dy <= 1; dy++)
+    for (int dx = -1; dx <= 1; dx++)
+    {
+        int cx = center.x + dx;
+        int cy = center.y + dy;
+        int cz = center.z + dz;
+
+        if (cx < 0 || cx >= m_hashDims.x) continue;
+        if (cy < 0 || cy >= m_hashDims.y) continue;
+        if (cz < 0 || cz >= m_hashDims.z) continue;
+
+        int cellIndex = cz * (m_hashDims.x * m_hashDims.y)
+                      + cy * m_hashDims.x
+                      + cx;
+
+        const SpatialHashCell& cell = m_spatialHash[cellIndex];
+        for (u8 i = 0; i < cell.count; i++)
+        {
+            u32 pi = cell.probeIndices[i];
+            if (pi == 0xFFFFFFFF || pi >= m_probes.size()) continue;
+
+            float distSq = pos.distance_to_sqr(m_probes[pi].position);
+            if (distSq < minDistSq)
+                return true;
+        }
+    }
+    return false;
+}
+
+//////////////////////////////////////////////////////////////////////////
 // Spatial Hash Implementation
 //////////////////////////////////////////////////////////////////////////
 
@@ -888,7 +1095,7 @@ void CLightProbeGrid::BuildSpatialHash()
     {
         cell.count = 0;
         for (int i = 0; i < MAX_PROBES_PER_CELL; i++)
-            cell.probeIndices[i] = 0xFFFF;
+            cell.probeIndices[i] = 0xFFFFFFFF;
     }
 
     // Insert each probe into its cell
@@ -904,7 +1111,7 @@ void CLightProbeGrid::BuildSpatialHash()
             SpatialHashCell& cell = m_spatialHash[cellIndex];
             if (cell.count < MAX_PROBES_PER_CELL)
             {
-                cell.probeIndices[cell.count] = (u16)i;
+                cell.probeIndices[cell.count] = i;
                 cell.count++;
             }
         }
@@ -919,19 +1126,22 @@ void CLightProbeGrid::PrepareHashGPUBuffer()
 
     u32 totalCells = (u32)m_spatialHash.size();
 
-    // Texture layout: 1D array of cells, 2 texels per cell (8 probe indices)
-    // Using R16G16B16A16_UINT format: 4 uint16 per texel
-    // Texel 0: indices[0-3], Texel 1: indices[4-7]
-    u32 texWidth = totalCells * 2;  // 2 texels per cell
+    // Texture layout: 1 texel per cell, 4 u32 probe indices per texel
+    // Format: R32G32B32A32_UINT (16 bytes per texel)
+    u32 texWidth = totalCells;
     u32 texHeight = 1;
 
-    // Check if we need to wrap into 2D (max texture width is typically 16384)
+    // Wrap into 2D if needed (max texture width 16384)
     const u32 MAX_WIDTH = 16384;
     if (texWidth > MAX_WIDTH)
     {
         texHeight = (texWidth + MAX_WIDTH - 1) / MAX_WIDTH;
         texWidth = MAX_WIDTH;
     }
+
+    Msg("* [LightProbeGrid] Hash texture: %dx%d (%d cells, %.1f MB)",
+        texWidth, texHeight, totalCells,
+        (float)(texWidth * texHeight * 16) / (1024.0f * 1024.0f));
 
     // Create texture if needed
     if (!m_pHashTexture || m_hashDirty)
@@ -944,7 +1154,7 @@ void CLightProbeGrid::PrepareHashGPUBuffer()
         texDesc.Height = texHeight;
         texDesc.MipLevels = 1;
         texDesc.ArraySize = 1;
-        texDesc.Format = DXGI_FORMAT_R16G16B16A16_UINT;
+        texDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
         texDesc.SampleDesc.Count = 1;
         texDesc.SampleDesc.Quality = 0;
         texDesc.Usage = D3D11_USAGE_DYNAMIC;
@@ -954,12 +1164,12 @@ void CLightProbeGrid::PrepareHashGPUBuffer()
         HRESULT hr = HW.pDevice->CreateTexture2D(&texDesc, nullptr, &m_pHashTexture);
         if (FAILED(hr))
         {
-            Msg("! [LightProbeGrid] Hash texture creation failed: 0x%08X", hr);
+            Msg("! [LightProbeGrid] Hash texture creation failed: 0x%08X (size: %dx%d)", hr, texWidth, texHeight);
             return;
         }
 
         D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format = DXGI_FORMAT_R16G16B16A16_UINT;
+        srvDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
         srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
         srvDesc.Texture2D.MostDetailedMip = 0;
         srvDesc.Texture2D.MipLevels = 1;
@@ -967,46 +1177,24 @@ void CLightProbeGrid::PrepareHashGPUBuffer()
         R_CHK(HW.pDevice->CreateShaderResourceView(m_pHashTexture, &srvDesc, &m_pHashSRV));
     }
 
-    // Upload data
+    // Upload data — 1 texel per cell, 4 x u32 indices
     D3D11_MAPPED_SUBRESOURCE mapped;
     if (SUCCEEDED(HW.pContext->Map(m_pHashTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
     {
-        u16* data = (u16*)mapped.pData;
-
         for (u32 c = 0; c < totalCells; c++)
         {
             const SpatialHashCell& cell = m_spatialHash[c];
 
-            // Calculate 2D position
-            u32 linearPos = c * 2;
-            u32 row = linearPos / texWidth;
-            u32 col = linearPos % texWidth;
+            u32 row = c / texWidth;
+            u32 col = c % texWidth;
 
-            u16* rowPtr = (u16*)((u8*)mapped.pData + row * mapped.RowPitch);
+            u32* rowPtr = (u32*)((u8*)mapped.pData + row * mapped.RowPitch);
 
-            // Texel 0: indices 0-3
+            // 4 u32 per texel (RGBA32_UINT)
             rowPtr[col * 4 + 0] = cell.probeIndices[0];
             rowPtr[col * 4 + 1] = cell.probeIndices[1];
             rowPtr[col * 4 + 2] = cell.probeIndices[2];
             rowPtr[col * 4 + 3] = cell.probeIndices[3];
-
-            // Texel 1: indices 4-7
-            if (col + 1 < texWidth)
-            {
-                rowPtr[(col + 1) * 4 + 0] = cell.probeIndices[4];
-                rowPtr[(col + 1) * 4 + 1] = cell.probeIndices[5];
-                rowPtr[(col + 1) * 4 + 2] = cell.probeIndices[6];
-                rowPtr[(col + 1) * 4 + 3] = cell.probeIndices[7];
-            }
-            else
-            {
-                // Wrap to next row
-                u16* nextRowPtr = (u16*)((u8*)mapped.pData + (row + 1) * mapped.RowPitch);
-                nextRowPtr[0] = cell.probeIndices[4];
-                nextRowPtr[1] = cell.probeIndices[5];
-                nextRowPtr[2] = cell.probeIndices[6];
-                nextRowPtr[3] = cell.probeIndices[7];
-            }
         }
 
         HW.pContext->Unmap(m_pHashTexture, 0);
@@ -1051,7 +1239,7 @@ void CLightProbeGrid::BuildNeighborConnectivity()
         // Initialize as no neighbors
         for (int n = 0; n < 6; n++)
         {
-            neighbors.indices[n] = 0xFFFF;
+            neighbors.indices[n] = 0xFFFFFFFF;
             neighbors.distances[n] = FLT_MAX;
         }
 
@@ -1100,7 +1288,7 @@ void CLightProbeGrid::BuildNeighborConnectivity()
                     // Must be mostly aligned (>0.7 = ~45 degrees) and closer than current
                     if (alignment > 0.7f && dist < neighbors.distances[n])
                     {
-                        neighbors.indices[n] = (u16)j;
+                        neighbors.indices[n] = j;
                         neighbors.distances[n] = dist;
                     }
                 }
@@ -1130,7 +1318,7 @@ void CLightProbeGrid::PropagateLight(int iterations)
 
             for (int n = 0; n < 6; n++)
             {
-                if (neighbors.indices[n] == 0xFFFF) continue;
+                if (neighbors.indices[n] == 0xFFFFFFFF) continue;
 
                 const CLightProbe& neighbor = m_probes[neighbors.indices[n]];
                 float dist = neighbors.distances[n];

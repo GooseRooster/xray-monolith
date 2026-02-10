@@ -314,7 +314,7 @@ void CRenderTarget::phase_combine()
 			RCache.set_c("probe_grid_min", bmin.x, bmin.y, bmin.z, (float)g_LightProbeGrid->GetProbeCount());
 			RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, (float)PROBES_PER_ROW);
 			RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, (float)PROBES_PER_ROW);
-			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, (float)ps_r_debug_probes, 0.f);
+			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, (float)ps_r_debug_probes, 0.3f);
 			Fvector hashMin = g_LightProbeGrid->GetHashMin();
 			Ivector hashDims = g_LightProbeGrid->GetHashDimensions();
 			float cellSize = g_LightProbeGrid->GetHashCellSize();

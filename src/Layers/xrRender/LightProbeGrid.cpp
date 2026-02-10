@@ -463,6 +463,7 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
     Fvector sunDir;
     sunDir.set(env.sun_dir.x, env.sun_dir.y, env.sun_dir.z);
     sunDir.normalize_safe();
+    sunDir.invert();  // env.sun_dir points FROM sun TO ground; we need toward-sun direction
 
     CDB::MODEL* staticModel = g_pGameLevel ? g_pGameLevel->ObjectSpace.GetStaticModel() : nullptr;
     if (!staticModel) return;

@@ -1212,7 +1212,7 @@ void xrRender_initconsole()
 	// OWA: Probe lighting system for static lighting mode
 	CMD4(CCC_Integer, "r_probe_update_rate", &ps_r_probe_update_rate, 10, 200);
 	CMD4(CCC_Float, "r_probe_bounce_intensity", &ps_r_probe_bounce_intensity, 0.0f, 1.0f);
-	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 1);
+	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 5);
 	// OWA: Point light shadows (high-end option, expensive - 6 shadow passes per point light)
 	CMD4(CCC_Integer, "r4_point_light_shadows", &ps_r4_point_light_shadows, 0, 1);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);

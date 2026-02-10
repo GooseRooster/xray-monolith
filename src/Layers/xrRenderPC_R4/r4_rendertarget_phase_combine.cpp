@@ -282,8 +282,11 @@ void CRenderTarget::phase_combine()
 		t_envmap_1->surface_set(e1);
 		_RELEASE(e1);
 
-		// OWA: Bind light probe grid for spatial ambient lighting
-		if (g_LightProbeGrid && g_LightProbeGrid->GetProbeCount() > 0 && ps_r3_ssfx_il != 0)
+		// OWA: Bind light probe grid textures for spatial ambient lighting
+		// NOTE: Texture surface_set() works before set_Element (bound by slot name from blender),
+		// but set_c() uniforms MUST come after set_Element (resolves names against active shader's ctable)
+		bool probes_active = g_LightProbeGrid && g_LightProbeGrid->GetProbeCount() > 0 && ps_r3_ssfx_il != 0;
+		if (probes_active)
 		{
 			// Bind probe data texture via X-Ray texture system
 			ID3D11Texture2D* probeTex = g_LightProbeGrid->GetTexture();
@@ -298,29 +301,34 @@ void CRenderTarget::phase_combine()
 			{
 				t_probe_hash->surface_set(hashTex);
 			}
+		}
 
+		// OWA: Helper to rebind probe uniforms after set_Element changes the shader
+		// Each set_Element switches ctable, so uniforms must be re-set per shader variant
+		auto rebind_probe_uniforms = [&]()
+		{
+			if (!probes_active) return;
 			Fvector bmin = g_LightProbeGrid->GetBoundsMin();
 			Fvector bmax = g_LightProbeGrid->GetBoundsMax();
 			Ivector dims = g_LightProbeGrid->GetDimensions();
-
-			// Probe grid uniforms
 			RCache.set_c("probe_grid_min", bmin.x, bmin.y, bmin.z, (float)g_LightProbeGrid->GetProbeCount());
 			RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, (float)PROBES_PER_ROW);
 			RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, (float)PROBES_PER_ROW);
-			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, 0.f, 0.f);
-
-			// Spatial hash uniforms for K-nearest sampling
+			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, (float)ps_r_debug_probes, 0.f);
 			Fvector hashMin = g_LightProbeGrid->GetHashMin();
 			Ivector hashDims = g_LightProbeGrid->GetHashDimensions();
 			float cellSize = g_LightProbeGrid->GetHashCellSize();
 			RCache.set_c("hash_grid_min", hashMin.x, hashMin.y, hashMin.z, cellSize);
 			RCache.set_c("hash_grid_dims", (float)hashDims.x, (float)hashDims.y, (float)hashDims.z, 0.f);
-		}
+		};
 
 		// Draw
 		RCache.set_Element(s_combine->E[0]);
 		//RCache.set_Geometry			(g_combine_VP		);
 		RCache.set_Geometry(g_combine);
+
+		// OWA: Probe uniforms - must be AFTER set_Element so ctable resolves against combine shader
+		rebind_probe_uniforms();
 
 		RCache.set_c("m_v2w", Device.mInvView);
 		RCache.set_c("L_ambient", ambclr);
@@ -343,6 +351,7 @@ void CRenderTarget::phase_combine()
 			if (RImplementation.o.dx10_msaa_opt)
 			{
 				RCache.set_Element(s_combine_msaa[0]->E[0]);
+				rebind_probe_uniforms();
 				RCache.set_Stencil(TRUE, D3DCMP_EQUAL, 0x81, 0x81, 0);
 				RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 			}
@@ -351,6 +360,7 @@ void CRenderTarget::phase_combine()
 				for (u32 i = 0; i < RImplementation.o.dx10_msaa_samples; ++i)
 				{
 					RCache.set_Element(s_combine_msaa[i]->E[0]);
+					rebind_probe_uniforms();
 					StateManager.SetSampleMask(u32(1) << i);
 					RCache.set_Stencil(TRUE, D3DCMP_EQUAL, 0x81, 0x81, 0);
 					RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);

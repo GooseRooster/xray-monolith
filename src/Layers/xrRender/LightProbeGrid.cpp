@@ -13,6 +13,8 @@
 extern int   ps_r_probe_update_rate;
 extern float ps_r_probe_bounce_intensity;
 extern int   ps_r_debug_probes;
+extern float ps_r_probe_max_distance;
+extern int   ps_r_probe_upload_rate;
 extern int   ps_r3_ssfx_il;
 
 // Global instance
@@ -55,6 +57,8 @@ CLightProbeGrid::CLightProbeGrid()
     , m_pProbeSRV(nullptr)
     , m_gpuBufferDirty(true)
     , m_gpuTextureHeight(0)
+    , m_gpuCacheRowPitch(0)
+    , m_gpuCacheTexHeight(0)
     , m_updateBudget(50)
     , m_currentFrame(0)
     , m_bounceIntensity(DEFAULT_BOUNCE_INTENSITY)
@@ -67,6 +71,7 @@ CLightProbeGrid::CLightProbeGrid()
     , m_propagationIters(DEFAULT_PROPAGATION_ITERS)
     , m_propagationRate(DEFAULT_PROPAGATION_RATE)
     , m_farRobinIndex(0)
+    , m_lastUploadFrame(0)
 {
     m_boundsMin.set(0, 0, 0);
     m_boundsMax.set(0, 0, 0);
@@ -87,6 +92,11 @@ void CLightProbeGrid::Clear()
     m_probes.clear();
     m_spatialHash.clear();
     m_probeNeighbors.clear();
+    m_gpuCache.clear();
+    m_gpuCacheRowPitch = 0;
+    m_gpuCacheTexHeight = 0;
+    m_propagationBuffer.clear();
+    m_propagationActiveSet.clear();
 
     if (m_pProbeSRV)
     {
@@ -332,6 +342,11 @@ void CLightProbeGrid::Build()
     // Initial propagation pass
     PropagateLight(m_propagationIters);
 
+    // Initialize persistent GPU cache and propagation buffers
+    InitGPUCache();
+    m_propagationBuffer.resize(m_probes.size());
+    m_propagationActiveSet.reserve(m_probes.size());
+
     m_gpuBufferDirty = true;
     m_hashDirty = true;
     PrepareGPUBuffer();
@@ -474,7 +489,7 @@ u32 CLightProbeGrid::UpdateProbesInRadius(const Fvector& center, float minDist, 
     }
     else
     {
-        // Round-robin scan with distance filter
+        // Round-robin scan with distance filter + view-cone culling for far probes
         u32 probeCount = (u32)m_probes.size();
         for (u32 i = 0; i < probeCount && updated < budget; i++)
         {
@@ -486,6 +501,16 @@ u32 CLightProbeGrid::UpdateProbesInRadius(const Fvector& center, float minDist, 
 
             float distSq = center.distance_to_sqr(m_probes[idx].position);
             if (distSq < minDistSq || distSq >= maxDistSq) continue;
+
+            // View-cone culling for far tier (50m+): skip probes behind camera
+            // Generous 214-degree cone (dot < -0.3) prevents artifacts when turning
+            if (minDist >= 50.0f)
+            {
+                Fvector toProbe;
+                toProbe.sub(m_probes[idx].position, center).normalize_safe();
+                if (toProbe.dotproduct(Device.vCameraDirection) < -0.3f)
+                    continue;
+            }
 
             UpdateProbe(m_probes[idx], idx);
             updated++;
@@ -706,8 +731,13 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
             dirToLight.div(distToLight);
 
             // D3D-style attenuation with range fade
-            float atten = 1.0f / (L->attenuation0 + L->attenuation1 * distToLight
-                                  + L->attenuation2 * distToLight * distToLight);
+            // Guard: uninitialized or zero attenuation values → denominator=0 → inf.
+            // 0*inf = NaN (IEEE 754), which permanently contaminates probe data
+            // through temporal smoothing (NaN lerp = NaN).
+            float denom = L->attenuation0 + L->attenuation1 * distToLight
+                        + L->attenuation2 * distToLight * distToLight;
+            if (denom < 0.001f) continue;  // Skip lights with degenerate attenuation
+            float atten = 1.0f / denom;
             float rangeFade = 1.0f - _min(distToLight / L->range, 1.0f);
             atten *= rangeFade * rangeFade;  // Quadratic fade at range boundary
             if (atten < 0.001f) continue;
@@ -725,9 +755,13 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
             float lightLum = lightContrib.x * 0.2126f + lightContrib.y * 0.7152f + lightContrib.z * 0.0722f;
             pointIntensityAccum += lightLum;
 
-            // Contribute to dominant direction
-            dirAccum.mad(dirToLight, lightLum);
-            energyAccum += lightLum;
+            // NOTE: Point lights intentionally do NOT contribute to dirAccum/energyAccum.
+            // They have their own dedicated channel (pointLightColor/Intensity).
+            // Letting them influence directionalRatio causes artifacts: a bright campfire
+            // pushes ratio→1.0, suppressing isotropic ambient. When the light turns off,
+            // the inflated ratio persists via temporal smoothing, creating black holes
+            // where the isotropic term is near-zero but the directional term points
+            // at a now-dark light source.
             lightsProcessed++;
         }
     }
@@ -776,9 +810,24 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
     probe.directionalRatio = probe.directionalRatio * 0.7f + newDirectionalRatio * 0.3f;
 
     // Point light color and intensity
-    probe.pointLightColor.lerp(probe.pointLightColor, pointLightAccum, 0.3f);
-    probe.pointLightIntensity = probe.pointLightIntensity * 0.7f + pointIntensityAccum * 0.3f;
+    // Sanitize: clamp to prevent inf/NaN from propagating through temporal smoothing
+    pointLightAccum.x = _finite(pointLightAccum.x) ? _min(pointLightAccum.x, 100.0f) : 0.0f;
+    pointLightAccum.y = _finite(pointLightAccum.y) ? _min(pointLightAccum.y, 100.0f) : 0.0f;
+    pointLightAccum.z = _finite(pointLightAccum.z) ? _min(pointLightAccum.z, 100.0f) : 0.0f;
+    pointIntensityAccum = _finite(pointIntensityAccum) ? _min(pointIntensityAccum, 100.0f) : 0.0f;
+    // Sanitize existing probe data before lerp (NaN * 0.7 = NaN persists forever)
+    if (!_finite(probe.pointLightColor.x) || !_finite(probe.pointLightColor.y) || !_finite(probe.pointLightColor.z))
+        probe.pointLightColor.set(0, 0, 0);
+    if (!_finite(probe.pointLightIntensity))
+        probe.pointLightIntensity = 0.0f;
 
+    // Slower blend for point lights (0.1 vs 0.3 for other fields) — acts as a
+    // low-pass filter that smooths out campfire flicker and other rapid light
+    // animation. Probes represent average illumination, not instantaneous.
+    probe.pointLightColor.lerp(probe.pointLightColor, pointLightAccum, 0.1f);
+    probe.pointLightIntensity = probe.pointLightIntensity * 0.9f + pointIntensityAccum * 0.1f;
+
+    WriteProbeToCache(probeIndex);
     m_gpuBufferDirty = true;
 }
 
@@ -791,31 +840,29 @@ void CLightProbeGrid::Update()
     m_bounceIntensity = ps_r_probe_bounce_intensity;
     m_debugEnabled = ps_r_debug_probes != 0;
 
+    float maxDist = ps_r_probe_max_distance;
+
     CTimer updateTimer;
     updateTimer.Start();
 
     Fvector playerPos = Device.vCameraPosition;
 
-    // Distance-based tier budgets
+    // Distance-based tier budgets (distant tier eliminated — probes beyond maxDist keep Build() values)
+    float farCap = _min(maxDist, 150.0f);  // Far tier capped at maxDist
     u32 nearBudget = (m_updateBudget * 50) / 100;   // 50% — 0-15m, every frame
     u32 medBudget  = (m_updateBudget * 30) / 100;   // 30% — 15-50m, every 4 frames
-    u32 farBudget  = (m_updateBudget * 15) / 100;   // 15% — 50-150m, every 16 frames
-    u32 distBudget = m_updateBudget - nearBudget - medBudget - farBudget;  // 5% — 150m+, every 64 frames
+    u32 farBudget  = m_updateBudget - nearBudget - medBudget;  // 20% — 50m-maxDist, every 16 frames
 
     // Near tier: always update (most responsive to time-of-day changes)
     UpdateProbesInRadius(playerPos, 0.0f, 15.0f, nearBudget);
 
-    // Medium tier: every 4 frames
+    // Medium tier: every 4 frames (capped at maxDist)
     if (m_currentFrame % 4 == 0)
-        UpdateProbesInRadius(playerPos, 15.0f, 50.0f, medBudget);
+        UpdateProbesInRadius(playerPos, 15.0f, _min(50.0f, maxDist), medBudget);
 
-    // Far tier: every 16 frames (round-robin)
-    if (m_currentFrame % 16 == 0)
-        UpdateProbesInRadius(playerPos, 50.0f, 150.0f, farBudget);
-
-    // Distant tier: every 64 frames (round-robin)
-    if (m_currentFrame % 64 == 0)
-        UpdateProbesInRadius(playerPos, 150.0f, FLT_MAX, distBudget);
+    // Far tier: every 16 frames (capped at maxDist, round-robin)
+    if (m_currentFrame % 16 == 0 && maxDist > 50.0f)
+        UpdateProbesInRadius(playerPos, 50.0f, farCap, farBudget);
 
     // Periodic light propagation pass
     if (m_currentFrame % m_propagationRate == 0)
@@ -823,9 +870,74 @@ void CLightProbeGrid::Update()
 
     m_lastUpdateTimeMs = updateTimer.GetElapsed_sec() * 1000.0f;
 
-    // Upload updated data to GPU
-    if (m_gpuBufferDirty)
+    // Throttled GPU upload — every N frames (from r_probe_upload_rate cvar)
+    u32 uploadInterval = (u32)_max(1, ps_r_probe_upload_rate);
+    if (m_gpuBufferDirty && (m_currentFrame - m_lastUploadFrame >= uploadInterval))
+    {
         PrepareGPUBuffer();
+        m_lastUploadFrame = m_currentFrame;
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+// GPU Cache — persistent CPU-side texel buffer
+//////////////////////////////////////////////////////////////////////////
+
+void CLightProbeGrid::WriteProbeToCache(u32 probeIndex)
+{
+    if (m_gpuCache.empty() || probeIndex >= m_probes.size()) return;
+
+    const CLightProbe& probe = m_probes[probeIndex];
+    u32 row = probeIndex / PROBES_PER_ROW;
+    u32 col = (probeIndex % PROBES_PER_ROW) * 4;
+    const u32 texelSize = 4 * sizeof(float);  // 16 bytes per RGBA32F texel
+
+    float* texels = (float*)(m_gpuCache.data() + row * m_gpuCacheRowPitch + col * texelSize);
+
+    // Texel 0: position.xyz, skyVisibility
+    texels[0] = probe.position.x;
+    texels[1] = probe.position.y;
+    texels[2] = probe.position.z;
+    texels[3] = probe.skyVisibility;
+
+    // Texel 1: ambient.xyz, sunVisibility
+    texels[4] = probe.ambient.x;
+    texels[5] = probe.ambient.y;
+    texels[6] = probe.ambient.z;
+    texels[7] = probe.sunVisibility;
+
+    // Texel 2: dominantDir.xyz, directionalRatio
+    texels[8]  = probe.dominantDir.x;
+    texels[9]  = probe.dominantDir.y;
+    texels[10] = probe.dominantDir.z;
+    texels[11] = probe.directionalRatio;
+
+    // Texel 3: pointLightColor.xyz, pointLightIntensity
+    texels[12] = probe.pointLightColor.x;
+    texels[13] = probe.pointLightColor.y;
+    texels[14] = probe.pointLightColor.z;
+    texels[15] = probe.pointLightIntensity;
+}
+
+void CLightProbeGrid::InitGPUCache()
+{
+    if (m_probes.empty()) return;
+
+    u32 probeCount = (u32)m_probes.size();
+    u32 texWidth = PROBES_PER_ROW * 4;  // texels wide
+    u32 texHeight = (probeCount + PROBES_PER_ROW - 1) / PROBES_PER_ROW;
+    const u32 texelSize = 4 * sizeof(float);  // 16 bytes
+
+    m_gpuCacheRowPitch = texWidth * texelSize;
+    m_gpuCacheTexHeight = texHeight;
+    m_gpuCache.resize(m_gpuCacheRowPitch * texHeight, 0);
+
+    // Fill all entries
+    for (u32 i = 0; i < probeCount; i++)
+        WriteProbeToCache(i);
+
+    Msg("* [LightProbeGrid] GPU cache initialized: %dx%d (%.2f MB)",
+        texWidth, texHeight, (float)(m_gpuCache.size()) / (1024.0f * 1024.0f));
 }
 
 void CLightProbeGrid::PrepareGPUBuffer()
@@ -894,50 +1006,27 @@ void CLightProbeGrid::PrepareGPUBuffer()
         m_gpuTextureHeight = probeCount;
     }
 
-    // Upload data if dirty
-    if (m_gpuBufferDirty && m_pProbeTexture)
+    // Upload from persistent GPU cache (pre-built by WriteProbeToCache)
+    if (m_gpuBufferDirty && m_pProbeTexture && !m_gpuCache.empty())
     {
         D3D11_MAPPED_SUBRESOURCE mapped;
         if (SUCCEEDED(HW.pContext->Map(m_pProbeTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
         {
-            // 2D layout: PROBES_PER_ROW probes per texture row
-            // Each probe uses 4 texels (16 floats = 64 bytes)
-            // Probe i is at row (i / PROBES_PER_ROW), column (i % PROBES_PER_ROW) * 4
-            u8* basePtr = (u8*)mapped.pData;
-            const u32 texelSize = 4 * sizeof(float);  // 16 bytes per RGBA32F texel
-
-            for (u32 i = 0; i < probeCount; i++)
+            if (mapped.RowPitch == m_gpuCacheRowPitch)
             {
-                u32 row = i / PROBES_PER_ROW;
-                u32 col = (i % PROBES_PER_ROW) * 4;
-
-                // Calculate pointer to this probe's texels
-                u8* rowPtr = basePtr + row * mapped.RowPitch;
-                float* texels = (float*)(rowPtr + col * texelSize);
-
-                // Texel 0: position.xyz, skyVisibility
-                texels[0] = m_probes[i].position.x;
-                texels[1] = m_probes[i].position.y;
-                texels[2] = m_probes[i].position.z;
-                texels[3] = m_probes[i].skyVisibility;
-
-                // Texel 1: ambient.xyz, sunVisibility
-                texels[4] = m_probes[i].ambient.x;
-                texels[5] = m_probes[i].ambient.y;
-                texels[6] = m_probes[i].ambient.z;
-                texels[7] = m_probes[i].sunVisibility;
-
-                // Texel 2: dominantDir.xyz, directionalRatio
-                texels[8]  = m_probes[i].dominantDir.x;
-                texels[9]  = m_probes[i].dominantDir.y;
-                texels[10] = m_probes[i].dominantDir.z;
-                texels[11] = m_probes[i].directionalRatio;
-
-                // Texel 3: pointLightColor.xyz, pointLightIntensity
-                texels[12] = m_probes[i].pointLightColor.x;
-                texels[13] = m_probes[i].pointLightColor.y;
-                texels[14] = m_probes[i].pointLightColor.z;
-                texels[15] = m_probes[i].pointLightIntensity;
+                // Row pitch matches — single contiguous memcpy
+                memcpy(mapped.pData, m_gpuCache.data(), m_gpuCacheRowPitch * texHeight);
+            }
+            else
+            {
+                // Row pitch differs — copy row by row
+                const u8* src = m_gpuCache.data();
+                u8* dst = (u8*)mapped.pData;
+                u32 copyWidth = _min(m_gpuCacheRowPitch, mapped.RowPitch);
+                for (u32 row = 0; row < texHeight; row++)
+                {
+                    memcpy(dst + row * mapped.RowPitch, src + row * m_gpuCacheRowPitch, copyWidth);
+                }
             }
 
             HW.pContext->Unmap(m_pProbeTexture, 0);
@@ -959,25 +1048,51 @@ bool CLightProbeGrid::SampleNearest(const Fvector& position, Fvector& outAmbient
 {
     if (m_probes.empty()) return false;
 
-    // Find nearest probe (simple linear search for now)
-    float minDistSq = FLT_MAX;
-    const CLightProbe* nearest = nullptr;
-
-    for (const auto& probe : m_probes)
+    // Use spatial hash for O(1) lookup instead of O(N) linear scan
+    if (!m_spatialHash.empty())
     {
-        float distSq = position.distance_to_sqr(probe.position);
-        if (distSq < minDistSq)
+        float minDistSq = FLT_MAX;
+        const CLightProbe* nearest = nullptr;
+        Ivector centerCell = WorldToHashCell(position);
+
+        // Check 3×3×3 neighborhood (max 108 probes)
+        for (int dz = -1; dz <= 1; dz++)
+        for (int dy = -1; dy <= 1; dy++)
+        for (int dx = -1; dx <= 1; dx++)
         {
-            minDistSq = distSq;
-            nearest = &probe;
-        }
-    }
+            int cx = centerCell.x + dx;
+            int cy = centerCell.y + dy;
+            int cz = centerCell.z + dz;
 
-    if (nearest)
-    {
-        outAmbient = nearest->ambient;
-        outSkyVis = nearest->skyVisibility;
-        return true;
+            if (cx < 0 || cx >= m_hashDims.x) continue;
+            if (cy < 0 || cy >= m_hashDims.y) continue;
+            if (cz < 0 || cz >= m_hashDims.z) continue;
+
+            int cellIndex = cz * (m_hashDims.x * m_hashDims.y)
+                          + cy * m_hashDims.x
+                          + cx;
+
+            const SpatialHashCell& cell = m_spatialHash[cellIndex];
+            for (u8 p = 0; p < cell.count; p++)
+            {
+                u32 idx = cell.probeIndices[p];
+                if (idx >= m_probes.size()) continue;
+
+                float distSq = position.distance_to_sqr(m_probes[idx].position);
+                if (distSq < minDistSq)
+                {
+                    minDistSq = distSq;
+                    nearest = &m_probes[idx];
+                }
+            }
+        }
+
+        if (nearest)
+        {
+            outAmbient = nearest->ambient;
+            outSkyVis = nearest->skyVisibility;
+            return true;
+        }
     }
 
     return false;
@@ -1305,13 +1420,34 @@ void CLightProbeGrid::PropagateLight(int iterations)
 {
     if (m_probes.empty() || m_probeNeighbors.empty()) return;
 
-    // Temporary buffer for ping-pong
-    xr_vector<Fvector> newAmbient(m_probes.size());
+    u32 probeCount = (u32)m_probes.size();
+
+    // Ensure persistent buffers are sized (handles first call from Build before explicit resize)
+    if (m_propagationBuffer.size() < probeCount)
+        m_propagationBuffer.resize(probeCount);
+
+    // Gather active probe indices within maxDist + 20m margin
+    // (+20m prevents visible seams at the distance boundary)
+    float maxDist = ps_r_probe_max_distance + 20.0f;
+    float maxDistSq = maxDist * maxDist;
+    Fvector playerPos = Device.vCameraPosition;
+
+    m_propagationActiveSet.clear();
+    for (u32 i = 0; i < probeCount; i++)
+    {
+        if (playerPos.distance_to_sqr(m_probes[i].position) < maxDistSq)
+            m_propagationActiveSet.push_back(i);
+    }
+
+    u32 activeCount = (u32)m_propagationActiveSet.size();
+    if (activeCount == 0) return;
 
     for (int iter = 0; iter < iterations; iter++)
     {
-        for (u32 i = 0; i < m_probes.size(); i++)
+        // Compute new ambient for active probes only
+        for (u32 a = 0; a < activeCount; a++)
         {
+            u32 i = m_propagationActiveSet[a];
             const ProbeNeighbors& neighbors = m_probeNeighbors[i];
             Fvector neighborContrib = { 0, 0, 0 };
             float totalWeight = 0;
@@ -1332,18 +1468,25 @@ void CLightProbeGrid::PropagateLight(int iterations)
             {
                 neighborContrib.div(totalWeight);
                 // Blend: 85% self, 15% neighbors
-                newAmbient[i].lerp(m_probes[i].ambient, neighborContrib, 0.15f);
+                m_propagationBuffer[i].lerp(m_probes[i].ambient, neighborContrib, 0.15f);
             }
             else
             {
-                newAmbient[i] = m_probes[i].ambient;
+                m_propagationBuffer[i] = m_probes[i].ambient;
             }
         }
 
-        // Copy back for next iteration
-        for (u32 i = 0; i < m_probes.size(); i++)
-            m_probes[i].ambient = newAmbient[i];
+        // Copy back + update GPU cache for active probes only
+        for (u32 a = 0; a < activeCount; a++)
+        {
+            u32 i = m_propagationActiveSet[a];
+            m_probes[i].ambient = m_propagationBuffer[i];
+        }
     }
+
+    // Update GPU cache for all active probes
+    for (u32 a = 0; a < activeCount; a++)
+        WriteProbeToCache(m_propagationActiveSet[a]);
 
     m_gpuBufferDirty = true;
 }

@@ -210,26 +210,8 @@ void CRenderTarget::phase_ssfx_il()
 	RCache.set_c("m_current", Matrix_current);
 	RCache.set_c("m_previous", Matrix_previous);
 
-	// OWA: Bind probe uniforms for IL pass (must be AFTER set_Element for ctable resolution)
-	// The IL shader uses probes for environment-aware sampling weights, temporal anchoring,
-	// and early-out decisions. Without these, probe data reads as garbage.
-	if (g_LightProbeGrid && g_LightProbeGrid->GetProbeCount() > 0 && ps_r3_ssfx_il != 0)
-	{
-		Fvector bmin = g_LightProbeGrid->GetBoundsMin();
-		Fvector bmax = g_LightProbeGrid->GetBoundsMax();
-		Ivector dims = g_LightProbeGrid->GetDimensions();
-
-		RCache.set_c("probe_grid_min", bmin.x, bmin.y, bmin.z, (float)g_LightProbeGrid->GetProbeCount());
-		RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, (float)PROBES_PER_ROW);
-		RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, (float)PROBES_PER_ROW);
-		RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, 0.f, 0.3f);
-
-		Fvector hashMin = g_LightProbeGrid->GetHashMin();
-		Ivector hashDims = g_LightProbeGrid->GetHashDimensions();
-		float cellSize = g_LightProbeGrid->GetHashCellSize();
-		RCache.set_c("hash_grid_min", hashMin.x, hashMin.y, hashMin.z, cellSize);
-		RCache.set_c("hash_grid_dims", (float)hashDims.x, (float)hashDims.y, (float)hashDims.z, 0.f);
-	}
+	// OWA: Probe uniforms no longer needed — IL is now pure screen-space.
+	// Probe GI handled by hmodel.h (ComputeProbeGI) in combine pass.
 
 	RCache.set_Geometry(g_combine);
 	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);

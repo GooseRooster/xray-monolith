@@ -655,7 +655,6 @@ void CRender::OnFrame()
 	if (m_pLightProbeGrid && ps_r3_ssfx_il != 0)
 	{
 		m_pLightProbeGrid->Update();
-		m_pLightProbeGrid->PrepareGPUBuffer();
 	}
 }
 

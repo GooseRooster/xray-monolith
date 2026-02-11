@@ -33,6 +33,13 @@ light::light(void) : ISpatial(g_SpatialSpace)
 
 
 #if (RENDER==R_R2) || (RENDER==R_R3) || (RENDER==R_R4)
+	// Initialize attenuation to sensible defaults — prevents NaN/inf
+	// in probe light sampling when dynamic lights don't call set_attenuation_params()
+	attenuation0 = 1.0f;
+	attenuation1 = 0.0f;
+	attenuation2 = 0.0f;
+	falloff = 0.0f;
+
 	ZeroMemory(omnipart, sizeof(omnipart));
 	s_spot = NULL;
 	s_point = NULL;

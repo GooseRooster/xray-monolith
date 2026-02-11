@@ -54,6 +54,8 @@ xr_token material_style_token [] = {
 int   ps_r_probe_update_rate = 50;       // Probes updated per frame (10-200)
 float ps_r_probe_bounce_intensity = 0.3f; // Indirect sun strength (0.0-1.0)
 int   ps_r_debug_probes = 0;             // Debug visualization (0 or 1)
+float ps_r_probe_max_distance = 100.0f;  // Max distance for probe updates (30-500)
+int   ps_r_probe_upload_rate = 4;        // GPU upload every N frames (1-16)
 
 u32 ps_r_sun_shafts = 2;
 xr_token qsun_shafts_token [ ] = {
@@ -1212,7 +1214,9 @@ void xrRender_initconsole()
 	// OWA: Probe lighting system for static lighting mode
 	CMD4(CCC_Integer, "r_probe_update_rate", &ps_r_probe_update_rate, 10, 200);
 	CMD4(CCC_Float, "r_probe_bounce_intensity", &ps_r_probe_bounce_intensity, 0.0f, 1.0f);
-	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 5);
+	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 8);
+	CMD4(CCC_Float, "r_probe_max_distance", &ps_r_probe_max_distance, 30.0f, 500.0f);
+	CMD4(CCC_Integer, "r_probe_upload_rate", &ps_r_probe_upload_rate, 1, 16);
 	// OWA: Point light shadows (high-end option, expensive - 6 shadow passes per point light)
 	CMD4(CCC_Integer, "r4_point_light_shadows", &ps_r4_point_light_shadows, 0, 1);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);

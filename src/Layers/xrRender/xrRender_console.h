@@ -96,6 +96,8 @@ extern ECORE_API xr_token material_style_token[];
 extern ECORE_API int   ps_r_probe_update_rate;      // Probes updated per frame (10-200)
 extern ECORE_API float ps_r_probe_bounce_intensity; // Indirect sun strength (0.0-1.0)
 extern ECORE_API int   ps_r_debug_probes;           // Debug visualization (0 or 1)
+extern ECORE_API float ps_r_probe_max_distance;     // Max distance for probe updates (30-500)
+extern ECORE_API int   ps_r_probe_upload_rate;      // GPU upload every N frames (1-16)
 
 extern ECORE_API u32 ps_r_sun_quality; //	=	0;
 extern ECORE_API xr_token qsun_quality_token[];

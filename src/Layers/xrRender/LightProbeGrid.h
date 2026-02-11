@@ -140,6 +140,11 @@ private:
     bool  m_gpuBufferDirty;
     u32   m_gpuTextureHeight;  // Current texture height (probe count)
 
+    // Persistent GPU cache — pre-built texel buffer (avoids per-probe conversion each upload)
+    xr_vector<u8> m_gpuCache;        // texWidth × texHeight × 16 bytes
+    u32 m_gpuCacheRowPitch;           // Row pitch (texWidth_texels × 16 bytes)
+    u32 m_gpuCacheTexHeight;          // Texture height (rows)
+
     // Update state
     CDB::COLLIDER m_collider;    // Own instance for thread safety
     u32   m_updateBudget;
@@ -148,6 +153,7 @@ private:
     float m_lastUpdateTimeMs;
     bool  m_debugEnabled;
     u32   m_farRobinIndex;   // Round-robin index for far/distant tier updates
+    u32   m_lastUploadFrame; // Frame of last GPU upload (for throttling)
 
     // Grid bounds (computed during Build)
     Fvector m_boundsMin;
@@ -173,6 +179,10 @@ private:
     int   m_propagationIters;
     int   m_propagationRate;
 
+    // Persistent propagation buffers (avoid per-call heap allocation)
+    xr_vector<Fvector> m_propagationBuffer;    // Sized to m_probes.size() at Build()
+    xr_vector<u32>     m_propagationActiveSet;  // Reusable active index list
+
     // Internal methods — placement
     void PlacePortalBridgeProbes(CPortal* portal);
     bool IsValidProbePosition(const Fvector& pos);
@@ -184,6 +194,8 @@ private:
     // Internal methods — update
     void UpdateProbe(CLightProbe& probe, u32 probeIndex);
     u32  UpdateProbesInRadius(const Fvector& center, float minDist, float maxDist, u32 budget);
+    void WriteProbeToCache(u32 probeIndex);   // Write 64 bytes to persistent GPU cache
+    void InitGPUCache();                       // Allocate cache and fill all entries
     void CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal, Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor);
     Fvector ComputeTriangleNormal(const CDB::RESULT& hit);
 

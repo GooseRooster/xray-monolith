@@ -798,6 +798,7 @@ extern float ps_ssfx_hud_hemi;
 // OWA retro shader constants
 extern float ps_r__tf_contrast;
 extern float ps_r2_auto_fog;
+extern int   ps_r3_fog_temporal;
 // OWA Multi-Scale Bloom parameters
 extern float ps_r2_bloom_threshold;
 extern float ps_r2_bloom_intensity;
@@ -1350,8 +1351,15 @@ static class cl_owa_auto_fog : public R_constant_setup
 {
 	virtual void setup(R_constant* C) override
 	{
-		// OWA: Get fog_auto_blend from current weather instead of console variable
-		float fog_auto_blend = g_pGamePersistent->Environment().CurrentEnv->m_fFogAutoBlend;
+		// OWA: r2_auto_fog > 0 acts as developer override for fog_auto_blend
+		// This lets you test auto fog color on the stratified path without editing weather files
+		// r2_auto_fog 0 (default) = use weather value, r2_auto_fog 0.5/1.0 = override
+		float fog_auto_blend;
+		if (ps_r2_auto_fog > 0.f)
+			fog_auto_blend = ps_r2_auto_fog;
+		else
+			fog_auto_blend = g_pGamePersistent->Environment().CurrentEnv->m_fFogAutoBlend;
+
 		RCache.set_c(C, fog_auto_blend, 0, 0, 0);
 	}
 } binder_owa_auto_fog;

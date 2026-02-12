@@ -1062,9 +1062,12 @@ CRenderTarget::CRenderTarget()
 		t_envmap_0.create(r2_T_envs0);
 		t_envmap_1.create(r2_T_envs1);
 
-		// OWA: Probe-based ambient lighting texture
+		// OWA: Probe-based ambient lighting texture (debug viz only)
 		t_probe_grid.create(r2_T_probe_grid);
-		t_probe_hash.create(r2_T_probe_hash);
+		// OWA: Irradiance volume textures (Texture3D, hardware trilinear filtering)
+		t_probe_vol0.create(r2_T_probe_vol0);
+		t_probe_vol1.create(r2_T_probe_vol1);
+		t_probe_vol2.create(r2_T_probe_vol2);
 	}
 
 	// Build textures
@@ -1454,8 +1457,13 @@ CRenderTarget::~CRenderTarget()
 	// OWA: Probe-based ambient lighting
 	t_probe_grid->surface_set(NULL);
 	t_probe_grid.destroy();
-	t_probe_hash->surface_set(NULL);
-	t_probe_hash.destroy();
+	// OWA: Irradiance volume textures
+	t_probe_vol0->surface_set(NULL);
+	t_probe_vol0.destroy();
+	t_probe_vol1->surface_set(NULL);
+	t_probe_vol1.destroy();
+	t_probe_vol2->surface_set(NULL);
+	t_probe_vol2.destroy();
 
 	//	TODO: DX10: Check if we need old style SMAPs
 	//	_RELEASE					(rt_smap_ZB);

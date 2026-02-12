@@ -16,8 +16,11 @@
 #define		r2_T_envs1			"$user$env_s1"			// ---
 
 // OWA: Probe-based ambient lighting texture (width=2, height=probeCount, RGBA32F)
-#define		r2_T_probe_grid		"$user$probe_grid"		// ---
-#define		r2_T_probe_hash		"$user$probe_hash"		// spatial hash for K-nearest lookup
+#define		r2_T_probe_grid		"$user$probe_grid"		// probe data for debug visualization
+// OWA: Irradiance volume textures (Texture3D, replaces spatial hash)
+#define		r2_T_probe_vol0		"$user$probe_vol0"		// ambient.rgb, skyVisibility
+#define		r2_T_probe_vol1		"$user$probe_vol1"		// dominantDir.xyz, directionalRatio
+#define		r2_T_probe_vol2		"$user$probe_vol2"		// pointLightColor.rgb, sunVisibility
 
 #define		r2_T_sky0			"$user$sky0"
 #define		r2_T_sky1			"$user$sky1"

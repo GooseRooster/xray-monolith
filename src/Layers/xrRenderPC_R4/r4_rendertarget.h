@@ -180,8 +180,11 @@ public:
 	ref_texture t_envmap_1; // env-1
 
 	// OWA: Probe-based ambient lighting
-	ref_texture t_probe_grid;  // Texture2D with probe data (bound as s_probe_grid)
-	ref_texture t_probe_hash;  // Texture2D with spatial hash (bound as s_probe_hash)
+	ref_texture t_probe_grid;  // Texture2D with probe data (debug visualization only)
+	// OWA: Irradiance volume textures (Texture3D, hardware trilinear filtering)
+	ref_texture t_probe_vol0;  // ambient.rgb, skyVisibility
+	ref_texture t_probe_vol1;  // dominantDir.xyz, directionalRatio
+	ref_texture t_probe_vol2;  // pointLightColor.rgb, sunVisibility
 
 	// smap
 	ref_rt rt_smap_surf; // 32bit,		color

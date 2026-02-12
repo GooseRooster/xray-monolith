@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../xrCDB/xrCDB.h"
+#include "../../xrCDB/Frustum.h"
 
 // Forward declarations
 class CPortal;
@@ -24,9 +25,9 @@ static const float SOFT_SHADOW_JITTER = 0.15f;      // jitter cone angle (radian
 static const float SUN_ALIGNMENT_THRESHOLD = 0.5f;  // cos(60°) - rays within 60° of sun count
 static const float RECEIVED_LIGHT_WEIGHT = 0.35f;    // how much received light affects sunVisibility
 
-// Spatial hash constants
-static const int   MAX_PROBES_PER_CELL = 4;         // max probes stored per hash cell (1 texel @ R32G32B32A32_UINT)
-static const float DEFAULT_HASH_CELL_SIZE = 4.0f;   // spatial hash cell size (2x outdoor spacing)
+// Spatial hash constants (CPU-side only — GPU hash removed in favor of volume textures)
+static const int   MAX_PROBES_PER_CELL = 4;         // max probes stored per hash cell
+static const float DEFAULT_HASH_CELL_SIZE = 2.5f;   // spatial hash cell size (just above outdoor spacing, reduces overflow)
 static const float INDOOR_RAY_RANGE = 30.0f;         // upward ray range for indoor detection
 static const int   INDOOR_RAY_COUNT = 5;             // number of upward rays for indoor detection
 static const int   INDOOR_RAY_THRESHOLD = 4;         // hits needed to classify as indoor
@@ -37,23 +38,24 @@ static const int   DEFAULT_PROPAGATION_RATE = 30;   // frames between propagatio
 static const float POINT_LIGHT_SEARCH_RADIUS = 20.0f;  // max distance to query lights
 static const int   MAX_POINT_LIGHTS_PER_PROBE = 5;     // cap per-probe to bound worst case
 
-//////////////////////////////////////////////////////////////////////////
-// GPU-compatible probe data structure (64 bytes, must match HLSL)
-//////////////////////////////////////////////////////////////////////////
-struct GPUProbeData
+// Volume texture constants
+static const u32   MAX_VOLUME_VOXELS = 500000;       // cap total voxels (~24MB for 3 textures)
+static const int   NUM_VOLUME_TEXTURES = 3;           // vol0=ambient+sky, vol1=dir+ratio, vol2=ptlight+sun
+
+// Probe update quality levels
+enum EProbeQuality
 {
-    Fvector3 position;          // texel 0: xyz   (12 bytes)
-    float    skyVisibility;     // texel 0: w     (4 bytes)
-    Fvector3 ambient;           // texel 1: xyz   (12 bytes)
-    float    sunVisibility;     // texel 1: w     (4 bytes)
-    Fvector3 dominantDir;       // texel 2: xyz   (12 bytes)
-    float    directionalRatio;  // texel 2: w     (4 bytes)
-    Fvector3 pointLightColor;   // texel 3: xyz   (12 bytes)
-    float    pointLightIntensity; // texel 3: w   (4 bytes)
-};                              // Total: 64 bytes
+    PROBE_QUALITY_FULL = 0,      // 6 hemisphere + 4 shadow + bounce rays (~22 CDB queries)
+    PROBE_QUALITY_REDUCED = 1,   // 4 hemisphere + 2 shadow, no bounce (~8 CDB queries)
+};
 
 //////////////////////////////////////////////////////////////////////////
 // CPU-side probe data with additional tracking info
+// GPU layout (64 bytes per probe, 4 × RGBA32F texels):
+//   Texel 0: position.xyz, skyVisibility
+//   Texel 1: ambient.xyz, sunVisibility
+//   Texel 2: dominantDir.xyz, directionalRatio
+//   Texel 3: pointLightColor.xyz, pointLightIntensity
 //////////////////////////////////////////////////////////////////////////
 struct CLightProbe
 {
@@ -66,6 +68,7 @@ struct CLightProbe
     float    directionalRatio;   // 0=uniform, 1=all from one direction
     Fvector3 pointLightColor;    // Accumulated point/spot light color
     float    pointLightIntensity; // Point light luminance
+    float    envLuminance;       // Environment luminance at last ray-update (for ToD snap)
     u16      sectorId;           // Reserved (0xFFFF) — preserves GPU layout
     u16      lastUpdateFrame;    // Frame counter for staggering
 };
@@ -90,6 +93,20 @@ struct ProbeNeighbors
 };
 
 //////////////////////////////////////////////////////////////////////////
+// VoxelAccum - Per-voxel accumulator for scatter-normalize rasterization
+//////////////////////////////////////////////////////////////////////////
+struct VoxelAccum
+{
+    float ambient[3];
+    float skyVis;
+    float sunVis;
+    float dominantDir[3];
+    float dirRatio;
+    float pointLight[3];
+    float weight;
+};
+
+//////////////////////////////////////////////////////////////////////////
 // CLightProbeGrid - Main probe system class
 //////////////////////////////////////////////////////////////////////////
 class CLightProbeGrid
@@ -102,9 +119,8 @@ public:
     void Build();                   // Called after level_Load
     void Clear();                   // Called in level_Unload
     void Update();                  // Called each frame from OnFrame
-    void PrepareGPUBuffer();        // Upload probe data to GPU
+    void PrepareGPUBuffer();        // Upload probe data to GPU (probe data texture)
     void BindToShader(u32 slot);    // Bind probe SRV to shader slot
-    void BindHashToShader(u32 slot); // Bind spatial hash SRV to shader slot
 
     // Hybrid integration for CROS_impl
     bool SampleNearest(const Fvector& position, Fvector& outAmbient, float& outSkyVis);
@@ -113,37 +129,63 @@ public:
     u32  GetProbeCount() const { return (u32)m_probes.size(); }
     float GetLastUpdateTimeMs() const { return m_lastUpdateTimeMs; }
     bool IsDebugEnabled() const { return m_debugEnabled; }
-    ID3D11Texture2D* GetTexture() const { return m_pProbeTexture; }  // For X-Ray texture binding
-    ID3D11Texture2D* GetHashTexture() const { return m_pHashTexture; }  // For hash texture binding
+    ID3D11Texture2D* GetTexture() const { return m_pProbeTexture; }  // For X-Ray texture binding (debug viz)
+
+    // Volume texture accessors (for render target binding)
+    ID3D11Texture3D*          GetVolumeTexture(int idx) const;
+    ID3D11ShaderResourceView* GetVolumeSRV(int idx) const;
+    Fvector  GetVolumeMin() const  { return m_volMin; }
+    Fvector  GetVolumeSize() const { return m_volSize; }
+    float    GetVoxelSize() const  { return m_voxelSize; }
 
     // Grid bounds for shader constants
     Fvector GetBoundsMin() const;
     Fvector GetBoundsMax() const;
     Ivector GetDimensions() const;
 
-    // Spatial hash bounds for shader constants
-    Fvector GetHashMin() const;
-    Ivector GetHashDimensions() const;
-    float   GetHashCellSize() const { return m_hashCellSize; }
-
 private:
     // Probe storage
     xr_vector<CLightProbe>  m_probes;
 
-    // GPU resources (Texture2D: PROBES_PER_ROW*4 wide, RGBA32F)
-    // Texel 0: position.xyz, skyVisibility
-    // Texel 1: ambient.xyz, sunVisibility
-    // Texel 2: dominantDir.xyz, directionalRatio
-    // Texel 3: pointLightColor.xyz, pointLightIntensity
+    // GPU resources — Probe data texture (Texture2D: PROBES_PER_ROW*4 wide, RGBA32F)
+    // Kept for debug visualization only (LoadProbe in shader, debug modes 1-8).
+    // Upload skipped when ps_r_debug_probes == 0.
     ID3D11Texture2D*          m_pProbeTexture;
     ID3D11ShaderResourceView* m_pProbeSRV;
     bool  m_gpuBufferDirty;
-    u32   m_gpuTextureHeight;  // Current texture height (probe count)
+    u32   m_gpuAllocatedProbes;  // Probe count at last texture allocation (grow-on-demand)
 
     // Persistent GPU cache — pre-built texel buffer (avoids per-probe conversion each upload)
     xr_vector<u8> m_gpuCache;        // texWidth × texHeight × 16 bytes
     u32 m_gpuCacheRowPitch;           // Row pitch (texWidth_texels × 16 bytes)
     u32 m_gpuCacheTexHeight;          // Texture height (rows)
+
+    // =========================================================================
+    // Volume textures (Irradiance Volumes) — replaces GPU spatial hash
+    // 3 × Texture3D<float4> with hardware trilinear filtering
+    //   vol0: ambient.rgb, skyVisibility
+    //   vol1: dominantDir.xyz, directionalRatio
+    //   vol2: pointLightColor.rgb, sunVisibility
+    // =========================================================================
+    ID3D11Texture3D*           m_pVolTexture[NUM_VOLUME_TEXTURES];
+    ID3D11ShaderResourceView*  m_pVolSRV[NUM_VOLUME_TEXTURES];
+    Ivector  m_volDims;       // Volume dimensions in voxels
+    Fvector  m_volMin;        // Volume world-space minimum
+    Fvector  m_volSize;       // Volume world-space extent (max - min)
+    float    m_voxelSize;     // Actual voxel size (may auto-coarsen)
+    bool     m_volDirty;      // Needs re-rasterization
+
+    // Rasterization accumulators and staging buffers
+    xr_vector<VoxelAccum>  m_volAccum;
+    xr_vector<float>       m_volData[NUM_VOLUME_TEXTURES];  // 3 × float4 staging buffers for upload
+
+    // =========================================================================
+    // Simplified 2-tier scheduling (replaces 4-tier distance-based)
+    // =========================================================================
+    xr_vector<u32>  m_frustumProbes;       // Rebuilt each frame: in-frustum probe indices
+    u32             m_frustumRobinIndex;   // Round-robin cursor for in-frustum tier
+    u32             m_bgRobinIndex;        // Round-robin cursor for background tier
+    u32             m_budgetBoostFramesLeft; // Frames remaining with boosted budget
 
     // Update state
     CDB::COLLIDER m_collider;    // Own instance for thread safety
@@ -152,24 +194,28 @@ private:
     float m_bounceIntensity;
     float m_lastUpdateTimeMs;
     bool  m_debugEnabled;
-    u32   m_farRobinIndex;   // Round-robin index for far/distant tier updates
     u32   m_lastUploadFrame; // Frame of last GPU upload (for throttling)
+
+    // Frustum and camera tracking
+    CFrustum m_viewFrustum;      // Current frame camera frustum
+    Fvector  m_prevCameraDir;    // Previous frame camera direction (rotation detection)
+
+    // Time-of-day tracking
+    float m_lastGameTime;        // Previous frame game time (for jump detection)
+    float m_temporalBlend;       // Adaptive temporal smoothing factor (0.3 normal, up to 1.0 on time jump)
+    float m_currentEnvLum;       // Current frame environment luminance
 
     // Grid bounds (computed during Build)
     Fvector m_boundsMin;
     Fvector m_boundsMax;
     Ivector m_gridDims;
 
-    // Spatial hash acceleration structure
+    // Spatial hash acceleration structure (CPU-side only — used for UpdateProbesInRadius,
+    // SampleNearest/CROS, HasNearbyProbe, BuildNeighborConnectivity)
     xr_vector<SpatialHashCell> m_spatialHash;
     Ivector m_hashDims;
     Fvector m_hashMin;
     float   m_hashCellSize;
-
-    // Spatial hash GPU resources
-    ID3D11Texture2D*          m_pHashTexture;
-    ID3D11ShaderResourceView* m_pHashSRV;
-    bool  m_hashDirty;
 
     // Neighbor connectivity for light propagation
     xr_vector<ProbeNeighbors> m_probeNeighbors;
@@ -187,22 +233,29 @@ private:
     void PlacePortalBridgeProbes(CPortal* portal);
     bool IsValidProbePosition(const Fvector& pos);
     bool IsPositionIndoor(const Fvector& pos);
-    CLightProbe MakeDefaultProbe(const Fvector& pos, bool isIndoor);
+    CLightProbe MakeDefaultProbe(const Fvector& pos);
     bool HasNearbyProbe(const Fvector& pos, float minDist) const;
     void ComputeGridBounds();
 
     // Internal methods — update
-    void UpdateProbe(CLightProbe& probe, u32 probeIndex);
-    u32  UpdateProbesInRadius(const Fvector& center, float minDist, float maxDist, u32 budget);
+    void UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQuality quality = PROBE_QUALITY_FULL);
     void WriteProbeToCache(u32 probeIndex);   // Write 64 bytes to persistent GPU cache
     void InitGPUCache();                       // Allocate cache and fill all entries
     void CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal, Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor);
     Fvector ComputeTriangleNormal(const CDB::RESULT& hit);
+    float ComputeEnvLuminance() const;
 
-    // Spatial hash methods
+    // Spatial hash methods (CPU-side only)
     void BuildSpatialHash();
-    void PrepareHashGPUBuffer();
     Ivector WorldToHashCell(const Fvector& pos) const;
+
+    // Volume texture methods
+    void BuildVolumeTextures();    // Create Texture3D resources during Build()
+    void RasterizeVolume();        // Full scatter-normalize (Build + time jump only)
+    void UpdateVolumeProbe(u32 probeIndex, const CLightProbe& oldValues); // Incremental update
+    void NormalizeVoxel(int voxelIdx); // Re-normalize one voxel from accum → staging
+    void PrepareVolumeGPU();       // Upload staging buffers to Texture3D (MAP_WRITE_DISCARD)
+    void RebuildFrustumList();     // Classify probes as in/out of frustum
 
     // Neighbor connectivity and propagation
     void BuildNeighborConnectivity();

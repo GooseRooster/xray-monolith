@@ -56,7 +56,7 @@ CLightProbeGrid::CLightProbeGrid()
     : m_pProbeTexture(nullptr)
     , m_pProbeSRV(nullptr)
     , m_gpuBufferDirty(true)
-    , m_gpuTextureHeight(0)
+    , m_gpuAllocatedProbes(0)
     , m_gpuCacheRowPitch(0)
     , m_gpuCacheTexHeight(0)
     , m_updateBudget(50)
@@ -64,20 +64,34 @@ CLightProbeGrid::CLightProbeGrid()
     , m_bounceIntensity(DEFAULT_BOUNCE_INTENSITY)
     , m_lastUpdateTimeMs(0)
     , m_debugEnabled(false)
-    , m_pHashTexture(nullptr)
-    , m_pHashSRV(nullptr)
-    , m_hashDirty(true)
     , m_hashCellSize(DEFAULT_HASH_CELL_SIZE)
     , m_propagationIters(DEFAULT_PROPAGATION_ITERS)
     , m_propagationRate(DEFAULT_PROPAGATION_RATE)
-    , m_farRobinIndex(0)
     , m_lastUploadFrame(0)
+    , m_lastGameTime(-1.0f)
+    , m_temporalBlend(0.3f)
+    , m_currentEnvLum(1.0f)
+    , m_voxelSize(OUTDOOR_GRID_SPACING)
+    , m_volDirty(true)
+    , m_frustumRobinIndex(0)
+    , m_bgRobinIndex(0)
+    , m_budgetBoostFramesLeft(0)
 {
     m_boundsMin.set(0, 0, 0);
     m_boundsMax.set(0, 0, 0);
     m_gridDims.set(0, 0, 0);
     m_hashMin.set(0, 0, 0);
     m_hashDims.set(0, 0, 0);
+    m_volDims.set(0, 0, 0);
+    m_volMin.set(0, 0, 0);
+    m_volSize.set(0, 0, 0);
+    m_prevCameraDir.set(0, 0, 1);
+
+    for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
+    {
+        m_pVolTexture[i] = nullptr;
+        m_pVolSRV[i] = nullptr;
+    }
 
     InitializeHemisphereRays();
 }
@@ -97,6 +111,10 @@ void CLightProbeGrid::Clear()
     m_gpuCacheTexHeight = 0;
     m_propagationBuffer.clear();
     m_propagationActiveSet.clear();
+    m_frustumProbes.clear();
+    m_volAccum.clear();
+    for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
+        m_volData[i].clear();
 
     if (m_pProbeSRV)
     {
@@ -108,21 +126,32 @@ void CLightProbeGrid::Clear()
         m_pProbeTexture->Release();
         m_pProbeTexture = nullptr;
     }
-    if (m_pHashSRV)
+
+    // Release volume textures
+    for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
     {
-        m_pHashSRV->Release();
-        m_pHashSRV = nullptr;
-    }
-    if (m_pHashTexture)
-    {
-        m_pHashTexture->Release();
-        m_pHashTexture = nullptr;
+        if (m_pVolSRV[i])
+        {
+            m_pVolSRV[i]->Release();
+            m_pVolSRV[i] = nullptr;
+        }
+        if (m_pVolTexture[i])
+        {
+            m_pVolTexture[i]->Release();
+            m_pVolTexture[i] = nullptr;
+        }
     }
 
-    m_gpuTextureHeight = 0;
+    m_gpuAllocatedProbes = 0;
     m_gpuBufferDirty = true;
-    m_hashDirty = true;
-    m_farRobinIndex = 0;
+    m_volDirty = true;
+    m_frustumRobinIndex = 0;
+    m_bgRobinIndex = 0;
+    m_budgetBoostFramesLeft = 0;
+    m_lastGameTime = -1.0f;
+    m_temporalBlend = 0.3f;
+    m_currentEnvLum = 1.0f;
+    m_prevCameraDir.set(0, 0, 1);
 }
 
 bool CLightProbeGrid::IsPositionIndoor(const Fvector& pos)
@@ -156,7 +185,7 @@ bool CLightProbeGrid::IsPositionIndoor(const Fvector& pos)
     return hits >= INDOOR_RAY_THRESHOLD;
 }
 
-CLightProbe CLightProbeGrid::MakeDefaultProbe(const Fvector& pos, bool isIndoor)
+CLightProbe CLightProbeGrid::MakeDefaultProbe(const Fvector& pos)
 {
     CLightProbe probe;
     probe.position = pos;
@@ -168,6 +197,7 @@ CLightProbe CLightProbeGrid::MakeDefaultProbe(const Fvector& pos, bool isIndoor)
     probe.directionalRatio = 0.0f;
     probe.pointLightColor.set(0, 0, 0);
     probe.pointLightIntensity = 0.0f;
+    probe.envLuminance = 0.0f;
     probe.sectorId = 0xFFFF;  // Unused — placement is CFORM-based
     probe.lastUpdateFrame = 0;
     return probe;
@@ -187,9 +217,9 @@ void CLightProbeGrid::PlacePortalBridgeProbes(CPortal* portal)
     pos2.mad(center, normal, -PORTAL_BRIDGE_OFFSET);
 
     if (IsValidProbePosition(pos1))
-        m_probes.push_back(MakeDefaultProbe(pos1, false));
+        m_probes.push_back(MakeDefaultProbe(pos1));
     if (IsValidProbePosition(pos2))
-        m_probes.push_back(MakeDefaultProbe(pos2, false));
+        m_probes.push_back(MakeDefaultProbe(pos2));
 }
 
 bool CLightProbeGrid::IsValidProbePosition(const Fvector& pos)
@@ -249,7 +279,7 @@ void CLightProbeGrid::Build()
 
     // =====================================================================
     // Pass 1: Outdoor sweep at OUTDOOR_GRID_SPACING (2.0m)
-    // Covers the entire level uniformly; tags indoor positions for pass 2.
+    // Covers the entire level uniformly; counts indoor hits for diagnostics.
     // =====================================================================
     u32 outdoorCount = 0;
     u32 indoorTagged = 0;
@@ -266,7 +296,7 @@ void CLightProbeGrid::Build()
         bool isIndoor = IsPositionIndoor(pos);
         if (isIndoor) indoorTagged++;
 
-        m_probes.push_back(MakeDefaultProbe(pos, isIndoor));
+        m_probes.push_back(MakeDefaultProbe(pos));
         outdoorCount++;
     }
 
@@ -301,7 +331,7 @@ void CLightProbeGrid::Build()
         if (!IsPositionIndoor(pos))
             continue;
 
-        m_probes.push_back(MakeDefaultProbe(pos, true));
+        m_probes.push_back(MakeDefaultProbe(pos));
         indoorDensified++;
     }
 
@@ -346,18 +376,23 @@ void CLightProbeGrid::Build()
     InitGPUCache();
     m_propagationBuffer.resize(m_probes.size());
     m_propagationActiveSet.reserve(m_probes.size());
+    m_frustumProbes.reserve(m_probes.size());
 
     m_gpuBufferDirty = true;
-    m_hashDirty = true;
     PrepareGPUBuffer();
-    PrepareHashGPUBuffer();
+
+    // Build volume textures and perform initial rasterization
+    BuildVolumeTextures();
+    RasterizeVolume();
+    PrepareVolumeGPU();
 
     Msg("* [LightProbeGrid] Placed %d probes, bounds (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)",
         m_probes.size(),
         m_boundsMin.x, m_boundsMin.y, m_boundsMin.z,
         m_boundsMax.x, m_boundsMax.y, m_boundsMax.z);
-    Msg("* [LightProbeGrid] Spatial hash: %dx%dx%d cells (%.1fm cell size)",
-        m_hashDims.x, m_hashDims.y, m_hashDims.z, m_hashCellSize);
+    Msg("* [LightProbeGrid] Volume texture: %dx%dx%d voxels (%.1fm voxel size, %.2f MB)",
+        m_volDims.x, m_volDims.y, m_volDims.z, m_voxelSize,
+        (float)(m_volDims.x * m_volDims.y * m_volDims.z * 16 * NUM_VOLUME_TEXTURES) / (1024.0f * 1024.0f));
 }
 
 void CLightProbeGrid::ComputeGridBounds()
@@ -412,6 +447,17 @@ Fvector CLightProbeGrid::ComputeTriangleNormal(const CDB::RESULT& hit)
     return normal;
 }
 
+float CLightProbeGrid::ComputeEnvLuminance() const
+{
+    if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv)
+        return 1.0f;
+
+    CEnvDescriptorMixer& env = *g_pGamePersistent->Environment().CurrentEnv;
+    float hemiLum = env.hemi_color.x * 0.2126f + env.hemi_color.y * 0.7152f + env.hemi_color.z * 0.0722f;
+    float sunLum  = env.sun_color.x  * 0.2126f + env.sun_color.y  * 0.7152f + env.sun_color.z  * 0.0722f;
+    return hemiLum + sunLum * 0.5f;
+}
+
 void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal,
                                      Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor)
 {
@@ -438,91 +484,407 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
     }
 }
 
-u32 CLightProbeGrid::UpdateProbesInRadius(const Fvector& center, float minDist, float maxDist, u32 budget)
+//////////////////////////////////////////////////////////////////////////
+// Volume Texture Implementation
+//////////////////////////////////////////////////////////////////////////
+
+ID3D11Texture3D* CLightProbeGrid::GetVolumeTexture(int idx) const
 {
-    if (budget == 0 || m_probes.empty()) return 0;
-
-    float minDistSq = minDist * minDist;
-    float maxDistSq = (maxDist < FLT_MAX) ? maxDist * maxDist : FLT_MAX;
-    u32 updated = 0;
-
-    // For near/medium tiers (small radius), iterate spatial hash cells within range.
-    // For far/distant tiers (large radius), use round-robin to avoid iterating 100K+ cells.
-    if (maxDist <= 60.0f && !m_spatialHash.empty())
-    {
-        int cellRadius = (int)ceilf(maxDist / m_hashCellSize) + 1;
-        Ivector centerCell = WorldToHashCell(center);
-
-        for (int dz = -cellRadius; dz <= cellRadius && updated < budget; dz++)
-        for (int dy = -cellRadius; dy <= cellRadius && updated < budget; dy++)
-        for (int dx = -cellRadius; dx <= cellRadius && updated < budget; dx++)
-        {
-            int cx = centerCell.x + dx;
-            int cy = centerCell.y + dy;
-            int cz = centerCell.z + dz;
-
-            if (cx < 0 || cx >= m_hashDims.x) continue;
-            if (cy < 0 || cy >= m_hashDims.y) continue;
-            if (cz < 0 || cz >= m_hashDims.z) continue;
-
-            int cellIndex = cz * (m_hashDims.x * m_hashDims.y)
-                          + cy * m_hashDims.x
-                          + cx;
-
-            const SpatialHashCell& cell = m_spatialHash[cellIndex];
-            for (u8 p = 0; p < cell.count && updated < budget; p++)
-            {
-                u32 idx = cell.probeIndices[p];
-                if (idx >= m_probes.size()) continue;
-
-                // Skip if already updated this frame
-                if (m_probes[idx].lastUpdateFrame == (u16)(m_currentFrame & 0xFFFF))
-                    continue;
-
-                float distSq = center.distance_to_sqr(m_probes[idx].position);
-                if (distSq < minDistSq || distSq >= maxDistSq) continue;
-
-                UpdateProbe(m_probes[idx], idx);
-                updated++;
-            }
-        }
-    }
-    else
-    {
-        // Round-robin scan with distance filter + view-cone culling for far probes
-        u32 probeCount = (u32)m_probes.size();
-        for (u32 i = 0; i < probeCount && updated < budget; i++)
-        {
-            u32 idx = (m_farRobinIndex + i) % probeCount;
-
-            // Skip if already updated this frame
-            if (m_probes[idx].lastUpdateFrame == (u16)(m_currentFrame & 0xFFFF))
-                continue;
-
-            float distSq = center.distance_to_sqr(m_probes[idx].position);
-            if (distSq < minDistSq || distSq >= maxDistSq) continue;
-
-            // View-cone culling for far tier (50m+): skip probes behind camera
-            // Generous 214-degree cone (dot < -0.3) prevents artifacts when turning
-            if (minDist >= 50.0f)
-            {
-                Fvector toProbe;
-                toProbe.sub(m_probes[idx].position, center).normalize_safe();
-                if (toProbe.dotproduct(Device.vCameraDirection) < -0.3f)
-                    continue;
-            }
-
-            UpdateProbe(m_probes[idx], idx);
-            updated++;
-        }
-        m_farRobinIndex = (m_farRobinIndex + budget) % _max(1u, (u32)m_probes.size());
-    }
-
-    return updated;
+    if (idx >= 0 && idx < NUM_VOLUME_TEXTURES)
+        return m_pVolTexture[idx];
+    return nullptr;
 }
 
-void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
+ID3D11ShaderResourceView* CLightProbeGrid::GetVolumeSRV(int idx) const
 {
+    if (idx >= 0 && idx < NUM_VOLUME_TEXTURES)
+        return m_pVolSRV[idx];
+    return nullptr;
+}
+
+void CLightProbeGrid::BuildVolumeTextures()
+{
+    if (m_probes.empty()) return;
+
+    // Compute volume bounds (same as grid bounds with margin)
+    Fvector margin = { 1.0f, 1.0f, 1.0f };
+    m_volMin.sub(m_boundsMin, margin);
+
+    Fvector volMax;
+    volMax.add(m_boundsMax, margin);
+    m_volSize.sub(volMax, m_volMin);
+
+    // Compute voxel size — start at OUTDOOR_GRID_SPACING, auto-coarsen if too many voxels
+    m_voxelSize = OUTDOOR_GRID_SPACING;
+    int volX, volY, volZ;
+
+    for (;;)
+    {
+        volX = _max(1, (int)ceilf(m_volSize.x / m_voxelSize));
+        volY = _max(1, (int)ceilf(m_volSize.y / m_voxelSize));
+        volZ = _max(1, (int)ceilf(m_volSize.z / m_voxelSize));
+
+        if ((u32)(volX * volY * volZ) <= MAX_VOLUME_VOXELS || m_voxelSize >= 8.0f)
+            break;
+
+        m_voxelSize += 0.5f;
+    }
+
+    m_volDims.set(volX, volY, volZ);
+
+    // Recompute exact volume size to match voxel grid
+    m_volSize.set(volX * m_voxelSize, volY * m_voxelSize, volZ * m_voxelSize);
+
+    u32 totalVoxels = volX * volY * volZ;
+
+    Msg("* [LightProbeGrid] Building volume textures: %dx%dx%d = %d voxels (%.1fm voxel size)",
+        volX, volY, volZ, totalVoxels, m_voxelSize);
+
+    // Create 3 × Texture3D with D3D11_USAGE_DYNAMIC
+    for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
+    {
+        if (m_pVolSRV[i]) { m_pVolSRV[i]->Release(); m_pVolSRV[i] = nullptr; }
+        if (m_pVolTexture[i]) { m_pVolTexture[i]->Release(); m_pVolTexture[i] = nullptr; }
+
+        D3D11_TEXTURE3D_DESC texDesc = {};
+        texDesc.Width = volX;
+        texDesc.Height = volY;
+        texDesc.Depth = volZ;
+        texDesc.MipLevels = 1;
+        texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        texDesc.Usage = D3D11_USAGE_DYNAMIC;
+        texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+
+        HRESULT hr = HW.pDevice->CreateTexture3D(&texDesc, nullptr, &m_pVolTexture[i]);
+        if (FAILED(hr))
+        {
+            Msg("! [LightProbeGrid] CreateTexture3D[%d] failed: 0x%08X (%dx%dx%d)", i, hr, volX, volY, volZ);
+            return;
+        }
+
+        // Create SRV with NULL desc — auto-detects Texture3D dimension
+        hr = HW.pDevice->CreateShaderResourceView(m_pVolTexture[i], nullptr, &m_pVolSRV[i]);
+        if (FAILED(hr))
+        {
+            Msg("! [LightProbeGrid] CreateSRV[%d] failed: 0x%08X", i, hr);
+            return;
+        }
+    }
+
+    // Allocate accumulator and staging buffers
+    m_volAccum.resize(totalVoxels);
+    for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
+        m_volData[i].resize(totalVoxels * 4);  // 4 floats per voxel
+
+    m_volDirty = true;
+}
+
+void CLightProbeGrid::RasterizeVolume()
+{
+    if (m_volAccum.empty() || m_probes.empty()) return;
+
+    u32 totalVoxels = m_volDims.x * m_volDims.y * m_volDims.z;
+
+    // Phase 1: Zero accumulators
+    memset(m_volAccum.data(), 0, totalVoxels * sizeof(VoxelAccum));
+
+    float sigma = m_voxelSize * 1.5f;
+    float invSigmaSq2 = -0.5f / (sigma * sigma);
+
+    // Phase 2: Scatter — for each probe, distribute to 3×3×3 voxel neighborhood
+    for (u32 pi = 0; pi < m_probes.size(); pi++)
+    {
+        const CLightProbe& probe = m_probes[pi];
+
+        // Find center voxel
+        Fvector local;
+        local.sub(probe.position, m_volMin);
+        int cx = (int)(local.x / m_voxelSize);
+        int cy = (int)(local.y / m_voxelSize);
+        int cz = (int)(local.z / m_voxelSize);
+
+        // Scatter to 3×3×3 neighborhood
+        for (int dz = -1; dz <= 1; dz++)
+        for (int dy = -1; dy <= 1; dy++)
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            int vx = cx + dx;
+            int vy = cy + dy;
+            int vz = cz + dz;
+
+            if (vx < 0 || vx >= m_volDims.x) continue;
+            if (vy < 0 || vy >= m_volDims.y) continue;
+            if (vz < 0 || vz >= m_volDims.z) continue;
+
+            // Compute voxel center in world space
+            Fvector voxelCenter;
+            voxelCenter.x = m_volMin.x + (vx + 0.5f) * m_voxelSize;
+            voxelCenter.y = m_volMin.y + (vy + 0.5f) * m_voxelSize;
+            voxelCenter.z = m_volMin.z + (vz + 0.5f) * m_voxelSize;
+
+            float distSq = probe.position.distance_to_sqr(voxelCenter);
+            float w = expf(distSq * invSigmaSq2);
+
+            int voxelIdx = vz * (m_volDims.x * m_volDims.y) + vy * m_volDims.x + vx;
+            VoxelAccum& acc = m_volAccum[voxelIdx];
+
+            acc.ambient[0]     += probe.ambient.x * w;
+            acc.ambient[1]     += probe.ambient.y * w;
+            acc.ambient[2]     += probe.ambient.z * w;
+            acc.skyVis         += probe.skyVisibility * w;
+            acc.sunVis         += probe.sunVisibility * w;
+            acc.dominantDir[0] += probe.dominantDir.x * w;
+            acc.dominantDir[1] += probe.dominantDir.y * w;
+            acc.dominantDir[2] += probe.dominantDir.z * w;
+            acc.dirRatio       += probe.directionalRatio * w;
+            acc.pointLight[0]  += probe.pointLightColor.x * w;
+            acc.pointLight[1]  += probe.pointLightColor.y * w;
+            acc.pointLight[2]  += probe.pointLightColor.z * w;
+            acc.weight         += w;
+        }
+    }
+
+    // Phase 3: Normalize and write to staging buffers
+    for (u32 v = 0; v < totalVoxels; v++)
+    {
+        const VoxelAccum& acc = m_volAccum[v];
+
+        float invW = (acc.weight > 0.0001f) ? (1.0f / acc.weight) : 0.0f;
+
+        // vol0: ambient.rgb, skyVisibility
+        m_volData[0][v * 4 + 0] = acc.ambient[0] * invW;
+        m_volData[0][v * 4 + 1] = acc.ambient[1] * invW;
+        m_volData[0][v * 4 + 2] = acc.ambient[2] * invW;
+        m_volData[0][v * 4 + 3] = acc.skyVis * invW;
+
+        // vol1: dominantDir.xyz, directionalRatio
+        m_volData[1][v * 4 + 0] = acc.dominantDir[0] * invW;
+        m_volData[1][v * 4 + 1] = acc.dominantDir[1] * invW;
+        m_volData[1][v * 4 + 2] = acc.dominantDir[2] * invW;
+        m_volData[1][v * 4 + 3] = acc.dirRatio * invW;
+
+        // vol2: pointLightColor.rgb, sunVisibility
+        m_volData[2][v * 4 + 0] = acc.pointLight[0] * invW;
+        m_volData[2][v * 4 + 1] = acc.pointLight[1] * invW;
+        m_volData[2][v * 4 + 2] = acc.pointLight[2] * invW;
+        m_volData[2][v * 4 + 3] = acc.sunVis * invW;
+    }
+
+    // Phase 4: Column-wise flood-fill for empty voxels
+    // Probes exist only at terrain surface level, leaving empty voxels above (sky)
+    // and below (underground) with weight=0 → all values=0. Without fill,
+    // GPU trilinear interpolation between populated (e.g. skyVis=1.0) and empty
+    // (skyVis=0.0) voxels produces incorrect intermediate values (0.5).
+    // Fix: propagate nearest populated voxel's data vertically through each column.
+    int sliceStride = m_volDims.x * m_volDims.y;
+
+    for (int vz = 0; vz < m_volDims.z; vz++)
+    {
+        for (int vx = 0; vx < m_volDims.x; vx++)
+        {
+            // Pass 1: Upward sweep — fills empty voxels above each populated voxel
+            int lastPopIdx = -1;
+            for (int vy = 0; vy < m_volDims.y; vy++)
+            {
+                int idx = vz * sliceStride + vy * m_volDims.x + vx;
+                if (m_volAccum[idx].weight > 0.0001f)
+                    lastPopIdx = idx;
+                else if (lastPopIdx >= 0)
+                {
+                    for (int vol = 0; vol < NUM_VOLUME_TEXTURES; vol++)
+                        memcpy(&m_volData[vol][idx * 4], &m_volData[vol][lastPopIdx * 4], 4 * sizeof(float));
+                }
+            }
+
+            // Pass 2: Find lowest populated voxel and fill everything below it
+            for (int vy = 0; vy < m_volDims.y; vy++)
+            {
+                int idx = vz * sliceStride + vy * m_volDims.x + vx;
+                if (m_volAccum[idx].weight > 0.0001f)
+                {
+                    // Fill all voxels below this one
+                    for (int by = vy - 1; by >= 0; by--)
+                    {
+                        int belowIdx = vz * sliceStride + by * m_volDims.x + vx;
+                        for (int vol = 0; vol < NUM_VOLUME_TEXTURES; vol++)
+                            memcpy(&m_volData[vol][belowIdx * 4], &m_volData[vol][idx * 4], 4 * sizeof(float));
+                    }
+                    break;  // Only need the lowest populated voxel
+                }
+            }
+        }
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+// NormalizeVoxel — re-normalize one voxel from accum → staging buffers
+//////////////////////////////////////////////////////////////////////////
+void CLightProbeGrid::NormalizeVoxel(int voxelIdx)
+{
+    const VoxelAccum& acc = m_volAccum[voxelIdx];
+    float invW = (acc.weight > 0.0001f) ? (1.0f / acc.weight) : 0.0f;
+
+    m_volData[0][voxelIdx * 4 + 0] = acc.ambient[0] * invW;
+    m_volData[0][voxelIdx * 4 + 1] = acc.ambient[1] * invW;
+    m_volData[0][voxelIdx * 4 + 2] = acc.ambient[2] * invW;
+    m_volData[0][voxelIdx * 4 + 3] = acc.skyVis * invW;
+
+    m_volData[1][voxelIdx * 4 + 0] = acc.dominantDir[0] * invW;
+    m_volData[1][voxelIdx * 4 + 1] = acc.dominantDir[1] * invW;
+    m_volData[1][voxelIdx * 4 + 2] = acc.dominantDir[2] * invW;
+    m_volData[1][voxelIdx * 4 + 3] = acc.dirRatio * invW;
+
+    m_volData[2][voxelIdx * 4 + 0] = acc.pointLight[0] * invW;
+    m_volData[2][voxelIdx * 4 + 1] = acc.pointLight[1] * invW;
+    m_volData[2][voxelIdx * 4 + 2] = acc.pointLight[2] * invW;
+    m_volData[2][voxelIdx * 4 + 3] = acc.sunVis * invW;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// UpdateVolumeProbe — incremental update: subtract old, add new for 27 voxels
+// Avoids full rasterization by only touching the voxels this probe affects.
+// Gaussian weights depend only on position (probes are static), so they're
+// the same for both old and new contributions.
+//////////////////////////////////////////////////////////////////////////
+void CLightProbeGrid::UpdateVolumeProbe(u32 probeIndex, const CLightProbe& oldValues)
+{
+    if (m_volAccum.empty() || m_volDims.x == 0) return;
+
+    const CLightProbe& newProbe = m_probes[probeIndex];
+
+    // Find center voxel (same as in RasterizeVolume)
+    Fvector local;
+    local.sub(newProbe.position, m_volMin);
+    int cx = (int)(local.x / m_voxelSize);
+    int cy = (int)(local.y / m_voxelSize);
+    int cz = (int)(local.z / m_voxelSize);
+
+    float sigma = m_voxelSize * 1.5f;
+    float invSigmaSq2 = -0.5f / (sigma * sigma);
+
+    for (int dz = -1; dz <= 1; dz++)
+    for (int dy = -1; dy <= 1; dy++)
+    for (int dx = -1; dx <= 1; dx++)
+    {
+        int vx = cx + dx;
+        int vy = cy + dy;
+        int vz = cz + dz;
+
+        if (vx < 0 || vx >= m_volDims.x) continue;
+        if (vy < 0 || vy >= m_volDims.y) continue;
+        if (vz < 0 || vz >= m_volDims.z) continue;
+
+        Fvector voxelCenter;
+        voxelCenter.x = m_volMin.x + (vx + 0.5f) * m_voxelSize;
+        voxelCenter.y = m_volMin.y + (vy + 0.5f) * m_voxelSize;
+        voxelCenter.z = m_volMin.z + (vz + 0.5f) * m_voxelSize;
+
+        float distSq = newProbe.position.distance_to_sqr(voxelCenter);
+        float w = expf(distSq * invSigmaSq2);
+
+        int voxelIdx = vz * (m_volDims.x * m_volDims.y) + vy * m_volDims.x + vx;
+        VoxelAccum& acc = m_volAccum[voxelIdx];
+
+        // Subtract old contribution
+        acc.ambient[0]     -= oldValues.ambient.x * w;
+        acc.ambient[1]     -= oldValues.ambient.y * w;
+        acc.ambient[2]     -= oldValues.ambient.z * w;
+        acc.skyVis         -= oldValues.skyVisibility * w;
+        acc.sunVis         -= oldValues.sunVisibility * w;
+        acc.dominantDir[0] -= oldValues.dominantDir.x * w;
+        acc.dominantDir[1] -= oldValues.dominantDir.y * w;
+        acc.dominantDir[2] -= oldValues.dominantDir.z * w;
+        acc.dirRatio       -= oldValues.directionalRatio * w;
+        acc.pointLight[0]  -= oldValues.pointLightColor.x * w;
+        acc.pointLight[1]  -= oldValues.pointLightColor.y * w;
+        acc.pointLight[2]  -= oldValues.pointLightColor.z * w;
+
+        // Add new contribution
+        acc.ambient[0]     += newProbe.ambient.x * w;
+        acc.ambient[1]     += newProbe.ambient.y * w;
+        acc.ambient[2]     += newProbe.ambient.z * w;
+        acc.skyVis         += newProbe.skyVisibility * w;
+        acc.sunVis         += newProbe.sunVisibility * w;
+        acc.dominantDir[0] += newProbe.dominantDir.x * w;
+        acc.dominantDir[1] += newProbe.dominantDir.y * w;
+        acc.dominantDir[2] += newProbe.dominantDir.z * w;
+        acc.dirRatio       += newProbe.directionalRatio * w;
+        acc.pointLight[0]  += newProbe.pointLightColor.x * w;
+        acc.pointLight[1]  += newProbe.pointLightColor.y * w;
+        acc.pointLight[2]  += newProbe.pointLightColor.z * w;
+        // Note: weight unchanged — same probe, same position, same w
+
+        NormalizeVoxel(voxelIdx);
+    }
+
+    m_volDirty = true;  // Mark for GPU upload (cheap memcpy only, no rasterization)
+}
+
+void CLightProbeGrid::PrepareVolumeGPU()
+{
+    if (m_volDims.x == 0 || m_volDims.y == 0 || m_volDims.z == 0) return;
+
+    for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
+    {
+        if (!m_pVolTexture[i] || m_volData[i].empty()) continue;
+
+        D3D11_MAPPED_SUBRESOURCE mapped;
+        if (SUCCEEDED(HW.pContext->Map(m_pVolTexture[i], 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+        {
+            // Texture3D layout: RowPitch = bytes per row (width), DepthPitch = bytes per slice (width × height)
+            u32 srcRowPitch = m_volDims.x * 4 * sizeof(float);  // 16 bytes per voxel
+            u32 srcDepthPitch = srcRowPitch * m_volDims.y;
+
+            if (mapped.RowPitch == srcRowPitch && mapped.DepthPitch == srcDepthPitch)
+            {
+                // Pitches match — single memcpy
+                memcpy(mapped.pData, m_volData[i].data(), m_volData[i].size() * sizeof(float));
+            }
+            else
+            {
+                // Copy row by row, slice by slice (handles GPU padding)
+                const float* src = m_volData[i].data();
+                u8* dst = (u8*)mapped.pData;
+
+                for (int z = 0; z < m_volDims.z; z++)
+                {
+                    for (int y = 0; y < m_volDims.y; y++)
+                    {
+                        const float* srcRow = src + (z * m_volDims.y + y) * m_volDims.x * 4;
+                        u8* dstRow = dst + z * mapped.DepthPitch + y * mapped.RowPitch;
+                        memcpy(dstRow, srcRow, srcRowPitch);
+                    }
+                }
+            }
+
+            HW.pContext->Unmap(m_pVolTexture[i], 0);
+        }
+    }
+
+    m_volDirty = false;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// Simplified 2-Tier Scheduling
+//////////////////////////////////////////////////////////////////////////
+
+void CLightProbeGrid::RebuildFrustumList()
+{
+    m_frustumProbes.clear();
+
+    for (u32 i = 0; i < m_probes.size(); i++)
+    {
+        if (m_viewFrustum.testSphere_dirty(m_probes[i].position, 1.0f))
+            m_frustumProbes.push_back(i);
+    }
+}
+
+void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQuality quality)
+{
+    // Snapshot old values BEFORE modification for incremental volume update
+    CLightProbe oldValues = probe;
+
     probe.lastUpdateFrame = (u16)(m_currentFrame & 0xFFFF);
 
     float skyHits = 0;
@@ -557,11 +919,16 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
 
     m_collider.ray_options(CDB::OPT_ONLYNEAREST);
 
+    // Quality-dependent ray counts: reduced quality cuts rays from ~22 to ~8 CDB queries
+    int hemisphereRayCount = (quality == PROBE_QUALITY_FULL) ? RAYS_PER_PROBE : 4;
+    int shadowRayCount     = (quality == PROBE_QUALITY_FULL) ? SOFT_SHADOW_RAYS : 2;
+    bool doBounce          = (quality == PROBE_QUALITY_FULL);
+
     // Track received sunlight from hemisphere samples
     float receivedSunlight = 0;
 
     // Hemisphere rays
-    for (int i = 0; i < RAYS_PER_PROBE; i++)
+    for (int i = 0; i < hemisphereRayCount; i++)
     {
         const Fvector& dir = s_hemisphereRays[i];
         m_collider.ray_query(staticModel, probe.position, dir, RAY_MAX_DISTANCE);
@@ -582,51 +949,51 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
             float sunAlignment = dir.dotproduct(sunDir);
             if (sunAlignment > SUN_ALIGNMENT_THRESHOLD)
             {
-                // Weight by how closely aligned with sun direction
                 receivedSunlight += sunAlignment;
             }
         }
         else
         {
-            // Ray hit geometry - compute bounce with direction tracking
+            // Ray hit geometry
             CDB::RESULT* hit = m_collider.r_begin();
             Fvector hitNormal = ComputeTriangleNormal(*hit);
             Fvector hitPos;
             hitPos.mad(probe.position, dir, hit->range);
 
-            // Capture bounce delta for direction accumulation
-            Fvector bounceBefore = bounceAccum;
-            CastBounceRay(hitPos, hitNormal, bounceAccum, sunDir, sunColor);
-            Fvector bounceContrib;
-            bounceContrib.sub(bounceAccum, bounceBefore);
-            float bounceLum = bounceContrib.x * 0.2126f + bounceContrib.y * 0.7152f + bounceContrib.z * 0.0722f;
-            if (bounceLum > 0)
+            if (doBounce)
             {
-                dirAccum.mad(dir, bounceLum);
-                energyAccum += bounceLum;
-            }
-
-            // Check if the surface we hit is sunlit (receiving reflected sunlight)
-            m_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
-            if (m_collider.r_count() == 0)
-            {
-                // Hit surface can see sun - we're receiving reflected sunlight!
-                float NdotL = hitNormal.dotproduct(sunDir);
-                if (NdotL > 0)
+                // Compute bounce with direction tracking (full quality only)
+                Fvector bounceBefore = bounceAccum;
+                CastBounceRay(hitPos, hitNormal, bounceAccum, sunDir, sunColor);
+                Fvector bounceContrib;
+                bounceContrib.sub(bounceAccum, bounceBefore);
+                float bounceLum = bounceContrib.x * 0.2126f + bounceContrib.y * 0.7152f + bounceContrib.z * 0.0722f;
+                if (bounceLum > 0)
                 {
-                    // Weight by surface's sun-facing angle and inverse distance
-                    float hitDist = hit->range;
-                    float distFactor = 1.0f / (1.0f + hitDist * 0.1f);
-                    receivedSunlight += NdotL * distFactor * 0.5f;
+                    dirAccum.mad(dir, bounceLum);
+                    energyAccum += bounceLum;
+                }
+
+                // Check if the surface we hit is sunlit (receiving reflected sunlight)
+                m_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
+                if (m_collider.r_count() == 0)
+                {
+                    float NdotL = hitNormal.dotproduct(sunDir);
+                    if (NdotL > 0)
+                    {
+                        float hitDist = hit->range;
+                        float distFactor = 1.0f / (1.0f + hitDist * 0.1f);
+                        receivedSunlight += NdotL * distFactor * 0.5f;
+                    }
                 }
             }
         }
     }
 
-    // Normalize received sunlight by ray count
-    receivedSunlight = _min(receivedSunlight / RAYS_PER_PROBE, 1.0f);
+    // Normalize received sunlight by actual ray count used
+    receivedSunlight = _min(receivedSunlight / hemisphereRayCount, 1.0f);
 
-    // Soft shadow sun visibility - cast multiple jittered rays toward sun
+    // Soft shadow sun visibility - cast jittered rays toward sun
     float directSunVis = 0;
 
     // Build tangent frame for jittering around sun direction
@@ -643,12 +1010,12 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
     sunBitangent.crossproduct(sunDir, sunTangent);
     sunBitangent.normalize();
 
-    // Cast jittered rays for soft shadows
-    for (int i = 0; i < SOFT_SHADOW_RAYS; i++)
+    // Cast jittered rays for soft shadows (reduced count for far probes)
+    for (int i = 0; i < shadowRayCount; i++)
     {
         // Deterministic jitter pattern (Fibonacci-like spiral)
         float angle = (float)i * 2.399f;  // Golden angle in radians
-        float radius = SOFT_SHADOW_JITTER * (0.3f + 0.7f * (float)i / (float)SOFT_SHADOW_RAYS);
+        float radius = SOFT_SHADOW_JITTER * (0.3f + 0.7f * (float)i / (float)shadowRayCount);
 
         Fvector jitteredDir;
         jitteredDir.set(sunDir);
@@ -659,12 +1026,11 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
         m_collider.ray_query(staticModel, probe.position, jitteredDir, RAY_MAX_DISTANCE);
         if (m_collider.r_count() == 0)
         {
-            directSunVis += 1.0f / SOFT_SHADOW_RAYS;
+            directSunVis += 1.0f / shadowRayCount;
         }
     }
 
     // Combine direct sun visibility with received sunlight
-    // Direct visibility takes priority, but received light fills in for indirect cases
     float combinedSunVis = _max(directSunVis, receivedSunlight * RECEIVED_LIGHT_WEIGHT);
     probe.sunVisibility = combinedSunVis;
 
@@ -757,11 +1123,6 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
 
             // NOTE: Point lights intentionally do NOT contribute to dirAccum/energyAccum.
             // They have their own dedicated channel (pointLightColor/Intensity).
-            // Letting them influence directionalRatio causes artifacts: a bright campfire
-            // pushes ratio→1.0, suppressing isotropic ambient. When the light turns off,
-            // the inflated ratio persists via temporal smoothing, creating black holes
-            // where the isotropic term is near-zero but the directional term points
-            // at a now-dark light source.
             lightsProcessed++;
         }
     }
@@ -784,10 +1145,15 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
     }
 
     // =========================================================================
-    // Temporal smoothing (70% old, 30% new)
+    // Adaptive temporal smoothing
+    // Normal: 70% old / 30% new. Time jump: up to 100% new (instant snap).
+    // m_temporalBlend is set per-frame in Update() based on game time delta.
     // =========================================================================
+    float blend = m_temporalBlend;
+    float keep  = 1.0f - blend;
+
     float newSkyVis = totalRays > 0 ? (skyHits / totalRays) : 0.0f;
-    probe.skyVisibility = probe.skyVisibility * 0.7f + newSkyVis * 0.3f;
+    probe.skyVisibility = probe.skyVisibility * keep + newSkyVis * blend;
 
     Fvector newAmbient;
     if (totalRays > 0)
@@ -796,18 +1162,21 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
         newAmbient.set(0, 0, 0);
     newAmbient.add(bounceAccum);
 
-    probe.ambient.lerp(probe.ambient, newAmbient, 0.3f);
-    probe.bounce.lerp(probe.bounce, bounceAccum, 0.3f);
+    probe.ambient.lerp(probe.ambient, newAmbient, blend);
+    probe.bounce.lerp(probe.bounce, bounceAccum, blend);
+
+    // Store environment luminance for ToD snap (used when this probe goes stale)
+    probe.envLuminance = m_currentEnvLum;
 
     // Dominant direction: lerp then re-normalize (prevents vector shrinking)
     Fvector smoothedDir;
-    smoothedDir.lerp(probe.dominantDir, newDominantDir, 0.3f);
+    smoothedDir.lerp(probe.dominantDir, newDominantDir, blend);
     float smoothedMag = smoothedDir.magnitude();
     if (smoothedMag > 0.001f)
         probe.dominantDir.set(smoothedDir).div(smoothedMag);
     else
         probe.dominantDir.set(0, 1, 0);
-    probe.directionalRatio = probe.directionalRatio * 0.7f + newDirectionalRatio * 0.3f;
+    probe.directionalRatio = probe.directionalRatio * keep + newDirectionalRatio * blend;
 
     // Point light color and intensity
     // Sanitize: clamp to prevent inf/NaN from propagating through temporal smoothing
@@ -821,14 +1190,14 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex)
     if (!_finite(probe.pointLightIntensity))
         probe.pointLightIntensity = 0.0f;
 
-    // Slower blend for point lights (0.1 vs 0.3 for other fields) — acts as a
-    // low-pass filter that smooths out campfire flicker and other rapid light
-    // animation. Probes represent average illumination, not instantaneous.
+    // Slower blend for point lights (0.1 vs 0.3 for other fields)
     probe.pointLightColor.lerp(probe.pointLightColor, pointLightAccum, 0.1f);
     probe.pointLightIntensity = probe.pointLightIntensity * 0.9f + pointIntensityAccum * 0.1f;
 
     WriteProbeToCache(probeIndex);
     m_gpuBufferDirty = true;
+    // Incremental volume update: only touches 27 voxels instead of full rasterization
+    UpdateVolumeProbe(probeIndex, oldValues);
 }
 
 void CLightProbeGrid::Update()
@@ -840,29 +1209,159 @@ void CLightProbeGrid::Update()
     m_bounceIntensity = ps_r_probe_bounce_intensity;
     m_debugEnabled = ps_r_debug_probes != 0;
 
-    float maxDist = ps_r_probe_max_distance;
-
     CTimer updateTimer;
     updateTimer.Start();
 
     Fvector playerPos = Device.vCameraPosition;
 
-    // Distance-based tier budgets (distant tier eliminated — probes beyond maxDist keep Build() values)
-    float farCap = _min(maxDist, 150.0f);  // Far tier capped at maxDist
-    u32 nearBudget = (m_updateBudget * 50) / 100;   // 50% — 0-15m, every frame
-    u32 medBudget  = (m_updateBudget * 30) / 100;   // 30% — 15-50m, every 4 frames
-    u32 farBudget  = m_updateBudget - nearBudget - medBudget;  // 20% — 50m-maxDist, every 16 frames
+    // =========================================================================
+    // Time-of-day jump detection + adaptive temporal smoothing
+    // =========================================================================
+    // Default blend: 70% old / 30% new. During boost period (time jump),
+    // maintain aggressive blend so ALL probes converge fast, not just those
+    // updated on the single jump frame.
+    m_temporalBlend = (m_budgetBoostFramesLeft > 0) ? 0.7f : 0.3f;
+    m_currentEnvLum = ComputeEnvLuminance();
 
-    // Near tier: always update (most responsive to time-of-day changes)
-    UpdateProbesInRadius(playerPos, 0.0f, 15.0f, nearBudget);
+    if (g_pGamePersistent)
+    {
+        // GetVisualTime() returns editor_sun_time if weather editor is active,
+        // otherwise fGameTime. This ensures the probe system detects weather
+        // editor slider changes as time jumps (editor directly sets sun time
+        // without affecting fGameTime).
+        float currentGameTime = g_pGamePersistent->Environment().GetVisualTime();
 
-    // Medium tier: every 4 frames (capped at maxDist)
-    if (m_currentFrame % 4 == 0)
-        UpdateProbesInRadius(playerPos, 15.0f, _min(50.0f, maxDist), medBudget);
+        if (m_lastGameTime >= 0.0f)
+        {
+            float timeDelta = fabsf(currentGameTime - m_lastGameTime);
+            // Handle midnight wrap-around (86400 seconds/day)
+            if (timeDelta > 43200.0f)
+                timeDelta = 86400.0f - timeDelta;
 
-    // Far tier: every 16 frames (capped at maxDist, round-robin)
-    if (m_currentFrame % 16 == 0 && maxDist > 50.0f)
-        UpdateProbesInRadius(playerPos, 50.0f, farCap, farBudget);
+            if (timeDelta > 3600.0f)
+            {
+                // Large jump (>1 game hour): env snap all probes + invalidate for re-ray
+                if (m_currentEnvLum > 0.001f)
+                {
+                    for (u32 i = 0; i < m_probes.size(); i++)
+                    {
+                        CLightProbe& probe = m_probes[i];
+                        if (probe.envLuminance > 0.001f)
+                        {
+                            float scale = _min(m_currentEnvLum / probe.envLuminance, 4.0f);
+                            probe.ambient.mul(scale);
+                            probe.envLuminance = m_currentEnvLum;
+                            WriteProbeToCache(i);
+                        }
+                        probe.lastUpdateFrame = 0;
+                    }
+                    m_gpuBufferDirty = true;
+                    // Full rasterization needed — all probes changed at once
+                    RasterizeVolume();
+                    m_volDirty = true;  // Trigger GPU upload
+                }
+                m_temporalBlend = 1.0f;  // Instant snap for subsequent ray updates
+                m_budgetBoostFramesLeft = 120;  // 4× budget for ~2 seconds
+            }
+            else if (timeDelta > 60.0f)
+            {
+                // Medium jump (>1 game minute): aggressive blend
+                m_temporalBlend = 0.7f;
+                m_budgetBoostFramesLeft = 120;  // 4× budget for ~2 seconds
+            }
+        }
+        m_lastGameTime = currentGameTime;
+
+        // High time_factor detection — when players accelerate time via console
+        // (e.g. time_factor 100), per-frame deltas are small (~1.67s) and never
+        // hit the 60s jump threshold. Scale temporal blend proportionally so
+        // probes converge faster during time-lapse.
+        float timeFactor = g_pGamePersistent->Environment().fTimeFactor;
+        if (timeFactor > 20.0f)  // Normal is 12; >20 = significantly accelerated
+        {
+            float accelRatio = _min((timeFactor - 20.0f) / 80.0f, 1.0f);  // 0→1 over 20→100
+            m_temporalBlend = _max(m_temporalBlend, 0.3f + accelRatio * 0.4f);  // 0.3→0.7
+        }
+    }
+
+    // =========================================================================
+    // Build view frustum for frustum-prioritized scheduling
+    // =========================================================================
+    m_viewFrustum.CreateFromMatrix(Device.mFullTransform, FRUSTUM_P_LRTB + FRUSTUM_P_FAR);
+
+    // =========================================================================
+    // Camera rotation detection — boost budget on fast turns
+    // =========================================================================
+    float cameraDirDot = m_prevCameraDir.dotproduct(Device.vCameraDirection);
+    bool cameraRotated = (m_currentFrame > 1) && (cameraDirDot < 0.95f);
+    m_prevCameraDir = Device.vCameraDirection;
+
+    // =========================================================================
+    // 2-Tier scheduling: In-frustum + Background
+    // =========================================================================
+    // Compute budget with optional boost
+    u32 budget = m_updateBudget;
+    if (m_budgetBoostFramesLeft > 0)
+    {
+        budget *= 4;
+        m_budgetBoostFramesLeft--;
+    }
+
+    // Camera rotation boost: bump in-frustum budget to 95% for 3 frames
+    u32 frustumPct = cameraRotated ? 95 : 90;
+    u32 frustumBudget = (budget * frustumPct) / 100;
+    u32 bgBudget = budget - frustumBudget;
+
+    // Rebuild frustum probe list every frame
+    RebuildFrustumList();
+
+    // =========================================================================
+    // In-frustum tier: round-robin through m_frustumProbes
+    // FULL quality for probes < 15m, REDUCED for > 15m
+    // =========================================================================
+    if (!m_frustumProbes.empty())
+    {
+        u32 frustumCount = (u32)m_frustumProbes.size();
+        u32 updated = 0;
+
+        for (u32 i = 0; i < frustumCount && updated < frustumBudget; i++)
+        {
+            u32 idx = m_frustumProbes[(m_frustumRobinIndex + i) % frustumCount];
+            if (idx >= m_probes.size()) continue;
+
+            // Skip if already updated this frame
+            if (m_probes[idx].lastUpdateFrame == (u16)(m_currentFrame & 0xFFFF))
+                continue;
+
+            float distSq = playerPos.distance_to_sqr(m_probes[idx].position);
+            EProbeQuality quality = (distSq < 15.0f * 15.0f) ? PROBE_QUALITY_FULL : PROBE_QUALITY_REDUCED;
+
+            UpdateProbe(m_probes[idx], idx, quality);
+            updated++;
+        }
+        m_frustumRobinIndex = (m_frustumRobinIndex + frustumBudget) % _max(1u, frustumCount);
+    }
+
+    // =========================================================================
+    // Background tier: round-robin through ALL probes, REDUCED quality
+    // =========================================================================
+    {
+        u32 probeCount = (u32)m_probes.size();
+        u32 updated = 0;
+
+        for (u32 i = 0; i < probeCount && updated < bgBudget; i++)
+        {
+            u32 idx = (m_bgRobinIndex + i) % probeCount;
+
+            // Skip if already updated this frame
+            if (m_probes[idx].lastUpdateFrame == (u16)(m_currentFrame & 0xFFFF))
+                continue;
+
+            UpdateProbe(m_probes[idx], idx, PROBE_QUALITY_REDUCED);
+            updated++;
+        }
+        m_bgRobinIndex = (m_bgRobinIndex + bgBudget) % _max(1u, probeCount);
+    }
 
     // Periodic light propagation pass
     if (m_currentFrame % m_propagationRate == 0)
@@ -870,12 +1369,25 @@ void CLightProbeGrid::Update()
 
     m_lastUpdateTimeMs = updateTimer.GetElapsed_sec() * 1000.0f;
 
-    // Throttled GPU upload — every N frames (from r_probe_upload_rate cvar)
+    // =========================================================================
+    // GPU upload
+    // =========================================================================
     u32 uploadInterval = (u32)_max(1, ps_r_probe_upload_rate);
-    if (m_gpuBufferDirty && (m_currentFrame - m_lastUploadFrame >= uploadInterval))
+    bool shouldUpload = (m_currentFrame - m_lastUploadFrame >= uploadInterval);
+
+    // Volume texture upload — staging buffers are kept up-to-date by
+    // UpdateVolumeProbe() (incremental per-probe updates), so we only
+    // need to memcpy them to the Texture3D here. No full rasterization.
+    if (m_volDirty && shouldUpload)
+    {
+        PrepareVolumeGPU();
+        m_lastUploadFrame = m_currentFrame;
+    }
+
+    // Probe data texture upload — only needed for debug visualization
+    if (m_gpuBufferDirty && shouldUpload && ps_r_debug_probes != 0)
     {
         PrepareGPUBuffer();
-        m_lastUploadFrame = m_currentFrame;
     }
 }
 
@@ -950,10 +1462,6 @@ void CLightProbeGrid::PrepareGPUBuffer()
 
     u32 probeCount = (u32)m_probes.size();
 
-    // 2D texture layout: multiple probes per row to support millions of probes
-    // Each probe uses 4 texels (pos+skyVis, ambient+sunVis, dominantDir+ratio, pointLight+intensity)
-    // Width = PROBES_PER_ROW * 4, Height = ceil(probeCount / PROBES_PER_ROW)
-    // Max capacity: 256 * 16384 = 4,194,304 probes
     const u32 MAX_TEXTURE_DIM = 16384;
     const u32 MAX_PROBES = PROBES_PER_ROW * MAX_TEXTURE_DIM;
 
@@ -963,11 +1471,11 @@ void CLightProbeGrid::PrepareGPUBuffer()
         probeCount = MAX_PROBES;
     }
 
-    u32 texWidth = PROBES_PER_ROW * 4;  // 1024 texels wide (4 texels per probe)
-    u32 texHeight = (probeCount + PROBES_PER_ROW - 1) / PROBES_PER_ROW;  // ceil division
+    u32 texWidth = PROBES_PER_ROW * 4;
+    u32 texHeight = (probeCount + PROBES_PER_ROW - 1) / PROBES_PER_ROW;
 
     // Reallocate if needed
-    if (probeCount > m_gpuTextureHeight)
+    if (probeCount > m_gpuAllocatedProbes)
     {
         if (m_pProbeSRV) { m_pProbeSRV->Release(); m_pProbeSRV = nullptr; }
         if (m_pProbeTexture) { m_pProbeTexture->Release(); m_pProbeTexture = nullptr; }
@@ -984,14 +1492,13 @@ void CLightProbeGrid::PrepareGPUBuffer()
         texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
         texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-        Msg("* [LightProbeGrid] Creating texture %dx%d for %d probes (%d probes/row)",
-            texWidth, texHeight, probeCount, PROBES_PER_ROW);
+        Msg("* [LightProbeGrid] Creating debug texture %dx%d for %d probes",
+            texWidth, texHeight, probeCount);
 
         HRESULT hr = HW.pDevice->CreateTexture2D(&texDesc, nullptr, &m_pProbeTexture);
         if (FAILED(hr))
         {
-            Msg("! [LightProbeGrid] CreateTexture2D failed with HRESULT 0x%08X (width=%d, height=%d)",
-                hr, texWidth, texHeight);
+            Msg("! [LightProbeGrid] CreateTexture2D failed with HRESULT 0x%08X", hr);
             return;
         }
 
@@ -1003,10 +1510,10 @@ void CLightProbeGrid::PrepareGPUBuffer()
 
         R_CHK(HW.pDevice->CreateShaderResourceView(m_pProbeTexture, &srvDesc, &m_pProbeSRV));
 
-        m_gpuTextureHeight = probeCount;
+        m_gpuAllocatedProbes = probeCount;
     }
 
-    // Upload from persistent GPU cache (pre-built by WriteProbeToCache)
+    // Upload from persistent GPU cache
     if (m_gpuBufferDirty && m_pProbeTexture && !m_gpuCache.empty())
     {
         D3D11_MAPPED_SUBRESOURCE mapped;
@@ -1014,12 +1521,10 @@ void CLightProbeGrid::PrepareGPUBuffer()
         {
             if (mapped.RowPitch == m_gpuCacheRowPitch)
             {
-                // Row pitch matches — single contiguous memcpy
                 memcpy(mapped.pData, m_gpuCache.data(), m_gpuCacheRowPitch * texHeight);
             }
             else
             {
-                // Row pitch differs — copy row by row
                 const u8* src = m_gpuCache.data();
                 u8* dst = (u8*)mapped.pData;
                 u32 copyWidth = _min(m_gpuCacheRowPitch, mapped.RowPitch);
@@ -1113,16 +1618,6 @@ Ivector CLightProbeGrid::GetDimensions() const
     return m_gridDims;
 }
 
-Fvector CLightProbeGrid::GetHashMin() const
-{
-    return m_hashMin;
-}
-
-Ivector CLightProbeGrid::GetHashDimensions() const
-{
-    return m_hashDims;
-}
-
 //////////////////////////////////////////////////////////////////////////
 // Proximity Check
 //////////////////////////////////////////////////////////////////////////
@@ -1167,7 +1662,7 @@ bool CLightProbeGrid::HasNearbyProbe(const Fvector& pos, float minDist) const
 }
 
 //////////////////////////////////////////////////////////////////////////
-// Spatial Hash Implementation
+// Spatial Hash Implementation (CPU-side only)
 //////////////////////////////////////////////////////////////////////////
 
 Ivector CLightProbeGrid::WorldToHashCell(const Fvector& pos) const
@@ -1230,99 +1725,6 @@ void CLightProbeGrid::BuildSpatialHash()
                 cell.count++;
             }
         }
-    }
-
-    m_hashDirty = true;
-}
-
-void CLightProbeGrid::PrepareHashGPUBuffer()
-{
-    if (m_spatialHash.empty()) return;
-
-    u32 totalCells = (u32)m_spatialHash.size();
-
-    // Texture layout: 1 texel per cell, 4 u32 probe indices per texel
-    // Format: R32G32B32A32_UINT (16 bytes per texel)
-    u32 texWidth = totalCells;
-    u32 texHeight = 1;
-
-    // Wrap into 2D if needed (max texture width 16384)
-    const u32 MAX_WIDTH = 16384;
-    if (texWidth > MAX_WIDTH)
-    {
-        texHeight = (texWidth + MAX_WIDTH - 1) / MAX_WIDTH;
-        texWidth = MAX_WIDTH;
-    }
-
-    Msg("* [LightProbeGrid] Hash texture: %dx%d (%d cells, %.1f MB)",
-        texWidth, texHeight, totalCells,
-        (float)(texWidth * texHeight * 16) / (1024.0f * 1024.0f));
-
-    // Create texture if needed
-    if (!m_pHashTexture || m_hashDirty)
-    {
-        if (m_pHashSRV) { m_pHashSRV->Release(); m_pHashSRV = nullptr; }
-        if (m_pHashTexture) { m_pHashTexture->Release(); m_pHashTexture = nullptr; }
-
-        D3D11_TEXTURE2D_DESC texDesc = {};
-        texDesc.Width = texWidth;
-        texDesc.Height = texHeight;
-        texDesc.MipLevels = 1;
-        texDesc.ArraySize = 1;
-        texDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
-        texDesc.SampleDesc.Count = 1;
-        texDesc.SampleDesc.Quality = 0;
-        texDesc.Usage = D3D11_USAGE_DYNAMIC;
-        texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-        texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-        HRESULT hr = HW.pDevice->CreateTexture2D(&texDesc, nullptr, &m_pHashTexture);
-        if (FAILED(hr))
-        {
-            Msg("! [LightProbeGrid] Hash texture creation failed: 0x%08X (size: %dx%d)", hr, texWidth, texHeight);
-            return;
-        }
-
-        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-        srvDesc.Format = DXGI_FORMAT_R32G32B32A32_UINT;
-        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-        srvDesc.Texture2D.MostDetailedMip = 0;
-        srvDesc.Texture2D.MipLevels = 1;
-
-        R_CHK(HW.pDevice->CreateShaderResourceView(m_pHashTexture, &srvDesc, &m_pHashSRV));
-    }
-
-    // Upload data — 1 texel per cell, 4 x u32 indices
-    D3D11_MAPPED_SUBRESOURCE mapped;
-    if (SUCCEEDED(HW.pContext->Map(m_pHashTexture, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-    {
-        for (u32 c = 0; c < totalCells; c++)
-        {
-            const SpatialHashCell& cell = m_spatialHash[c];
-
-            u32 row = c / texWidth;
-            u32 col = c % texWidth;
-
-            u32* rowPtr = (u32*)((u8*)mapped.pData + row * mapped.RowPitch);
-
-            // 4 u32 per texel (RGBA32_UINT)
-            rowPtr[col * 4 + 0] = cell.probeIndices[0];
-            rowPtr[col * 4 + 1] = cell.probeIndices[1];
-            rowPtr[col * 4 + 2] = cell.probeIndices[2];
-            rowPtr[col * 4 + 3] = cell.probeIndices[3];
-        }
-
-        HW.pContext->Unmap(m_pHashTexture, 0);
-    }
-
-    m_hashDirty = false;
-}
-
-void CLightProbeGrid::BindHashToShader(u32 slot)
-{
-    if (m_pHashSRV)
-    {
-        HW.pContext->PSSetShaderResources(slot, 1, &m_pHashSRV);
     }
 }
 
@@ -1427,7 +1829,6 @@ void CLightProbeGrid::PropagateLight(int iterations)
         m_propagationBuffer.resize(probeCount);
 
     // Gather active probe indices within maxDist + 20m margin
-    // (+20m prevents visible seams at the distance boundary)
     float maxDist = ps_r_probe_max_distance + 20.0f;
     float maxDistSq = maxDist * maxDist;
     Fvector playerPos = Device.vCameraPosition;
@@ -1476,17 +1877,18 @@ void CLightProbeGrid::PropagateLight(int iterations)
             }
         }
 
-        // Copy back + update GPU cache for active probes only
+        // Copy back and incrementally update volume for each propagated probe.
+        // Must snapshot old values BEFORE overwriting ambient.
         for (u32 a = 0; a < activeCount; a++)
         {
             u32 i = m_propagationActiveSet[a];
-            m_probes[i].ambient = m_propagationBuffer[i];
+            CLightProbe oldValues = m_probes[i];  // Snapshot before modification
+            m_probes[i].ambient = m_propagationBuffer[i];  // Apply propagated ambient
+            WriteProbeToCache(i);
+            UpdateVolumeProbe(i, oldValues);  // Incremental: only 27 voxels per probe
         }
     }
 
-    // Update GPU cache for all active probes
-    for (u32 a = 0; a < activeCount; a++)
-        WriteProbeToCache(m_propagationActiveSet[a]);
-
     m_gpuBufferDirty = true;
+    // m_volDirty already set by UpdateVolumeProbe calls above
 }

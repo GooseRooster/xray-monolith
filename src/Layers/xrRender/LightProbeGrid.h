@@ -16,7 +16,9 @@ static const u32   PROBES_PER_ROW = 256;            // 2D texture layout: probes
 static const float PORTAL_BRIDGE_OFFSET = 0.5f;     // offset from portal plane
 static const float RAY_MAX_DISTANCE = 100.0f;       // max ray distance for sky test
 static const int   RAYS_PER_PROBE = 6;              // Fibonacci hemisphere rays
-static const float ASSUMED_ALBEDO = 0.5f;           // neutral gray for bounce
+// Default albedo — used when material lookup fails
+// 0.35 approximates the Zone's predominantly dirty/weathered surfaces
+static const float DEFAULT_ALBEDO = 0.35f;
 static const float DEFAULT_BOUNCE_INTENSITY = 0.3f; // indirect sun multiplier
 
 // Soft shadow and received light constants
@@ -31,12 +33,13 @@ static const float DEFAULT_HASH_CELL_SIZE = 2.5f;   // spatial hash cell size (j
 static const float INDOOR_RAY_RANGE = 30.0f;         // upward ray range for indoor detection
 static const int   INDOOR_RAY_COUNT = 5;             // number of upward rays for indoor detection
 static const int   INDOOR_RAY_THRESHOLD = 4;         // hits needed to classify as indoor
-static const int   DEFAULT_PROPAGATION_ITERS = 2;   // light propagation iterations
-static const int   DEFAULT_PROPAGATION_RATE = 30;   // frames between propagation passes
+static const int   DEFAULT_PROPAGATION_ITERS = 1;   // light propagation iterations per pass (amortized: 1 iter every 7 frames vs 3 every 20)
+static const int   DEFAULT_PROPAGATION_RATE = 7;    // frames between propagation passes
 
 // Point light injection constants
 static const float POINT_LIGHT_SEARCH_RADIUS = 20.0f;  // max distance to query lights
 static const int   MAX_POINT_LIGHTS_PER_PROBE = 5;     // cap per-probe to bound worst case
+static const int   MAX_BOUNCE_LIGHTS_PER_RAY = 2;      // cap per bounce ray (controls CDB shadow queries)
 
 // Volume texture constants
 static const u32   MAX_VOLUME_VOXELS = 500000;       // cap total voxels (~24MB for 3 textures)
@@ -220,8 +223,21 @@ private:
     // Neighbor connectivity for light propagation
     xr_vector<ProbeNeighbors> m_probeNeighbors;
 
+    // Per-material RGB albedo (indexed by CDB vector index)
+    xr_vector<Fvector> m_materialAlbedos;
+
     // Reusable spatial query buffer for point light injection
     xr_vector<ISpatial*> m_lightQueryResults;
+
+    // Cached lights for bounce computation (queried once per UpdateProbe, reused in CastBounceRay)
+    struct CachedBounceLight {
+        Fvector position;
+        Fvector color;     // L->color as Fvector
+        float   range;
+        float   attenuation0, attenuation1, attenuation2;
+    };
+    xr_vector<CachedBounceLight> m_bounceLightCache;
+
     int   m_propagationIters;
     int   m_propagationRate;
 
@@ -241,9 +257,16 @@ private:
     void UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQuality quality = PROBE_QUALITY_FULL);
     void WriteProbeToCache(u32 probeIndex);   // Write 64 bytes to persistent GPU cache
     void InitGPUCache();                       // Allocate cache and fill all entries
-    void CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal, Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor);
+    void CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal, Fvector& bounceAccum,
+                       const Fvector& sunDir, const Fvector& sunColor,
+                       const Fvector& skyColor, const Fvector& albedo,
+                       float probeSkyVisibility);
     Fvector ComputeTriangleNormal(const CDB::RESULT& hit);
     float ComputeEnvLuminance() const;
+
+    // Material albedo methods
+    void BuildMaterialAlbedos();       // Parse GMLib at Build() time → m_materialAlbedos
+    Fvector GetMaterialAlbedo(u16 materialIdx) const;  // Lookup by CDB vector index
 
     // Spatial hash methods (CPU-side only)
     void BuildSpatialHash();

@@ -8,6 +8,7 @@
 #include "../../xrEngine/Environment.h"
 #include "light.h"
 #include "../../xrCDB/ISpatial.h"
+#include "../../xrEngine/GameMtlLib.h"
 
 // External console variables
 extern int   ps_r_probe_update_rate;
@@ -16,6 +17,7 @@ extern int   ps_r_debug_probes;
 extern float ps_r_probe_max_distance;
 extern int   ps_r_probe_upload_rate;
 extern int   ps_r3_ssfx_il;
+extern int   ps_r_probe_bounce_lights;
 
 // Global instance
 CLightProbeGrid* g_LightProbeGrid = nullptr;
@@ -104,6 +106,7 @@ CLightProbeGrid::~CLightProbeGrid()
 void CLightProbeGrid::Clear()
 {
     m_probes.clear();
+    m_materialAlbedos.clear();
     m_spatialHash.clear();
     m_probeNeighbors.clear();
     m_gpuCache.clear();
@@ -266,6 +269,9 @@ void CLightProbeGrid::Build()
 
     // Initialize rays if not done
     InitializeHemisphereRays();
+
+    // Build per-material albedo table from GMLib for colored bounce
+    BuildMaterialAlbedos();
 
     if (!g_pGameLevel) return;
 
@@ -458,8 +464,135 @@ float CLightProbeGrid::ComputeEnvLuminance() const
     return hemiLum + sunLum * 0.5f;
 }
 
+//////////////////////////////////////////////////////////////////////////
+// Material Albedo Table — per-material RGB for colored bounce
+//////////////////////////////////////////////////////////////////////////
+
+// Keyword → approximate albedo color mapping
+// Covers the most common Zone surface types
+struct MaterialAlbedoEntry
+{
+    const char* keyword;
+    Fvector     albedo;
+};
+
+static const MaterialAlbedoEntry s_albedoTable[] = {
+    // --- Concrete / masonry ---
+    { "concrete",   { 0.55f, 0.53f, 0.50f } },
+    { "beton",      { 0.55f, 0.53f, 0.50f } },
+    { "brick",      { 0.40f, 0.25f, 0.20f } },
+    { "kirpich",    { 0.40f, 0.25f, 0.20f } },
+    { "stucco",     { 0.60f, 0.58f, 0.55f } },
+    { "plaster",    { 0.65f, 0.63f, 0.58f } },
+    { "tile",       { 0.50f, 0.48f, 0.45f } },
+    { "shifer",     { 0.40f, 0.40f, 0.38f } },
+    // --- Natural ground ---
+    { "grass",      { 0.25f, 0.40f, 0.15f } },
+    { "trava",      { 0.25f, 0.40f, 0.15f } },
+    { "dirt",       { 0.35f, 0.28f, 0.20f } },
+    { "earth",      { 0.35f, 0.28f, 0.20f } },
+    { "zemlya",     { 0.35f, 0.28f, 0.20f } },
+    { "gravel",     { 0.30f, 0.28f, 0.25f } },
+    { "sand",       { 0.60f, 0.55f, 0.40f } },
+    { "pesok",      { 0.60f, 0.55f, 0.40f } },
+    { "mud",        { 0.20f, 0.15f, 0.10f } },
+    { "asphalt",    { 0.15f, 0.15f, 0.15f } },
+    { "stone",      { 0.40f, 0.38f, 0.35f } },
+    { "kamen",      { 0.40f, 0.38f, 0.35f } },
+    { "rock",       { 0.35f, 0.33f, 0.30f } },
+    // --- Metal ---
+    { "metal",      { 0.45f, 0.45f, 0.45f } },
+    { "tin",        { 0.50f, 0.48f, 0.43f } },
+    { "setka",      { 0.45f, 0.45f, 0.45f } },
+    { "barrel",     { 0.40f, 0.38f, 0.35f } },
+    { "rust",       { 0.30f, 0.15f, 0.08f } },
+    // --- Wood / vegetation ---
+    { "wood",       { 0.45f, 0.30f, 0.18f } },
+    { "derevo",     { 0.45f, 0.30f, 0.18f } },
+    { "tree",       { 0.30f, 0.22f, 0.14f } },
+    { "trunk",      { 0.30f, 0.22f, 0.14f } },
+    { "bush",       { 0.20f, 0.35f, 0.12f } },
+    { "leaves",     { 0.20f, 0.35f, 0.12f } },
+    // --- Water ---
+    { "water",      { 0.02f, 0.02f, 0.02f } },
+    { "voda",       { 0.02f, 0.02f, 0.02f } },
+    // --- Fabric / soft surfaces ---
+    { "fabric",     { 0.30f, 0.25f, 0.20f } },
+    { "cloth",      { 0.30f, 0.25f, 0.20f } },
+    { "carpet",     { 0.25f, 0.20f, 0.18f } },
+    { "leather",    { 0.25f, 0.18f, 0.12f } },
+    // --- Manufactured ---
+    { "paper",      { 0.70f, 0.68f, 0.62f } },
+    { "rubber",     { 0.10f, 0.10f, 0.10f } },
+    { "wheel",      { 0.10f, 0.10f, 0.10f } },
+    { "glass",      { 0.04f, 0.04f, 0.04f } },
+    { "steklo",     { 0.04f, 0.04f, 0.04f } },
+    { "plastic",    { 0.35f, 0.35f, 0.35f } },
+    { "paint",      { 0.50f, 0.45f, 0.40f } },
+    { "linoleum",   { 0.35f, 0.30f, 0.25f } },
+    // --- Weather ---
+    { "snow",       { 0.85f, 0.85f, 0.85f } },
+    { "sneg",       { 0.85f, 0.85f, 0.85f } },
+    { "ice",        { 0.50f, 0.55f, 0.60f } },
+};
+
+static const int s_albedoTableCount = sizeof(s_albedoTable) / sizeof(s_albedoTable[0]);
+
+void CLightProbeGrid::BuildMaterialAlbedos()
+{
+    m_materialAlbedos.clear();
+
+    u32 matCount = GMLib.CountMaterial();
+    if (matCount == 0)
+    {
+        Msg("* [LightProbeGrid] No materials in GMLib — using default albedo");
+        return;
+    }
+
+    m_materialAlbedos.resize(matCount);
+
+    // Default: neutral gray
+    Fvector defaultAlbedo = { DEFAULT_ALBEDO, DEFAULT_ALBEDO, DEFAULT_ALBEDO };
+    for (u32 i = 0; i < matCount; i++)
+        m_materialAlbedos[i] = defaultAlbedo;
+
+    u32 matched = 0;
+    for (u32 idx = 0; idx < matCount; idx++)
+    {
+        SGameMtl* mtl = GMLib.GetMaterialByIdx((u16)idx);
+        if (!mtl || !mtl->m_Name.size()) continue;
+
+        // Case-insensitive keyword match against material name
+        const char* name = mtl->m_Name.c_str();
+        bool found = false;
+
+        for (int k = 0; k < s_albedoTableCount && !found; k++)
+        {
+            // strstr for substring match (material names like "materials/concrete_floor")
+            if (strstr(name, s_albedoTable[k].keyword))
+            {
+                m_materialAlbedos[idx] = s_albedoTable[k].albedo;
+                found = true;
+                matched++;
+            }
+        }
+    }
+
+    Msg("* [LightProbeGrid] Material albedos built: %d/%d materials matched keywords", matched, matCount);
+}
+
+Fvector CLightProbeGrid::GetMaterialAlbedo(u16 materialIdx) const
+{
+    if (materialIdx < (u16)m_materialAlbedos.size())
+        return m_materialAlbedos[materialIdx];
+
+    return Fvector().set(DEFAULT_ALBEDO, DEFAULT_ALBEDO, DEFAULT_ALBEDO);
+}
+
 void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal,
-                                     Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor)
+                                     Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor,
+                                     const Fvector& skyColor, const Fvector& albedo,
+                                     float probeSkyVisibility)
 {
     if (!g_pGameLevel) return;
 
@@ -472,14 +605,69 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
 
     if (m_collider.r_count() == 0)
     {
-        // Sun visible - compute Lambertian bounce
+        // Sun visible - compute Lambertian bounce with material-colored albedo
         float NdotL = hitNormal.dotproduct(sunDir);
         if (NdotL > 0)
         {
             Fvector contribution;
-            contribution.set(sunColor);
-            contribution.mul(NdotL * ASSUMED_ALBEDO * m_bounceIntensity);
+            contribution.set(sunColor.x * albedo.x, sunColor.y * albedo.y, sunColor.z * albedo.z);
+            contribution.mul(NdotL * m_bounceIntensity);
             bounceAccum.add(contribution);
+        }
+    }
+
+    // Ambient bounce — sky light reflecting off this surface
+    // Zero additional CDB queries: we already know this surface exists.
+    // hemiReceived approximates hemisphere integral of sky visibility at surface,
+    // gated by the probe's measured sky openness (indoor surfaces ≈ 0, outdoor ≈ 1).
+    float hemiReceived = _max(0.0f, hitNormal.y) * 0.5f + 0.5f;
+    hemiReceived *= probeSkyVisibility;
+    Fvector ambBounce;
+    ambBounce.set(skyColor.x * albedo.x, skyColor.y * albedo.y, skyColor.z * albedo.z);
+    ambBounce.mul(hemiReceived * m_bounceIntensity);
+    bounceAccum.add(ambBounce);
+
+    // --- Point light bounce ---
+    // Surfaces illuminated by nearby point lights bounce their colored light.
+    // Uses cached light query from UpdateProbe (one spatial query per probe,
+    // reused across all 6 bounce rays).
+    int maxBounceLights = ps_r_probe_bounce_lights;
+    if (maxBounceLights > 0)
+    {
+        int bounceLightsUsed = 0;
+        for (size_t li = 0; li < m_bounceLightCache.size() && bounceLightsUsed < maxBounceLights; li++)
+        {
+            const CachedBounceLight& cl = m_bounceLightCache[li];
+
+            Fvector dirToLight;
+            dirToLight.sub(cl.position, hitPos);
+            float distToLight = dirToLight.magnitude();
+            if (distToLight >= cl.range || distToLight < 0.01f) continue;
+            dirToLight.div(distToLight);
+
+            float NdotL_light = hitNormal.dotproduct(dirToLight);
+            if (NdotL_light <= 0) continue;  // Surface faces away from light
+
+            // Attenuation at hit surface (same D3D model as direct injection)
+            float denom = cl.attenuation0 + cl.attenuation1 * distToLight
+                        + cl.attenuation2 * distToLight * distToLight;
+            if (denom < 0.001f) continue;
+            float atten = 1.0f / denom;
+            float rangeFade = 1.0f - _min(distToLight / cl.range, 1.0f);
+            atten *= rangeFade * rangeFade;
+            if (atten < 0.01f) continue;
+
+            // Shadow test: is light visible from hit surface?
+            m_collider.ray_options(CDB::OPT_ONLYNEAREST);
+            m_collider.ray_query(staticModel, hitPos, dirToLight, distToLight - 0.05f);
+            if (m_collider.r_count() > 0) continue;
+
+            // Colored bounce: lightColor × surfaceAlbedo × NdotL × attenuation
+            Fvector contrib;
+            contrib.set(cl.color.x * albedo.x, cl.color.y * albedo.y, cl.color.z * albedo.z);
+            contrib.mul(atten * NdotL_light * m_bounceIntensity);
+            bounceAccum.add(contrib);
+            bounceLightsUsed++;
         }
     }
 }
@@ -924,6 +1112,43 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     int shadowRayCount     = (quality == PROBE_QUALITY_FULL) ? SOFT_SHADOW_RAYS : 2;
     bool doBounce          = (quality == PROBE_QUALITY_FULL);
 
+    // =========================================================================
+    // Cache nearby point/spot lights for bounce + direct injection (one query)
+    // =========================================================================
+    m_bounceLightCache.clear();
+    if (g_SpatialSpace)
+    {
+        m_lightQueryResults.clear();
+        g_SpatialSpace->q_sphere(m_lightQueryResults, 0,
+            STYPE_LIGHTSOURCE | STYPE_LIGHTSOURCEHEMI,
+            probe.position, POINT_LIGHT_SEARCH_RADIUS);
+
+        for (u32 li = 0; li < m_lightQueryResults.size() && (int)m_bounceLightCache.size() < MAX_POINT_LIGHTS_PER_PROBE; li++)
+        {
+            ISpatial* spatial = m_lightQueryResults[li];
+            if (!spatial) continue;
+            IRender_Light* ilight = spatial->dcast_Light();
+            if (!ilight) continue;
+            light* L = (light*)ilight;
+            if (!L->flags.bActive) continue;
+            if (L->flags.type != IRender_Light::POINT && L->flags.type != IRender_Light::SPOT) continue;
+
+            Fvector dirToLight;
+            dirToLight.sub(L->position, probe.position);
+            float distToLight = dirToLight.magnitude();
+            if (distToLight >= L->range || distToLight < 0.01f) continue;
+
+            CachedBounceLight cl;
+            cl.position.set(L->position);
+            cl.color.set(L->color.r, L->color.g, L->color.b);
+            cl.range = L->range;
+            cl.attenuation0 = L->attenuation0;
+            cl.attenuation1 = L->attenuation1;
+            cl.attenuation2 = L->attenuation2;
+            m_bounceLightCache.push_back(cl);
+        }
+    }
+
     // Track received sunlight from hemisphere samples
     float receivedSunlight = 0;
 
@@ -962,9 +1187,13 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
 
             if (doBounce)
             {
+                // Look up material-colored albedo from hit triangle
+                CDB::TRI* tris = staticModel->get_tris();
+                Fvector hitAlbedo = GetMaterialAlbedo(tris[hit->id].material);
+
                 // Compute bounce with direction tracking (full quality only)
                 Fvector bounceBefore = bounceAccum;
-                CastBounceRay(hitPos, hitNormal, bounceAccum, sunDir, sunColor);
+                CastBounceRay(hitPos, hitNormal, bounceAccum, sunDir, sunColor, skyColor, hitAlbedo, probe.skyVisibility);
                 Fvector bounceContrib;
                 bounceContrib.sub(bounceAccum, bounceBefore);
                 float bounceLum = bounceContrib.x * 0.2126f + bounceContrib.y * 0.7152f + bounceContrib.z * 0.0722f;
@@ -1069,62 +1298,45 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     }
 
     // =========================================================================
-    // Point Light Injection
-    // Query nearby point/spot lights via spatial DB, shadow-test, accumulate
+    // Point Light Injection (uses cached lights from earlier spatial query)
     // =========================================================================
-    if (g_SpatialSpace)
+    for (size_t li = 0; li < m_bounceLightCache.size(); li++)
     {
-        m_lightQueryResults.clear();
-        g_SpatialSpace->q_sphere(m_lightQueryResults, 0,
-            STYPE_LIGHTSOURCE | STYPE_LIGHTSOURCEHEMI,
-            probe.position, POINT_LIGHT_SEARCH_RADIUS);
+        const CachedBounceLight& cl = m_bounceLightCache[li];
 
-        int lightsProcessed = 0;
-        for (u32 li = 0; li < m_lightQueryResults.size() && lightsProcessed < MAX_POINT_LIGHTS_PER_PROBE; li++)
-        {
-            ISpatial* spatial = m_lightQueryResults[li];
-            if (!spatial) continue;
-            IRender_Light* ilight = spatial->dcast_Light();
-            if (!ilight) continue;
-            light* L = (light*)ilight;
-            if (!L->flags.bActive) continue;
-            if (L->flags.type != IRender_Light::POINT && L->flags.type != IRender_Light::SPOT) continue;
+        Fvector dirToLight;
+        dirToLight.sub(cl.position, probe.position);
+        float distToLight = dirToLight.magnitude();
+        if (distToLight >= cl.range || distToLight < 0.01f) continue;
+        dirToLight.div(distToLight);
 
-            Fvector dirToLight;
-            dirToLight.sub(L->position, probe.position);
-            float distToLight = dirToLight.magnitude();
-            if (distToLight >= L->range || distToLight < 0.01f) continue;
-            dirToLight.div(distToLight);
+        // D3D-style attenuation with range fade
+        // Guard: uninitialized or zero attenuation values → denominator=0 → inf.
+        // 0*inf = NaN (IEEE 754), which permanently contaminates probe data
+        // through temporal smoothing (NaN lerp = NaN).
+        float denom = cl.attenuation0 + cl.attenuation1 * distToLight
+                    + cl.attenuation2 * distToLight * distToLight;
+        if (denom < 0.001f) continue;  // Skip lights with degenerate attenuation
+        float atten = 1.0f / denom;
+        float rangeFade = 1.0f - _min(distToLight / cl.range, 1.0f);
+        atten *= rangeFade * rangeFade;  // Quadratic fade at range boundary
+        if (atten < 0.001f) continue;
 
-            // D3D-style attenuation with range fade
-            // Guard: uninitialized or zero attenuation values → denominator=0 → inf.
-            // 0*inf = NaN (IEEE 754), which permanently contaminates probe data
-            // through temporal smoothing (NaN lerp = NaN).
-            float denom = L->attenuation0 + L->attenuation1 * distToLight
-                        + L->attenuation2 * distToLight * distToLight;
-            if (denom < 0.001f) continue;  // Skip lights with degenerate attenuation
-            float atten = 1.0f / denom;
-            float rangeFade = 1.0f - _min(distToLight / L->range, 1.0f);
-            atten *= rangeFade * rangeFade;  // Quadratic fade at range boundary
-            if (atten < 0.001f) continue;
+        // Shadow test — is the light visible from the probe?
+        m_collider.ray_options(CDB::OPT_ONLYNEAREST);
+        m_collider.ray_query(staticModel, probe.position, dirToLight, distToLight - 0.05f);
+        if (m_collider.r_count() > 0) continue;  // Occluded
 
-            // Shadow test — is the light visible from the probe?
-            m_collider.ray_options(CDB::OPT_ONLYNEAREST);
-            m_collider.ray_query(staticModel, probe.position, dirToLight, distToLight - 0.05f);
-            if (m_collider.r_count() > 0) continue;  // Occluded
+        // Accumulate attenuated light color
+        Fvector lightContrib;
+        lightContrib.set(cl.color);
+        lightContrib.mul(atten);
+        pointLightAccum.add(lightContrib);
+        float lightLum = lightContrib.x * 0.2126f + lightContrib.y * 0.7152f + lightContrib.z * 0.0722f;
+        pointIntensityAccum += lightLum;
 
-            // Accumulate attenuated light color
-            Fvector lightContrib;
-            lightContrib.set(L->color.r, L->color.g, L->color.b);
-            lightContrib.mul(atten);
-            pointLightAccum.add(lightContrib);
-            float lightLum = lightContrib.x * 0.2126f + lightContrib.y * 0.7152f + lightContrib.z * 0.0722f;
-            pointIntensityAccum += lightLum;
-
-            // NOTE: Point lights intentionally do NOT contribute to dirAccum/energyAccum.
-            // They have their own dedicated channel (pointLightColor/Intensity).
-            lightsProcessed++;
-        }
+        // NOTE: Point lights intentionally do NOT contribute to dirAccum/energyAccum.
+        // They have their own dedicated channel (pointLightColor/Intensity).
     }
 
     // =========================================================================
@@ -1868,8 +2080,8 @@ void CLightProbeGrid::PropagateLight(int iterations)
             if (totalWeight > 0)
             {
                 neighborContrib.div(totalWeight);
-                // Blend: 85% self, 15% neighbors
-                m_propagationBuffer[i].lerp(m_probes[i].ambient, neighborContrib, 0.15f);
+                // Blend: 80% self, 20% neighbors (increased: probes are now bounce authority)
+                m_propagationBuffer[i].lerp(m_probes[i].ambient, neighborContrib, 0.20f);
             }
             else
             {

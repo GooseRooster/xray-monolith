@@ -210,9 +210,6 @@ void CRenderTarget::phase_ssfx_il()
 	RCache.set_c("m_current", Matrix_current);
 	RCache.set_c("m_previous", Matrix_previous);
 
-	// OWA: Probe uniforms no longer needed — IL is now pure screen-space.
-	// Probe GI handled by hmodel.h (ComputeProbeGI) in combine pass.
-
 	RCache.set_Geometry(g_combine);
 	RCache.Render(D3DPT_TRIANGLELIST, Offset, 0, 4, 0, 2);
 

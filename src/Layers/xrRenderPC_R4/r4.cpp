@@ -1973,17 +1973,17 @@ HRESULT CRender::shader_compile(
 		++len;
 	}
 
-	// OWA: Skip IL in static lighting mode (R1 aesthetic - no screen-space bounce)
+	// OWA: Probe GI — world-space indirect lighting via hmodel.h and combine_1.ps colored SSDO
+	// Screen-space IL (SSFX_INDIRECT_LIGHT) disabled — probe GI handles bounce lighting.
+	// To re-enable IL later, uncomment the SSFX_INDIRECT_LIGHT block below.
 	if (ps_r3_ssfx_il && !o.staticlighting)
 	{
-		defines[def_it].Name = "SSFX_INDIRECT_LIGHT";
-		defines[def_it].Definition = "1";
-		def_it++;
-		sh_name[len] = '1';
+		// SSFX_INDIRECT_LIGHT intentionally not defined — screen-space IL skipped.
+		// Probe GI (hmodel.h + EnhanceGTAOWithProbesRGB) handles indirect lighting.
+		sh_name[len] = '0';
 		++len;
 
-		// OWA: Probe-based ambient lighting (enhances IL with world-space probes)
-		// Only enabled when IL is active - provides spatial ambient and screen-edge fallback
+		// Probe-based ambient lighting — world-space GI, colored SSDO, debug modes
 		defines[def_it].Name = "USE_PROBE_LIGHTING";
 		defines[def_it].Definition = "1";
 		def_it++;

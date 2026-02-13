@@ -56,6 +56,8 @@ float ps_r_probe_bounce_intensity = 0.3f; // Indirect sun strength (0.0-1.0)
 int   ps_r_debug_probes = 0;             // Debug visualization (0 or 1)
 float ps_r_probe_max_distance = 100.0f;  // Max distance for probe updates (30-500)
 int   ps_r_probe_upload_rate = 4;        // GPU upload every N frames (1-16)
+float ps_r_probe_chroma_blend = 0.6f;   // Probe chrominance indoor blend cap (0.0-1.0)
+int   ps_r_probe_bounce_lights = 2;    // Max point lights per bounce ray (0=disabled, 0-3)
 
 u32 ps_r_sun_shafts = 2;
 xr_token qsun_shafts_token [ ] = {
@@ -433,9 +435,6 @@ int ps_ssfx_il_quality = 32; // IL Samples
 Fvector4 ps_ssfx_il = { 6.66f, 1.0f, 1.0f, 5.0f }; // Res, Int, Vibrance, Blur
 Fvector4 ps_ssfx_il_setup1 = { 150.0f, 1.0f, 0.5f, 0.0f }; // Distance, HUD, Flora, -
 
-// OWA: Enhanced IL parameters
-float ps_ssfx_il_radius = 3.0f; // IL sample radius in meters
-Fvector4 ps_ssfx_il_params = { 1.0f, 0.5f, 2.0f, 0.0f }; // RadiusScale, MinRadius, MaxRadius, Reserved
 
 // OWA: Perceptual Lighting parameters (part of Perceptual GI, controlled by r3_gi)
 // PL is automatically enabled when r3_gi is enabled - no separate toggle
@@ -1217,6 +1216,8 @@ void xrRender_initconsole()
 	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 8);
 	CMD4(CCC_Float, "r_probe_max_distance", &ps_r_probe_max_distance, 30.0f, 500.0f);
 	CMD4(CCC_Integer, "r_probe_upload_rate", &ps_r_probe_upload_rate, 1, 16);
+	CMD4(CCC_Float, "r_probe_chroma_blend", &ps_r_probe_chroma_blend, 0.0f, 1.0f);
+	CMD4(CCC_Integer, "r_probe_bounce_lights", &ps_r_probe_bounce_lights, 0, 3);
 	// OWA: Point light shadows (high-end option, expensive - 6 shadow passes per point light)
 	CMD4(CCC_Integer, "r4_point_light_shadows", &ps_r4_point_light_shadows, 0, 1);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);
@@ -1327,9 +1328,6 @@ void xrRender_initconsole()
 	CMD4(CCC_Vector4, "ssfx_il", &ps_ssfx_il, Fvector4().set(0, 0, 0, 0), Fvector4().set(8, 10, 3, 6));
 	CMD4(CCC_Vector4, "ssfx_il_setup1", &ps_ssfx_il_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(300, 1, 1, 1));
 
-	// OWA: IL radius and distance-adaptive parameters
-	CMD4(CCC_Float, "ssfx_il_radius", &ps_ssfx_il_radius, 0.5f, 10.0f);
-	CMD4(CCC_Vector4, "ssfx_il_params", &ps_ssfx_il_params, Fvector4().set(0.1, 0.1, 0.5, 0), Fvector4().set(3, 5, 10, 1));
 
 	// OWA: Perceptual Lighting parameters (part of Perceptual GI, controlled by r3_gi)
 	// x = Intensity, y = Occlusion, z = Irradiance, w = Threshold

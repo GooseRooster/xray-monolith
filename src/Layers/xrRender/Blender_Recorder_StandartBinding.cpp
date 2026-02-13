@@ -1056,19 +1056,6 @@ static class ssfx_il_setup1 : public R_constant_setup
 	}
 }    ssfx_il_setup1;
 
-// OWA: IL radius and distance-adaptive parameters
-extern float ps_ssfx_il_radius;
-extern Fvector4 ps_ssfx_il_params;
-
-static class ssfx_il_radius : public R_constant_setup
-{
-	virtual void setup(R_constant* C) override
-	{
-		// x = base radius, y = radius scale, z = min radius, w = max radius
-		RCache.set_c(C, ps_ssfx_il_radius, ps_ssfx_il_params.x, ps_ssfx_il_params.y, ps_ssfx_il_params.z);
-	}
-}    ssfx_il_radius;
-
 // OWA: Perceptual Lighting (controlled by r3_gi command)
 extern Fvector4 ps_r3_gi_pl_params;
 extern Fvector4 ps_r3_gi_pl_params2;
@@ -1496,7 +1483,6 @@ void CBlender_Compile::SetMapping()
 	r_Constant("ssfx_hud_hemi", &ssfx_hud_hemi);
 	r_Constant("ssfx_il_setup", &ssfx_il);
 	r_Constant("ssfx_il_setup2", &ssfx_il_setup1);
-	r_Constant("ssfx_il_radius", &ssfx_il_radius);
 	r_Constant("pl_params", &pl_params);
 	r_Constant("pl_params2", &pl_params2);
 	r_Constant("ssfx_water", &ssfx_water);

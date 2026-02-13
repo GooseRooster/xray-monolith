@@ -382,8 +382,6 @@ void CBlender_ssfx_il::Compile(CBlender_Compile& C)
 		C.r_dx10Texture("s_accumulator", r2_RT_accum);
 		C.r_dx10Texture("s_position", r2_RT_P);
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
-		// OWA XeGTAO: Bent normal for improved IL directional accuracy
-		C.r_dx10Texture("s_gtao", r2_RT_gtao);
 
 		C.r_dx10Texture("ssfx_ao", r2_RT_ssfx_il);
 

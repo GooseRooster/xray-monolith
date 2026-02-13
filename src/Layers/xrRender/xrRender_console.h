@@ -29,8 +29,6 @@ extern ECORE_API int ps_r3_ssfx_water;      // r3-only - SSFX water
 extern ECORE_API int ps_r3_ssfx_taa;        // r3-only - SSFX TAA
 // OWA Perceptual Global Illumination (r3_gi command) - enables both IL and PL
 extern ECORE_API int ps_r3_ssfx_il;         // r3-only - Perceptual GI toggle (IL + PL)
-extern ECORE_API float ps_ssfx_il_radius; // OWA: IL sample radius in meters
-extern ECORE_API Fvector4 ps_ssfx_il_params; // OWA: IL params - RadiusScale, MinRadius, MaxRadius, Reserved
 // OWA: Perceptual Lighting parameters (part of r3_gi, no separate toggle)
 extern ECORE_API Fvector4 ps_r3_gi_pl_params;      // Intensity, Occlusion, Irradiance, Threshold
 extern ECORE_API Fvector4 ps_r3_gi_pl_params2;     // Radius, Saturation, Recovery, Reserved
@@ -98,6 +96,8 @@ extern ECORE_API float ps_r_probe_bounce_intensity; // Indirect sun strength (0.
 extern ECORE_API int   ps_r_debug_probes;           // Debug visualization (0 or 1)
 extern ECORE_API float ps_r_probe_max_distance;     // Max distance for probe updates (30-500)
 extern ECORE_API int   ps_r_probe_upload_rate;      // GPU upload every N frames (1-16)
+extern ECORE_API float ps_r_probe_chroma_blend;     // Probe chrominance indoor blend cap (0.0-1.0)
+extern ECORE_API int   ps_r_probe_bounce_lights;   // Max point lights per bounce ray (0=disabled, 0-3)
 
 extern ECORE_API u32 ps_r_sun_quality; //	=	0;
 extern ECORE_API xr_token qsun_quality_token[];

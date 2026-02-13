@@ -8,6 +8,7 @@
 // OWA: Extern declarations for probe lighting
 extern int   ps_r3_ssfx_il;
 extern float ps_r_probe_bounce_intensity;
+extern float ps_r_probe_chroma_blend;
 
 #define STENCIL_CULL 0
 
@@ -115,13 +116,13 @@ void CRenderTarget::phase_combine()
 			HW.pContext->ClearRenderTargetView(rt_ssfx_temp->pRT, ColorRGBA);
 			HW.pContext->ClearRenderTargetView(rt_ssfx_temp2->pRT, ColorRGBA);
 
-			// OWA: o.ssfx_il now includes r3_gi check (compile-time)
-			// Skip in static lighting mode (R1 aesthetic - no screen-space bounce)
-			if (RImplementation.o.ssfx_il && ps_ssfx_il.y > 0 && !RImplementation.o.staticlighting)
-			{
-				ssfx_PrevPos_Requiered = true;
-				phase_ssfx_il(); // [SSFX] - New IL Phase
-			}
+			// OWA: Screen-space IL skipped — probe GI handles indirect lighting.
+			// To re-enable IL later, uncomment this block:
+			// if (RImplementation.o.ssfx_il && ps_ssfx_il.y > 0 && !RImplementation.o.staticlighting)
+			// {
+			// 	ssfx_PrevPos_Requiered = true;
+			// 	phase_ssfx_il();
+			// }
 		}
 	}
 
@@ -317,7 +318,7 @@ void CRenderTarget::phase_combine()
 			Ivector dims = g_LightProbeGrid->GetDimensions();
 			RCache.set_c("probe_grid_min", bmin.x, bmin.y, bmin.z, (float)g_LightProbeGrid->GetProbeCount());
 			RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, (float)PROBES_PER_ROW);
-			RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, 0.f);
+			RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, ps_r_probe_chroma_blend);
 			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, (float)ps_r_debug_probes, 0.3f);
 			Fvector volMin  = g_LightProbeGrid->GetVolumeMin();
 			Fvector volSize = g_LightProbeGrid->GetVolumeSize();

@@ -15,14 +15,14 @@ static const float INDOOR_GRID_SPACING = 1.5f;      // meters between probes ind
 static const u32   PROBES_PER_ROW = 256;            // 2D texture layout: probes per texture row
 static const float PORTAL_BRIDGE_OFFSET = 0.5f;     // offset from portal plane
 static const float RAY_MAX_DISTANCE = 100.0f;       // max ray distance for sky test
-static const int   RAYS_PER_PROBE = 6;              // Fibonacci hemisphere rays
+static const int   RAYS_PER_PROBE = 8;              // Fibonacci hemisphere rays
 // Default albedo — used when material lookup fails
 // 0.35 approximates the Zone's predominantly dirty/weathered surfaces
 static const float DEFAULT_ALBEDO = 0.35f;
 static const float DEFAULT_BOUNCE_INTENSITY = 0.3f; // indirect sun multiplier
 
 // Soft shadow and received light constants
-static const int   SOFT_SHADOW_RAYS = 4;            // rays for soft sun shadows
+static const int   SOFT_SHADOW_RAYS = 6;            // rays for soft sun shadows
 static const float SOFT_SHADOW_JITTER = 0.15f;      // jitter cone angle (radians, ~8.5 degrees)
 static const float SUN_ALIGNMENT_THRESHOLD = 0.5f;  // cos(60°) - rays within 60° of sun count
 static const float RECEIVED_LIGHT_WEIGHT = 0.35f;    // how much received light affects sunVisibility
@@ -48,8 +48,8 @@ static const int   NUM_VOLUME_TEXTURES = 3;           // vol0=ambient+sky, vol1=
 // Probe update quality levels
 enum EProbeQuality
 {
-    PROBE_QUALITY_FULL = 0,      // 6 hemisphere + 4 shadow + bounce rays (~22 CDB queries)
-    PROBE_QUALITY_REDUCED = 1,   // 4 hemisphere + 2 shadow, no bounce (~8 CDB queries)
+    PROBE_QUALITY_FULL = 0,      // 8 hemisphere + 6 shadow + bounce rays (~30 CDB queries)
+    PROBE_QUALITY_REDUCED = 1,   // 6 hemisphere + 3 shadow, no bounce (~11 CDB queries)
 };
 
 //////////////////////////////////////////////////////////////////////////

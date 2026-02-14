@@ -22,33 +22,13 @@ extern int   ps_r_probe_bounce_lights;
 // Global instance
 CLightProbeGrid* g_LightProbeGrid = nullptr;
 
-//////////////////////////////////////////////////////////////////////////
-// Fibonacci Hemisphere Rays
-//////////////////////////////////////////////////////////////////////////
-static Fvector s_hemisphereRays[RAYS_PER_PROBE];
-static bool    s_raysInitialized = false;
-
-static void InitializeHemisphereRays()
-{
-    if (s_raysInitialized) return;
-
-    const float phi = (1.0f + sqrtf(5.0f)) / 2.0f;  // Golden ratio
-
-    for (int i = 0; i < RAYS_PER_PROBE; i++)
-    {
-        float y = 1.0f - (float(i) / float(RAYS_PER_PROBE - 1));
-        y = y * 0.9f + 0.1f;  // Avoid pure horizontal
-
-        float radius = sqrtf(1.0f - y * y);
-        float theta = 2.0f * PI * float(i) / phi;
-
-        s_hemisphereRays[i].x = cosf(theta) * radius;
-        s_hemisphereRays[i].y = y;
-        s_hemisphereRays[i].z = sinf(theta) * radius;
-        s_hemisphereRays[i].normalize();
-    }
-    s_raysInitialized = true;
-}
+// Golden ratio constant for temporal rotation of ray patterns.
+// Each probe update rotates the Fibonacci ray pattern by 1/phi, giving a
+// low-discrepancy sequence that maximally fills the hemisphere over time.
+// After N updates, a probe has effectively sampled N*RAYS_PER_PROBE unique
+// directions — dramatically finer resolution than the per-frame ray count alone.
+static const float s_goldenRatio = 1.6180339887f;     // phi = (1 + sqrt(5)) / 2
+static const float s_invGoldenRatio = 0.6180339887f;  // 1/phi
 
 //////////////////////////////////////////////////////////////////////////
 // CLightProbeGrid Implementation
@@ -95,7 +75,6 @@ CLightProbeGrid::CLightProbeGrid()
         m_pVolSRV[i] = nullptr;
     }
 
-    InitializeHemisphereRays();
 }
 
 CLightProbeGrid::~CLightProbeGrid()
@@ -266,9 +245,6 @@ void CLightProbeGrid::Build()
     Clear();
 
     Msg("* [LightProbeGrid] Building probe grid...");
-
-    // Initialize rays if not done
-    InitializeHemisphereRays();
 
     // Build per-material albedo table from GMLib for colored bounce
     BuildMaterialAlbedos();
@@ -1107,10 +1083,16 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
 
     m_collider.ray_options(CDB::OPT_ONLYNEAREST);
 
-    // Quality-dependent ray counts: reduced quality cuts rays from ~22 to ~8 CDB queries
-    int hemisphereRayCount = (quality == PROBE_QUALITY_FULL) ? RAYS_PER_PROBE : 4;
-    int shadowRayCount     = (quality == PROBE_QUALITY_FULL) ? SOFT_SHADOW_RAYS : 2;
+    // Quality-dependent ray counts: reduced quality cuts rays from ~30 to ~11 CDB queries
+    int hemisphereRayCount = (quality == PROBE_QUALITY_FULL) ? RAYS_PER_PROBE : 6;
+    int shadowRayCount     = (quality == PROBE_QUALITY_FULL) ? SOFT_SHADOW_RAYS : 3;
     bool doBounce          = (quality == PROBE_QUALITY_FULL);
+
+    // Temporal rotation: golden-ratio azimuthal offset rotates the entire ray pattern
+    // each update. Since probes update round-robin, m_currentFrame gives both temporal
+    // diversity (same probe samples different dirs over time) and spatial diversity
+    // (nearby probes sample different dirs on the same frame).
+    float rotation = float(m_currentFrame) * s_invGoldenRatio;
 
     // =========================================================================
     // Cache nearby point/spot lights for bounce + direct injection (one query)
@@ -1152,10 +1134,21 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     // Track received sunlight from hemisphere samples
     float receivedSunlight = 0;
 
-    // Hemisphere rays
+    // Hemisphere rays — Fibonacci spiral with temporal rotation
     for (int i = 0; i < hemisphereRayCount; i++)
     {
-        const Fvector& dir = s_hemisphereRays[i];
+        // Compute rotated Fibonacci hemisphere ray on-the-fly
+        float y = 1.0f - (float(i) / float(hemisphereRayCount - 1));
+        y = y * 0.9f + 0.1f;  // Avoid pure horizontal
+        float radius_h = sqrtf(1.0f - y * y);
+        float theta = 2.0f * PI * (float(i) / s_goldenRatio + rotation);
+
+        Fvector dir;
+        dir.x = cosf(theta) * radius_h;
+        dir.y = y;
+        dir.z = sinf(theta) * radius_h;
+        dir.normalize();
+
         m_collider.ray_query(staticModel, probe.position, dir, RAY_MAX_DISTANCE);
         totalRays += 1.0f;
 
@@ -1239,11 +1232,11 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     sunBitangent.crossproduct(sunDir, sunTangent);
     sunBitangent.normalize();
 
-    // Cast jittered rays for soft shadows (reduced count for far probes)
+    // Cast jittered rays for soft shadows (with temporal rotation)
     for (int i = 0; i < shadowRayCount; i++)
     {
-        // Deterministic jitter pattern (Fibonacci-like spiral)
-        float angle = (float)i * 2.399f;  // Golden angle in radians
+        // Deterministic jitter pattern (Fibonacci-like spiral) + temporal rotation
+        float angle = (float)i * 2.399f + rotation * 2.0f * PI;  // Golden angle + temporal offset
         float radius = SOFT_SHADOW_JITTER * (0.3f + 0.7f * (float)i / (float)shadowRayCount);
 
         Fvector jitteredDir;
@@ -1259,9 +1252,10 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
         }
     }
 
-    // Combine direct sun visibility with received sunlight
+    // Combine direct sun visibility with received sunlight, then temporal smooth.
+    // With temporal rotation, each frame samples a different jitter pattern, so
+    // temporal smoothing now integrates many more shadow directions over time.
     float combinedSunVis = _max(directSunVis, receivedSunlight * RECEIVED_LIGHT_WEIGHT);
-    probe.sunVisibility = combinedSunVis;
 
     // Gather bounce light from sunlit neighbors (Phase 4: Sunlit Bounce)
     if (probeIndex < m_probeNeighbors.size())
@@ -1366,6 +1360,10 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
 
     float newSkyVis = totalRays > 0 ? (skyHits / totalRays) : 0.0f;
     probe.skyVisibility = probe.skyVisibility * keep + newSkyVis * blend;
+
+    // Sun visibility: temporal smooth (was previously set directly, now benefits
+    // from temporal rotation — each frame samples different jitter directions)
+    probe.sunVisibility = probe.sunVisibility * keep + combinedSunVis * blend;
 
     Fvector newAmbient;
     if (totalRays > 0)

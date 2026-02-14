@@ -5,30 +5,22 @@
 #include <AL/al.h>
 
 class CSteamAudioScene;
-class CSoundRender_Environment;
 
-extern int psSA_Convolution;
 extern float psSA_ConvolutionGain;
 extern float psSA_ConvolutionLPF;
+extern float psSA_ReverbScaleLow;
+extern float psSA_ReverbScaleMid;
+extern float psSA_ReverbScaleHigh;
 
 /**
  * CSteamAudioReverb - Listener reverb probe for geometry-aware reverb.
  *
- * Two modes of operation:
- *
- * PARAMETRIC (psSA_Convolution=0):
- *   Maintains a single persistent IPLSource at the listener position that runs
- *   reflections simulation in PARAMETRIC mode. The simulator traces rays and
- *   analyzes the sound field to produce reverbTimes[3] (low/mid/high RT60).
- *   All 26 EAX reverb parameters are derived from these three values using
- *   acoustic heuristics, then smoothed and fed to EFX.
- *
- * CONVOLUTION (psSA_Convolution=1):
- *   The simulator produces an actual impulse response (IR) instead of parametric
- *   RT60 values. The accumulated source mix is convolved with this IR via
- *   iplReflectionEffectApply, decoded from ambisonics to stereo, and streamed
- *   to a dedicated OpenAL source. EFX is disabled when this is active.
- *   reverbTimes are still available for gain control heuristics.
+ * Always operates in HYBRID mode when Steam Audio is enabled:
+ * SA traces rays for the full 2.0s duration, producing a complete IR.
+ * iplReflectionEffectApply convolves the early portion (controlled by
+ * hybridReverbTransitionTime, quality-dependent: 0.3s medium, 0.5s high),
+ * crossfades, then an internal parametric FDN handles the late tail
+ * shaped by reverbTimes[3] and eq[3]. The EFX slot is set to AL_EFFECT_NULL.
  */
 class CSteamAudioReverb
 {
@@ -45,17 +37,13 @@ public:
     // Update listener probe position (called from update_listener each frame)
     void UpdateListenerProbe(const Fvector& pos, const Fvector& dir, const Fvector& up);
 
-    // Fetch latest simulation outputs and recompute derived EFX parameters.
+    // Fetch latest simulation outputs.
     // Call once per frame (or per reverb update interval).
-    // dt: time delta in seconds for smoothing
+    // dt: time delta in seconds
     void UpdateProbe(float dt);
 
     // Whether the probe has received at least one valid result
     bool HasValidData() const { return m_hasValidData; }
-
-    // Fill environment with SA-derived reverb parameters (all 26 EAX params).
-    // The environment's version is set to sndenv_ver_extended.
-    void GetEnvironment(CSoundRender_Environment& env) const;
 
     // Reverb enable state
     void SetReverbEnabled(bool enabled) { m_enabled = enabled; }
@@ -65,10 +53,10 @@ public:
     bool IsConvolutionActive() const { return m_convolutionInitialized; }
     void UpdateConvolution();
 
-private:
-    // Compute raw EFX parameters from reverbTimes[3]
-    void DeriveParameters();
+    // Recreate OpenAL resources after device switch (convolution reverb only)
+    void ReinitializeOpenAL();
 
+private:
     // Convolution reverb init/destroy
     bool InitializeConvolution(CSteamAudioScene* scene);
     void DestroyConvolution();
@@ -78,40 +66,6 @@ private:
     IPLSimulationInputs m_listenerInputs = {};
     IPLSimulationOutputs m_listenerOutputs = {};
     bool m_hasValidData = false;
-
-    // --- Smoothed EFX parameters (computed in DeriveParameters, smoothed in UpdateProbe) ---
-    struct EFXParams
-    {
-        float DecayTime = 1.49f;
-        float DecayHFRatio = 0.83f;
-        float DecayLFRatio = 1.0f;
-        float Room = 0.32f;
-        float RoomHF = 0.89f;
-        float RoomLF = 1.0f;
-        float Density = 1.0f;
-        float Diffusion = 1.0f;
-        float Reflections = 0.05f;
-        float ReflectionsDelay = 0.007f;
-        float Reverb = 1.26f;
-        float ReverbDelay = 0.011f;
-        float EchoTime = 0.25f;
-        float EchoDepth = 0.0f;
-        float AirAbsorptionHF = 0.994f;
-        float RoomRolloffFactor = 0.0f;
-        int   DecayHFLimit = 1;
-        float ModulationTime = 0.25f;
-        float ModulationDepth = 0.0f;
-        float HFReference = 5000.0f;
-        float LFReference = 250.0f;
-    };
-
-    EFXParams m_rawParams;       // Freshly computed from reverbTimes (no smoothing)
-    EFXParams m_smoothedParams;  // Exponentially smoothed for output
-
-    // --- Median-of-3 filter for RT60 spike rejection ---
-    float m_rt60History[3][3] = {};  // [band][sample] ring buffer
-    float m_filteredRT60[3] = {};
-    int m_historyIndex = 0;
 
     // --- State ---
     bool m_enabled = true;

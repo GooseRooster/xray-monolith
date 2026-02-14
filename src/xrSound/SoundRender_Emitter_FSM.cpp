@@ -411,7 +411,7 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 
 		// Update occlusion
 		float occ = 1.0f;
-		if (steamAudioActive && psSoundFlags.test(ss_SA_Occlusion))
+		if (steamAudioActive)
 		{
 			// Use Steam Audio ray-traced occlusion with smoothing
 			// Note: Position and outputs already updated above
@@ -425,13 +425,10 @@ BOOL CSoundRender_Emitter::update_culling(float dt)
 			// When partially occluded, transmission adds a small boost from the wall path.
 			// Formula: effective = occ + (1-occ) * maxTrans
 			// Extremes: occ=0 → maxTrans, occ=1 → 1.0 (both correct).
-			if (psSoundFlags.test(ss_SA_Transmission))
-			{
-				float trans[3];
-				m_steamSource->GetTransmission(trans);
-				float maxTrans = std::max({trans[0], trans[1], trans[2]});
-				occ = occ + (1.0f - occ) * maxTrans;
-			}
+			float trans[3];
+			m_steamSource->GetTransmission(trans);
+			float maxTrans = std::max({trans[0], trans[1], trans[2]});
+			occ = occ + (1.0f - occ) * maxTrans;
 		}
 		else
 		{

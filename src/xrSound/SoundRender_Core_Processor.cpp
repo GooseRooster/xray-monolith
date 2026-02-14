@@ -15,7 +15,6 @@
 #include "SteamAudio/SteamAudioSource.h"
 
 extern float psSA_ReverbUpdateRate;
-extern int psSA_Convolution;
 
 CSoundRender_Emitter* CSoundRender_Core::i_play(ref_sound* S, BOOL _loop, float delay)
 {
@@ -94,7 +93,7 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 
 		// Update reverb probe with latest simulation outputs
 		CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
-		if (reverb && reverb->IsInitialized() && psSoundFlags.test(ss_SA_Reverb))
+		if (reverb && reverb->IsInitialized())
 		{
 			reverb->UpdateProbe(dt_sec);
 		}
@@ -175,22 +174,9 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 	// update EFX
 	if (m_is_supported)
 	{
-		bool saReverbActive = SoundRenderA && SoundRenderA->IsSteamAudioEnabled()
-			&& psSoundFlags.test(ss_SA_Reverb);
+		bool saReverbActive = SoundRenderA && SoundRenderA->IsSteamAudioEnabled();
 
-		if (saReverbActive)
-		{
-			// Steam Audio reverb probe drives ALL environment parameters.
-			// Bypass the baked environment lerp entirely — SA's internal
-			// exponential smoothing handles transitions.
-			CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
-			if (reverb && reverb->IsInitialized() && reverb->HasValidData())
-			{
-				reverb->GetEnvironment(e_current);
-			}
-			// else: keep e_current as-is (identity/last known good) until probe warms up
-		}
-		else
+		if (!saReverbActive)
 		{
 			// Baked environment path: interpolate from e_current toward SDK-authored target
 			if (bListenerMoved)
@@ -205,10 +191,11 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 			float alpha = 1.0f - std::exp(std::log(1.0f - percent) * dt_sec / snd_efx_environment_change_time);
 			clamp(alpha, 0.f, 1.f);
 			e_current.lerp(e_current, *e_target_ptr, alpha);
-		}
 
-		set_listener(e_current);
-		commit();
+			set_listener(e_current);
+			commit();
+		}
+		// SA active: EFX slot is AL_EFFECT_NULL, HYBRID handles all reverb
 	}
 
 	// update listener
@@ -230,8 +217,8 @@ void CSoundRender_Core::update(const Fvector& P, const Fvector& D, const Fvector
 		}
 	}
 
-	// Convolution reverb: convolve accumulated source mix with IR and stream to OpenAL
-	if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled() && psSA_Convolution)
+	// HYBRID reverb: convolve accumulated source mix with IR and stream to OpenAL
+	if (SoundRenderA && SoundRenderA->IsSteamAudioEnabled())
 	{
 		CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
 		if (reverb && reverb->IsConvolutionActive())

@@ -10,9 +10,6 @@ void SteamAudioSource_LogStats();
 // Global debug logging flag - controlled via snd_sa_debug console command
 extern int g_SA_DebugLogging;
 
-// Convolution cvar
-extern int psSA_Convolution;
-
 /**
  * CSteamAudioSource - Per-emitter Steam Audio wrapper.
  *

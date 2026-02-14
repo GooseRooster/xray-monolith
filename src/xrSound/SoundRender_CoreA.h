@@ -100,6 +100,7 @@ public:
 	CSteamAudioSimulator* GetSteamSimulator() const { return m_steamSimulator; }
 	CSteamAudioReverb* GetSteamReverb() const { return m_steamReverb; }
 	void DisableSteamAudio();  // Graceful fallback to EFX
+	void NullifyEFXSlot();     // Set EFX slot effect to AL_EFFECT_NULL (SA HYBRID owns reverb)
 
 public:
 	CSoundRender_CoreA();

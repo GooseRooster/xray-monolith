@@ -231,9 +231,9 @@ void CSoundRender_TargetA::fill_block(ALuint BufferID)
 				(s16*)&g_target_temp_data.front(), numSamples, sampleRate);
 		}
 		// 2D sounds (player footsteps, weapons) skip direct effects but should
-		// still contribute to convolution reverb. Push raw audio at full gain
+		// still contribute to HYBRID reverb. Push raw audio at full gain
 		// since the sound originates at the listener position.
-		else if (psSA_Convolution && m_pEmitter->m_steamSource && m_pEmitter->b2D)
+		else if (m_pEmitter->m_steamSource && m_pEmitter->b2D)
 		{
 			int numSamples = buf_block / sizeof(s16);
 			m_pEmitter->m_steamSource->PushRawAudio(

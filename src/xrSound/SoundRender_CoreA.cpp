@@ -69,24 +69,19 @@ void CSoundRender_CoreA::LoadEffect()
 	// Check if an error occured, and clean up if so.
 	ALenum err = alGetError();
 
-	if (psSoundFlags.test(ss_EFX))
+	// EFX is always enabled — it provides reverb for all quality levels
+	if (err == AL_NO_ERROR)
 	{
-		if (err == AL_NO_ERROR)
-		{
-			Msg("SOUND: OpenAL: EFX supported");
-			m_is_supported = true;
-			alGenAuxiliaryEffectSlots(1, &slot);
-		}
-		else
-		{
-			Msg("SOUND: OpenAL: Failed to init EFX: %s", alGetString(err));
-			if (alIsEffect(effect))
-				alDeleteEffects(1, &effect);
-		}
+		Msg("SOUND: OpenAL: EFX supported");
+		m_is_supported = true;
+		psSoundFlags.set(ss_EFX, TRUE);
+		alGenAuxiliaryEffectSlots(1, &slot);
 	}
 	else
 	{
-		Msg("SOUND: OpenAL: EFX disabled");
+		Msg("SOUND: OpenAL: Failed to init EFX: %s", alGetString(err));
+		if (alIsEffect(effect))
+			alDeleteEffects(1, &effect);
 		m_is_supported = false;
 	}
 }
@@ -142,16 +137,10 @@ int CSoundRender_CoreA::load_reverb(ALuint effect_, const EFXEAXREVERBPROPERTIES
 
 void CSoundRender_CoreA::commit()
 {
-	// When convolution reverb is active, disable the EFX slot entirely.
-	// The convolution path streams reverb through a dedicated OpenAL source instead.
-	// Per-source aux sends remain wired to the slot but it's a no-op.
-	if (m_bSteamAudioEnabled && m_steamReverb && m_steamReverb->IsConvolutionActive())
-	{
-		A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_EFFECT, AL_EFFECT_NULL));
+	// SA HYBRID handles all reverb; EFX slot is AL_EFFECT_NULL when SA active
+	if (m_bSteamAudioEnabled)
 		return;
-	}
 
-	// Parametric path: EFX reverb active, SA probe feeds geometry-aware parameters.
 	A_CHK(alAuxiliaryEffectSlotf(slot, AL_EFFECTSLOT_GAIN, 1.f));
 	A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_AUXILIARY_SEND_AUTO, false));
 	A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_EFFECT, effect));
@@ -310,6 +299,12 @@ void CSoundRender_CoreA::switch_device(LPCSTR device_name)
 
 	LoadEffect();
 
+	// Reinitialize convolution reverb's OpenAL resources on the new context.
+	// SA core objects (IPLContext, IPLScene, IPLSimulator, etc.) are OpenAL-independent
+	// and survive the device switch, but the streaming source + buffers are stale.
+	if (m_bSteamAudioEnabled && m_steamReverb)
+		m_steamReverb->ReinitializeOpenAL();
+
 	restart_emitters();
 	pause_emitters(false);
 	bReady = true;
@@ -466,8 +461,8 @@ void CSoundRender_CoreA::_initialize(int stage)
 	Listener.orientation[0].set(0.0f, 0.0f, 0.0f);
 	Listener.orientation[1].set(0.0f, 0.0f, 0.0f);
 
-	// Initialize Steam Audio if enabled
-	if (psSoundFlags.test(ss_SteamAudio))
+	// Initialize Steam Audio based on quality level (Medium+ enables SA)
+	if (psSndQuality >= 1)
 	{
 		if (CSteamAudio::Instance().Initialize())
 		{
@@ -475,18 +470,21 @@ void CSoundRender_CoreA::_initialize(int stage)
 			m_steamSimulator = xr_new<CSteamAudioSimulator>();
 			m_steamReverb = xr_new<CSteamAudioReverb>();
 			m_bSteamAudioEnabled = true;
-			Msg("SOUND: Steam Audio enabled");
+			psSoundFlags.set(ss_SteamAudio, TRUE);
+			Msg("SOUND: Steam Audio enabled (quality: %s)", psSndQuality == 2 ? "High" : "Medium");
 		}
 		else
 		{
 			Msg("! SOUND: Steam Audio initialization failed, falling back to EFX");
 			m_bSteamAudioEnabled = false;
+			psSoundFlags.set(ss_SteamAudio, FALSE);
 		}
 	}
 	else
 	{
-		Msg("SOUND: Steam Audio disabled by user preference");
+		Msg("SOUND: Steam Audio disabled (quality: Low)");
 		m_bSteamAudioEnabled = false;
+		psSoundFlags.set(ss_SteamAudio, FALSE);
 	}
 
 	inherited::_initialize(stage);
@@ -637,10 +635,17 @@ void CSoundRender_CoreA::DisableSteamAudio()
 
 	m_bSteamAudioEnabled = false;
 
-	// Re-enable EFX reverb
+	// Re-enable EFX reverb (re-attach effect to slot)
 	if (m_is_supported)
 	{
 		A_CHK(alAuxiliaryEffectSlotf(slot, AL_EFFECTSLOT_GAIN, 1.f));
+		A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_EFFECT, effect));
 		Msg("SOUND: EFX reverb re-enabled");
 	}
+}
+
+void CSoundRender_CoreA::NullifyEFXSlot()
+{
+	if (m_is_supported)
+		A_CHK(alAuxiliaryEffectSloti(slot, AL_EFFECTSLOT_EFFECT, AL_EFFECT_NULL));
 }

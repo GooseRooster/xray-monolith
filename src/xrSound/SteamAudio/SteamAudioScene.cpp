@@ -7,7 +7,7 @@
 extern int g_SA_DebugLogging;
 extern int psSA_ReverbRays;
 extern int psSA_ReverbBounces;
-extern int psSA_Convolution;
+extern u32 psSndQuality;
 
 CSteamAudioScene::CSteamAudioScene()
 {
@@ -203,19 +203,9 @@ bool CSteamAudioScene::CreateSimulator()
     simSettings.maxNumSources = 256;  // Max sources in simulator (per-source direct + 1 listener reverb probe)
     // Note: numBounces is set per-frame in IPLSimulationSharedInputs, not here
 
-    // Branch on convolution mode:
-    // - PARAMETRIC: outputs analyzed RT60 values mapped to EFX reverb parameters
-    // - CONVOLUTION: outputs actual IR for convolution reverb (replaces EFX entirely)
-    if (psSA_Convolution)
-    {
-        simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_CONVOLUTION;
-        simSettings.maxOrder = 2;   // 2nd-order ambisonics (9ch) — sharper early reflections
-    }
-    else
-    {
-        simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_PARAMETRIC;
-        simSettings.maxOrder = 2;   // 2nd-order (9ch, unused but was the original setting)
-    }
+    // Always HYBRID: convolution early reflections + parametric FDN late tail
+    simSettings.reflectionType = IPL_REFLECTIONEFFECTTYPE_HYBRID;
+    simSettings.maxOrder = 2;   // 2nd-order ambisonics (9ch)
 
     // Threading
     simSettings.numThreads = 4;
@@ -344,7 +334,7 @@ void CSteamAudioScene::SetListenerPosition(const Fvector& pos, const Fvector& di
     sharedInputs.listener = m_listenerCoords;
     sharedInputs.numRays = psSA_ReverbRays;
     sharedInputs.numBounces = psSA_ReverbBounces;
-    sharedInputs.duration = 2.0f;
+    sharedInputs.duration = 2.0f;  // Always full propagation for accurate RT60/EQ estimation
     sharedInputs.order = 2;
     sharedInputs.irradianceMinDistance = 1.0f;
 

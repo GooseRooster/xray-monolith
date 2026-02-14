@@ -44,6 +44,7 @@ XRSOUND_API extern float psSpeedOfSound;
 XRSOUND_API extern int psSoundCacheSizeMB;
 XRSOUND_API extern xr_token* snd_devices_token;
 XRSOUND_API extern xr_string snd_device_name;
+XRSOUND_API extern u32 psSndQuality;  // 0=Low, 1=Medium, 2=High
 
 // Steam Audio tuning parameters
 XRSOUND_API extern int psSA_OcclusionRays;        // Number of occlusion rays per source (1-32)
@@ -51,9 +52,11 @@ XRSOUND_API extern int psSA_ReverbRays;           // Number of reverb rays (256-
 XRSOUND_API extern int psSA_ReverbBounces;        // Max ray bounces for reverb (2-16)
 XRSOUND_API extern float psSA_ReverbUpdateRate;   // Reverb update interval in seconds (0.1-1.0)
 XRSOUND_API extern float psSA_OcclusionMin;       // Minimum occlusion floor (0.0=full occlusion, 0.15=old behavior)
-XRSOUND_API extern int psSA_Convolution;           // Enable convolution reverb (0=parametric EFX, 1=convolution)
 XRSOUND_API extern float psSA_ConvolutionGain;     // Convolution reverb gain multiplier (0.0-2.0)
 XRSOUND_API extern float psSA_ConvolutionLPF;      // Convolution reverb LP filter alpha (0.1=dark, 1.0=disabled)
+XRSOUND_API extern float psSA_ReverbScaleLow;      // Low-band RT60 scale (0.3-1.5)
+XRSOUND_API extern float psSA_ReverbScaleMid;      // Mid-band RT60 scale (0.3-1.5)
+XRSOUND_API extern float psSA_ReverbScaleHigh;     // High-band RT60 scale (0.3-1.5)
 
 // Flags
 enum
@@ -61,15 +64,9 @@ enum
 	ss_Hardware = (1ul << 1ul),
 	//!< Use hardware mixing only
 	ss_EFX = (1ul << 2ul),
-	//!< Use EFX (OpenAL Effects Extension) reverb
+	//!< Use EFX (OpenAL Effects Extension) reverb (always on)
 	ss_SteamAudio = (1ul << 3ul),
-	//!< Use Steam Audio for spatial audio processing
-	ss_SA_Occlusion = (1ul << 4ul),
-	//!< Steam Audio: Enable ray-traced occlusion
-	ss_SA_Transmission = (1ul << 5ul),
-	//!< Steam Audio: Enable sound transmission through walls
-	ss_SA_Reverb = (1ul << 6ul),
-	//!< Steam Audio: Enable geometry-aware reverb decay times (feeds into EFX)
+	//!< Use Steam Audio for spatial audio processing (set by psSndQuality >= 1)
 	ss_HRTF = (1ul << 7ul),
 	//!< Enable OpenAL Soft HRTF for headphone spatialization
 	ss_forcedword = u32(-1)

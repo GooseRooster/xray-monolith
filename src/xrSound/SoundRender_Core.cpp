@@ -32,6 +32,8 @@ float psSoundVMusic = 1.f;
 float psSoundVMusicFactor = 1.f;
 int psSoundCacheSizeMB = 256;
 
+u32 psSndQuality = 1;  // 0=Low (no SA), 1=Medium (SA parametric), 2=High (SA hybrid)
+
 float snd_efx_environment_change_time = 1.66f;
 
 // Steam Audio tuning parameters
@@ -40,9 +42,11 @@ float psSA_OcclusionMin = 0.0f;      // Default: full occlusion possible (0.0 = 
 int psSA_ReverbRays = 4096;          // Default: 4096 rays for reverb
 int psSA_ReverbBounces = 8;          // Default: 8 bounces
 float psSA_ReverbUpdateRate = 0.2f;  // Default: 200ms update interval
-int psSA_Convolution = 0;            // Default: parametric (EFX) reverb
 float psSA_ConvolutionGain = 1.0f;   // Default: unity gain
 float psSA_ConvolutionLPF = 0.6f;    // Default: gentle HF rolloff (1.0 = disabled)
+float psSA_ReverbScaleLow = 0.6f;    // Default: tame bass buildup in RT60
+float psSA_ReverbScaleMid = 1.0f;    // Default: mid-band RT60 scale
+float psSA_ReverbScaleHigh = 1.0f;   // Default: high-band RT60 scale
 
 CSoundRender_Core* SoundRender = nullptr;
 CSound_manager_interface* Sound = nullptr;
@@ -148,6 +152,10 @@ int CSoundRender_Core::pause_emitters(bool val)
 	for (u32 it = 0; it < s_emitters.size(); it++)
 		((CSoundRender_Emitter*)s_emitters[it])->pause(val, val ? m_iPauseCounter : m_iPauseCounter + 1);
 
+	// SA HYBRID reverb: no explicit pause needed — paused emitters stop feeding
+	// ring buffers, so convolution input naturally decays to zero and the reverb
+	// tail fades organically through the tail-complete path in UpdateConvolution.
+
 	return m_iPauseCounter;
 }
 
@@ -217,13 +225,15 @@ void CSoundRender_Core::set_geometry_occ(CDB::MODEL* M)
 						Msg("STEAM_AUDIO: Scene built and simulation started (%d triangles)",
 							M->get_tris_count());
 
-						// Initialize reverb probe (provides decay times for EFX)
+						// Initialize reverb probe (HYBRID mode)
 						CSteamAudioReverb* reverb = SoundRenderA->GetSteamReverb();
-						if (reverb && psSoundFlags.test(ss_SA_Reverb))
+						if (reverb)
 						{
 							if (reverb->Initialize(scene))
 							{
 								Msg("STEAM_AUDIO: Reverb probe initialized");
+								// SA HYBRID handles all reverb — disable EFX slot
+								SoundRenderA->NullifyEFXSlot();
 							}
 							else
 							{

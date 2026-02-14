@@ -905,6 +905,43 @@ public:
 	}
 };
 
+// Audio Effects Quality token
+xr_token snd_quality_token[] = {
+	{"st_opt_low",    0},
+	{"st_opt_medium", 1},
+	{"st_opt_high",   2},
+	{0, 0}
+};
+
+class CCC_SndQuality : public CCC_Token
+{
+	typedef CCC_Token inherited;
+public:
+	CCC_SndQuality(LPCSTR N, u32* V, xr_token* T) : inherited(N, V, T) {};
+
+	virtual void Execute(LPCSTR args)
+	{
+		inherited::Execute(args);
+		switch (*value) {
+		case 0: // Low — no Steam Audio, EFX only
+			psSA_OcclusionRays = 16;
+			psSA_ReverbRays = 4096;
+			psSA_ReverbBounces = 8;
+			break;
+		case 1: // Medium — SA HYBRID, 0.3s convolution transition
+			psSA_OcclusionRays = 8;
+			psSA_ReverbRays = 2048;
+			psSA_ReverbBounces = 4;
+			break;
+		case 2: // High — SA HYBRID, 0.5s convolution transition, full fidelity
+			psSA_OcclusionRays = 16;
+			psSA_ReverbRays = 4096;
+			psSA_ReverbBounces = 8;
+			break;
+		}
+	}
+};
+
 ENGINE_API float psHUD_FOV_def = 0.45f;
 ENGINE_API float psHUD_FOV = psHUD_FOV_def;
 
@@ -1051,26 +1088,22 @@ void CCC_Register()
 	CMD2(CCC_Float, "snd_volume_music", &psSoundVMusic);
 	CMD1(CCC_SND_Restart, "snd_restart");
 	CMD3(CCC_Mask, "snd_acceleration", &psSoundFlags, ss_Hardware);
-	CMD3(CCC_Mask, "snd_efx", &psSoundFlags, ss_EFX);
 	CMD4(CCC_Float, "snd_efx_environment_change_time", &snd_efx_environment_change_time, 0.f, 3.f);
 	CMD4(CCC_Integer, "snd_targets", &psSoundTargets, 32, 1024);
 	CMD4(CCC_Integer, "snd_cache_size", &psSoundCacheSizeMB, 8, 256);
 
-	// Steam Audio
-	CMD3(CCC_Mask, "snd_steam_audio", &psSoundFlags, ss_SteamAudio);
-	CMD3(CCC_Mask, "snd_steam_audio_occlusion", &psSoundFlags, ss_SA_Occlusion);
-	CMD3(CCC_Mask, "snd_steam_audio_transmission", &psSoundFlags, ss_SA_Transmission);
-	CMD3(CCC_Mask, "snd_steam_audio_reverb", &psSoundFlags, ss_SA_Reverb);
+	// Audio Effects Quality (replaces individual SA/EFX toggles)
+	CMD3(CCC_SndQuality, "snd_audio_effects_quality", &psSndQuality, snd_quality_token);
 	CMD3(CCC_Mask, "snd_hrtf", &psSoundFlags, ss_HRTF);
-	CMD4(CCC_Integer, "snd_steam_audio_occlusion_rays", &psSA_OcclusionRays, 1, 32);
+
+	// Steam Audio tuning (dev/hidden - not exposed in UI)
 	CMD4(CCC_Float, "snd_steam_audio_occlusion_min", &psSA_OcclusionMin, 0.0f, 0.5f);
-	CMD4(CCC_Integer, "snd_steam_audio_reverb_rays", &psSA_ReverbRays, 256, 8192);
-	CMD4(CCC_Integer, "snd_steam_audio_reverb_bounces", &psSA_ReverbBounces, 2, 16);
 	CMD4(CCC_Float, "snd_steam_audio_reverb_update_rate", &psSA_ReverbUpdateRate, 0.05f, 1.0f);
-	// Steam Audio convolution reverb (requires level reload to take effect)
-	CMD4(CCC_Integer, "snd_sa_convolution", &psSA_Convolution, 0, 1);
 	CMD4(CCC_Float, "snd_sa_convolution_gain", &psSA_ConvolutionGain, 0.0f, 2.0f);
 	CMD4(CCC_Float, "snd_sa_convolution_lpf", &psSA_ConvolutionLPF, 0.1f, 1.0f);
+	CMD4(CCC_Float, "snd_sa_reverb_scale_low", &psSA_ReverbScaleLow, 0.3f, 1.5f);
+	CMD4(CCC_Float, "snd_sa_reverb_scale_mid", &psSA_ReverbScaleMid, 0.3f, 1.5f);
+	CMD4(CCC_Float, "snd_sa_reverb_scale_high", &psSA_ReverbScaleHigh, 0.3f, 1.5f);
 	// Steam Audio debug logging (0=off, 1=on)
 	extern int g_SA_DebugLogging;
 	CMD4(CCC_Integer, "snd_sa_debug", &g_SA_DebugLogging, 0, 1);

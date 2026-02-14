@@ -120,9 +120,8 @@ bool CSteamAudioSource::Initialize(CSteamAudioScene* scene)
     m_inputs.distanceAttenuationModel.type = IPL_DISTANCEATTENUATIONTYPE_DEFAULT;
     m_inputs.airAbsorptionModel.type = IPL_AIRABSORPTIONTYPE_DEFAULT;
 
-    // Register for convolution mixer and init ring buffer
-    if (psSA_Convolution)
-        InitRing(audioSettings.frameSize);
+    // Register for convolution mixer and init ring buffer (always active when SA on)
+    InitRing(audioSettings.frameSize);
     s_activeSources.push_back(this);
 
     return true;
@@ -427,26 +426,10 @@ void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRat
     if (!m_directEffect || !m_outputsValid)
         return;
 
-    // Build flags based on console settings
-    IPLDirectEffectFlags flags = (IPLDirectEffectFlags)0;
-
-    // Air absorption — always apply when any SA processing is active
-    if (psSoundFlags.test(ss_SA_Occlusion))
-    {
-        flags = (IPLDirectEffectFlags)(flags | IPL_DIRECTEFFECTFLAGS_APPLYAIRABSORPTION);
-    }
-
-    // Transmission
-    if (psSoundFlags.test(ss_SA_Transmission))
-    {
-        flags = (IPLDirectEffectFlags)(flags | IPL_DIRECTEFFECTFLAGS_APPLYTRANSMISSION);
-    }
-
-    // Short-circuit if no effects needed
-    if (flags == 0)
-    {
-        return;
-    }
+    // When SA is active, always apply air absorption and transmission on the direct path
+    IPLDirectEffectFlags flags = (IPLDirectEffectFlags)(
+        IPL_DIRECTEFFECTFLAGS_APPLYAIRABSORPTION |
+        IPL_DIRECTEFFECTFLAGS_APPLYTRANSMISSION);
 
     const IPLAudioSettings& audioSettings = CSteamAudio::Instance().GetAudioSettings();
     const int frameSize = audioSettings.frameSize;
@@ -484,13 +467,13 @@ void CSteamAudioSource::ProcessBuffer(s16* buffer, int numSamples, int sampleRat
         for (int i = chunkSamples; i < frameSize; i++)
             m_inputBuffer[i] = 0.0f;
 
-        // Push PRE-OCCLUSION audio into per-source ring buffer for convolution reverb.
+        // Push PRE-OCCLUSION audio into per-source ring buffer for HYBRID reverb.
         // Uses m_inputBuffer (clean signal) rather than m_outputBuffer (post-occlusion)
         // so reverb remains audible even when the direct path is fully occluded —
         // matching real acoustics where reflected sound reaches the listener via
         // ceilings, openings, and other surfaces even when the source is behind a wall.
         // Scale by FSM linear × OpenAL inverse attenuation for consistent wet/dry ratio.
-        if (psSA_Convolution && m_ringFrameSize > 0)
+        if (m_ringFrameSize > 0)
         {
             PushFrame(m_inputBuffer.data(), chunkSamples, ComputeDirectAttenuation());
         }

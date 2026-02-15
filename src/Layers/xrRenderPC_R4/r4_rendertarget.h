@@ -183,7 +183,7 @@ public:
 	ref_texture t_probe_grid;  // Texture2D with probe data (debug visualization only)
 	// OWA: Irradiance volume textures (Texture3D, hardware trilinear filtering)
 	ref_texture t_probe_vol0;  // ambient.rgb, skyVisibility
-	ref_texture t_probe_vol1;  // dominantDir.xyz, directionalRatio
+	ref_texture t_probe_vol1;  // shDirection.xyz, 0.0 (L1 SH directional vector)
 	ref_texture t_probe_vol2;  // pointLightColor.rgb, sunVisibility
 
 	// smap

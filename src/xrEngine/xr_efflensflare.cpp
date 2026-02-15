@@ -275,8 +275,9 @@ void CLensFlare::OnFrame(shared_str id)
 #endif
 	dwFrame = Device.dwFrame;
 
-	R_ASSERT(_valid(g_pGamePersistent->Environment().CurrentEnv->sun_dir));
-	vSunDir.mul(g_pGamePersistent->Environment().CurrentEnv->sun_dir, -1);
+	// OWA: Use visual_sun_dir for positioning — decouples from lightning direction override
+	R_ASSERT(_valid(g_pGamePersistent->Environment().CurrentEnv->visual_sun_dir));
+	vSunDir.mul(g_pGamePersistent->Environment().CurrentEnv->visual_sun_dir, -1);
 	R_ASSERT(_valid(vSunDir));
 
 	// color

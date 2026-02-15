@@ -98,6 +98,8 @@ extern ECORE_API float ps_r_probe_max_distance;     // Max distance for probe up
 extern ECORE_API int   ps_r_probe_upload_rate;      // GPU upload every N frames (1-16)
 extern ECORE_API float ps_r_probe_chroma_blend;     // Probe chrominance indoor blend cap (0.0-1.0)
 extern ECORE_API int   ps_r_probe_bounce_lights;   // Max point lights per bounce ray (0=disabled, 0-3)
+extern ECORE_API float ps_r_probe_ambient_floor;   // Minimum ambient in deepest interior (0.0-0.5)
+extern ECORE_API float ps_r_probe_gi_boost;        // GI multiplicative lift on base ambient (0.0-10.0)
 
 extern ECORE_API u32 ps_r_sun_quality; //	=	0;
 extern ECORE_API xr_token qsun_quality_token[];

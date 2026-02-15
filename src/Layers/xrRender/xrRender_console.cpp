@@ -58,6 +58,8 @@ float ps_r_probe_max_distance = 100.0f;  // Max distance for probe updates (30-5
 int   ps_r_probe_upload_rate = 4;        // GPU upload every N frames (1-16)
 float ps_r_probe_chroma_blend = 0.6f;   // Probe chrominance indoor blend cap (0.0-1.0)
 int   ps_r_probe_bounce_lights = 2;    // Max point lights per bounce ray (0=disabled, 0-3)
+float ps_r_probe_ambient_floor = 0.15f; // Minimum ambient in deepest interior (0.0-0.5)
+float ps_r_probe_gi_boost = 3.0f;      // GI multiplicative lift on base ambient (0.0-10.0)
 
 u32 ps_r_sun_shafts = 2;
 xr_token qsun_shafts_token [ ] = {
@@ -1218,6 +1220,8 @@ void xrRender_initconsole()
 	CMD4(CCC_Integer, "r_probe_upload_rate", &ps_r_probe_upload_rate, 1, 16);
 	CMD4(CCC_Float, "r_probe_chroma_blend", &ps_r_probe_chroma_blend, 0.0f, 1.0f);
 	CMD4(CCC_Integer, "r_probe_bounce_lights", &ps_r_probe_bounce_lights, 0, 3);
+	CMD4(CCC_Float, "r_probe_ambient_floor", &ps_r_probe_ambient_floor, 0.0f, 0.5f);
+	CMD4(CCC_Float, "r_probe_gi_boost", &ps_r_probe_gi_boost, 0.0f, 10.0f);
 	// OWA: Point light shadows (high-end option, expensive - 6 shadow passes per point light)
 	CMD4(CCC_Integer, "r4_point_light_shadows", &ps_r4_point_light_shadows, 0, 1);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);

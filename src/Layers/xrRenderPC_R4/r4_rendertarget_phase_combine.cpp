@@ -319,11 +319,11 @@ void CRenderTarget::phase_combine()
 			RCache.set_c("probe_grid_min", bmin.x, bmin.y, bmin.z, (float)g_LightProbeGrid->GetProbeCount());
 			RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, (float)PROBES_PER_ROW);
 			RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, ps_r_probe_chroma_blend);
-			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, (float)ps_r_debug_probes, 0.3f);
+			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, (float)ps_r_debug_probes, ps_r_probe_ambient_floor);
 			Fvector volMin  = g_LightProbeGrid->GetVolumeMin();
 			Fvector volSize = g_LightProbeGrid->GetVolumeSize();
 			RCache.set_c("probe_vol_min",  volMin.x,  volMin.y,  volMin.z,  g_LightProbeGrid->GetVoxelSize());
-			RCache.set_c("probe_vol_size", volSize.x, volSize.y, volSize.z, 0.f);
+			RCache.set_c("probe_vol_size", volSize.x, volSize.y, volSize.z, ps_r_probe_gi_boost);
 		};
 
 		// Draw

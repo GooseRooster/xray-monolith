@@ -43,7 +43,7 @@ static const int   MAX_BOUNCE_LIGHTS_PER_RAY = 2;      // cap per bounce ray (co
 
 // Volume texture constants
 static const u32   MAX_VOLUME_VOXELS = 500000;       // cap total voxels (~24MB for 3 textures)
-static const int   NUM_VOLUME_TEXTURES = 3;           // vol0=ambient+sky, vol1=dir+ratio, vol2=ptlight+sun
+static const int   NUM_VOLUME_TEXTURES = 3;           // vol0=ambient+sky, vol1=shDirection+pad, vol2=ptlight+sun
 
 // Probe update quality levels
 enum EProbeQuality
@@ -57,7 +57,7 @@ enum EProbeQuality
 // GPU layout (64 bytes per probe, 4 × RGBA32F texels):
 //   Texel 0: position.xyz, skyVisibility
 //   Texel 1: ambient.xyz, sunVisibility
-//   Texel 2: dominantDir.xyz, directionalRatio
+//   Texel 2: shDirection.xyz, 0.0 (L1 SH directional vector)
 //   Texel 3: pointLightColor.xyz, pointLightIntensity
 //////////////////////////////////////////////////////////////////////////
 struct CLightProbe
@@ -67,8 +67,8 @@ struct CLightProbe
     Fvector3 ambient;            // Accumulated ambient (includes bounce)
     float    sunVisibility;      // 0-1 direct sun visibility
     Fvector3 bounce;             // Indirect sun contribution (debug)
-    Fvector3 dominantDir;        // Energy-weighted primary light direction
-    float    directionalRatio;   // 0=uniform, 1=all from one direction
+    Fvector3 shDirection;        // L1 SH directional vector (unnormalized — magnitude = directional strength)
+    float    _shPad;             // Padding (maintains 64-byte GPU layout)
     Fvector3 pointLightColor;    // Accumulated point/spot light color
     float    pointLightIntensity; // Point light luminance
     float    envLuminance;       // Environment luminance at last ray-update (for ToD snap)
@@ -103,8 +103,8 @@ struct VoxelAccum
     float ambient[3];
     float skyVis;
     float sunVis;
-    float dominantDir[3];
-    float dirRatio;
+    float shDir[3];              // L1 SH directional vector accumulator
+    float _shPad;                // Unused (weight accumulator is separate)
     float pointLight[3];
     float weight;
 };
@@ -167,7 +167,7 @@ private:
     // Volume textures (Irradiance Volumes) — replaces GPU spatial hash
     // 3 × Texture3D<float4> with hardware trilinear filtering
     //   vol0: ambient.rgb, skyVisibility
-    //   vol1: dominantDir.xyz, directionalRatio
+    //   vol1: shDirection.xyz, 0.0 (L1 SH directional vector)
     //   vol2: pointLightColor.rgb, sunVisibility
     // =========================================================================
     ID3D11Texture3D*           m_pVolTexture[NUM_VOLUME_TEXTURES];

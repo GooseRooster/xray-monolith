@@ -677,6 +677,8 @@ void CEnvironment::calculate_config_sun_dir()
 		deg2rad(real_sun_alt),
 		deg2rad(real_sun_long)
 	);
+	// OWA: Cache astronomical sun direction before thunderbolt can override sun_dir
+	CurrentEnv->visual_sun_dir = CurrentEnv->sun_dir;
 
 	R_ASSERT(_valid(CurrentEnv->sun_dir));
 }
@@ -744,6 +746,8 @@ void CEnvironment::calculate_dynamic_sun_dir()
 	R_ASSERT(_valid(AZ));
 	R_ASSERT(_valid(SEA));
 	CurrentEnv->sun_dir.setHP(AZ, SEA);
+	// OWA: Cache astronomical sun direction before thunderbolt can override sun_dir
+	CurrentEnv->visual_sun_dir = CurrentEnv->sun_dir;
 	R_ASSERT(_valid(CurrentEnv->sun_dir));
 	CurrentEnv->sun_color.mul(fSunBlend);
 }

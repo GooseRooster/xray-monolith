@@ -250,6 +250,7 @@ CEnvDescriptor::CEnvDescriptor(shared_str const& identifier) :
 	hemi_color.set(1, 1, 1, 1);
 	sun_color.set(1, 1, 1);
 	sun_dir.set(0, -1, 0);
+	visual_sun_dir.set(0, -1, 0);  // OWA: Init to same as sun_dir
 
 	m_fSunShaftsIntensity = 0;
 	m_fWaterIntensity = 1;
@@ -592,6 +593,10 @@ void CEnvDescriptorMixer::lerp(CEnvironment* env, CEnvDescriptor& A, CEnvDescrip
 	}
 
 	sun_color.lerp(A.sun_color, B.sun_color, f);
+	// OWA: visual_sun_dir tracks the interpolated astronomical position
+	// (will be overwritten by calculate_config/dynamic_sun_dir, but this provides
+	// a valid default for the paused case and before sun dir calculation runs)
+	visual_sun_dir.lerp(A.sun_dir, B.sun_dir, f);
 
 	if (rain_density > 0.f)
 		env->wetness_factor += ( rain_density * ssfx_wetness_multiplier.x) / 10000.f;

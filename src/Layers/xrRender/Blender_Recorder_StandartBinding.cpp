@@ -552,6 +552,28 @@ class cl_sun0_dir_e : public R_constant_setup
 
 static cl_sun0_dir_e binder_sun0_dir_e;
 
+// OWA: Visual sun direction (eye-space) — real astronomical position, not modified by lightning
+class cl_visual_sun_dir_e : public R_constant_setup
+{
+	u32 marker;
+	Fvector4 result;
+
+	virtual void setup(R_constant* C)
+	{
+		if (marker != Device.dwFrame)
+		{
+			Fvector D;
+			CEnvDescriptor& desc = *g_pGamePersistent->Environment().CurrentEnv;
+			Device.mView.transform_dir(D, desc.visual_sun_dir);
+			D.normalize();
+			result.set(D.x, D.y, D.z, 0);
+		}
+		RCache.set_c(C, result);
+	}
+};
+
+static cl_visual_sun_dir_e binder_visual_sun_dir_e;
+
 //
 class cl_amb_color : public R_constant_setup
 {
@@ -1431,6 +1453,7 @@ void CBlender_Compile::SetMapping()
 	r_Constant("L_sun_color", &binder_sun0_color);
 	r_Constant("L_sun_dir_w", &binder_sun0_dir_w);
 	r_Constant("L_sun_dir_e", &binder_sun0_dir_e);
+	r_Constant("L_visual_sun_dir_e", &binder_visual_sun_dir_e);  // OWA: Real sun dir for procedural sun
 	//	r_Constant				("L_lmap_color",	&binder_lm_color);
 	r_Constant("L_lumscale", &binder_lumscale);  // OWA: x=sun, y=hemi, z=amb
 	r_Constant("L_hemi_color", &binder_hemi_color);

@@ -175,8 +175,8 @@ CLightProbe CLightProbeGrid::MakeDefaultProbe(const Fvector& pos)
     probe.ambient.set(0, 0, 0);
     probe.sunVisibility = 0.0f;
     probe.bounce.set(0, 0, 0);
-    probe.dominantDir.set(0, 1, 0);
-    probe.directionalRatio = 0.0f;
+    probe.shDirection.set(0, 0, 0);
+    probe._shPad = 0.0f;
     probe.pointLightColor.set(0, 0, 0);
     probe.pointLightIntensity = 0.0f;
     probe.envLuminance = 0.0f;
@@ -582,12 +582,14 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
     if (m_collider.r_count() == 0)
     {
         // Sun visible - compute Lambertian bounce with material-colored albedo
+        // Fixed 0.3 internal scale: physical diffuse bounce attenuation (energy lost
+        // per reflection). NOT tied to console var — GPU-side bounce_intensity handles tuning.
         float NdotL = hitNormal.dotproduct(sunDir);
         if (NdotL > 0)
         {
             Fvector contribution;
             contribution.set(sunColor.x * albedo.x, sunColor.y * albedo.y, sunColor.z * albedo.z);
-            contribution.mul(NdotL * m_bounceIntensity);
+            contribution.mul(NdotL * 0.3f);
             bounceAccum.add(contribution);
         }
     }
@@ -600,7 +602,7 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
     hemiReceived *= probeSkyVisibility;
     Fvector ambBounce;
     ambBounce.set(skyColor.x * albedo.x, skyColor.y * albedo.y, skyColor.z * albedo.z);
-    ambBounce.mul(hemiReceived * m_bounceIntensity);
+    ambBounce.mul(hemiReceived * 0.3f);
     bounceAccum.add(ambBounce);
 
     // --- Point light bounce ---
@@ -641,7 +643,7 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
             // Colored bounce: lightColor × surfaceAlbedo × NdotL × attenuation
             Fvector contrib;
             contrib.set(cl.color.x * albedo.x, cl.color.y * albedo.y, cl.color.z * albedo.z);
-            contrib.mul(atten * NdotL_light * m_bounceIntensity);
+            contrib.mul(atten * NdotL_light * 0.3f);
             bounceAccum.add(contrib);
             bounceLightsUsed++;
         }
@@ -753,7 +755,7 @@ void CLightProbeGrid::RasterizeVolume()
     // Phase 1: Zero accumulators
     memset(m_volAccum.data(), 0, totalVoxels * sizeof(VoxelAccum));
 
-    float sigma = m_voxelSize * 1.5f;
+    float sigma = m_voxelSize * 0.85f;  // Sharper scatter preserves indoor gradients
     float invSigmaSq2 = -0.5f / (sigma * sigma);
 
     // Phase 2: Scatter — for each probe, distribute to 3×3×3 voxel neighborhood
@@ -798,10 +800,9 @@ void CLightProbeGrid::RasterizeVolume()
             acc.ambient[2]     += probe.ambient.z * w;
             acc.skyVis         += probe.skyVisibility * w;
             acc.sunVis         += probe.sunVisibility * w;
-            acc.dominantDir[0] += probe.dominantDir.x * w;
-            acc.dominantDir[1] += probe.dominantDir.y * w;
-            acc.dominantDir[2] += probe.dominantDir.z * w;
-            acc.dirRatio       += probe.directionalRatio * w;
+            acc.shDir[0] += probe.shDirection.x * w;
+            acc.shDir[1] += probe.shDirection.y * w;
+            acc.shDir[2] += probe.shDirection.z * w;
             acc.pointLight[0]  += probe.pointLightColor.x * w;
             acc.pointLight[1]  += probe.pointLightColor.y * w;
             acc.pointLight[2]  += probe.pointLightColor.z * w;
@@ -822,11 +823,11 @@ void CLightProbeGrid::RasterizeVolume()
         m_volData[0][v * 4 + 2] = acc.ambient[2] * invW;
         m_volData[0][v * 4 + 3] = acc.skyVis * invW;
 
-        // vol1: dominantDir.xyz, directionalRatio
-        m_volData[1][v * 4 + 0] = acc.dominantDir[0] * invW;
-        m_volData[1][v * 4 + 1] = acc.dominantDir[1] * invW;
-        m_volData[1][v * 4 + 2] = acc.dominantDir[2] * invW;
-        m_volData[1][v * 4 + 3] = acc.dirRatio * invW;
+        // vol1: shDirection.xyz, 0.0
+        m_volData[1][v * 4 + 0] = acc.shDir[0] * invW;
+        m_volData[1][v * 4 + 1] = acc.shDir[1] * invW;
+        m_volData[1][v * 4 + 2] = acc.shDir[2] * invW;
+        m_volData[1][v * 4 + 3] = 0.0f;
 
         // vol2: pointLightColor.rgb, sunVisibility
         m_volData[2][v * 4 + 0] = acc.pointLight[0] * invW;
@@ -894,10 +895,10 @@ void CLightProbeGrid::NormalizeVoxel(int voxelIdx)
     m_volData[0][voxelIdx * 4 + 2] = acc.ambient[2] * invW;
     m_volData[0][voxelIdx * 4 + 3] = acc.skyVis * invW;
 
-    m_volData[1][voxelIdx * 4 + 0] = acc.dominantDir[0] * invW;
-    m_volData[1][voxelIdx * 4 + 1] = acc.dominantDir[1] * invW;
-    m_volData[1][voxelIdx * 4 + 2] = acc.dominantDir[2] * invW;
-    m_volData[1][voxelIdx * 4 + 3] = acc.dirRatio * invW;
+    m_volData[1][voxelIdx * 4 + 0] = acc.shDir[0] * invW;
+    m_volData[1][voxelIdx * 4 + 1] = acc.shDir[1] * invW;
+    m_volData[1][voxelIdx * 4 + 2] = acc.shDir[2] * invW;
+    m_volData[1][voxelIdx * 4 + 3] = 0.0f;
 
     m_volData[2][voxelIdx * 4 + 0] = acc.pointLight[0] * invW;
     m_volData[2][voxelIdx * 4 + 1] = acc.pointLight[1] * invW;
@@ -924,7 +925,7 @@ void CLightProbeGrid::UpdateVolumeProbe(u32 probeIndex, const CLightProbe& oldVa
     int cy = (int)(local.y / m_voxelSize);
     int cz = (int)(local.z / m_voxelSize);
 
-    float sigma = m_voxelSize * 1.5f;
+    float sigma = m_voxelSize * 0.85f;  // Sharper scatter preserves indoor gradients
     float invSigmaSq2 = -0.5f / (sigma * sigma);
 
     for (int dz = -1; dz <= 1; dz++)
@@ -956,10 +957,9 @@ void CLightProbeGrid::UpdateVolumeProbe(u32 probeIndex, const CLightProbe& oldVa
         acc.ambient[2]     -= oldValues.ambient.z * w;
         acc.skyVis         -= oldValues.skyVisibility * w;
         acc.sunVis         -= oldValues.sunVisibility * w;
-        acc.dominantDir[0] -= oldValues.dominantDir.x * w;
-        acc.dominantDir[1] -= oldValues.dominantDir.y * w;
-        acc.dominantDir[2] -= oldValues.dominantDir.z * w;
-        acc.dirRatio       -= oldValues.directionalRatio * w;
+        acc.shDir[0]       -= oldValues.shDirection.x * w;
+        acc.shDir[1]       -= oldValues.shDirection.y * w;
+        acc.shDir[2]       -= oldValues.shDirection.z * w;
         acc.pointLight[0]  -= oldValues.pointLightColor.x * w;
         acc.pointLight[1]  -= oldValues.pointLightColor.y * w;
         acc.pointLight[2]  -= oldValues.pointLightColor.z * w;
@@ -970,10 +970,9 @@ void CLightProbeGrid::UpdateVolumeProbe(u32 probeIndex, const CLightProbe& oldVa
         acc.ambient[2]     += newProbe.ambient.z * w;
         acc.skyVis         += newProbe.skyVisibility * w;
         acc.sunVis         += newProbe.sunVisibility * w;
-        acc.dominantDir[0] += newProbe.dominantDir.x * w;
-        acc.dominantDir[1] += newProbe.dominantDir.y * w;
-        acc.dominantDir[2] += newProbe.dominantDir.z * w;
-        acc.dirRatio       += newProbe.directionalRatio * w;
+        acc.shDir[0]       += newProbe.shDirection.x * w;
+        acc.shDir[1]       += newProbe.shDirection.y * w;
+        acc.shDir[2]       += newProbe.shDirection.z * w;
         acc.pointLight[0]  += newProbe.pointLightColor.x * w;
         acc.pointLight[1]  += newProbe.pointLightColor.y * w;
         acc.pointLight[2]  += newProbe.pointLightColor.z * w;
@@ -1286,7 +1285,7 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
         if (sunlitWeight > 0)
         {
             sunlitBounce.div(sunlitWeight);
-            sunlitBounce.mul(m_bounceIntensity * 0.5f);  // Half intensity for neighbor bounce
+            sunlitBounce.mul(0.15f);  // 0.3 bounce scale × 0.5 neighbor attenuation
             bounceAccum.add(sunlitBounce);
         }
     }
@@ -1336,18 +1335,17 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     // =========================================================================
     // Finalize dominant direction
     // =========================================================================
-    Fvector newDominantDir;
-    float newDirectionalRatio;
-    float dirMag = dirAccum.magnitude();
-    if (energyAccum > 0.001f && dirMag > 0.001f)
+    // L1 SH directional vector: dirAccum/energyAccum preserves both direction
+    // and magnitude (directional strength). No normalization needed — magnitude
+    // IS the signal (replaces the old directionalRatio scalar).
+    Fvector newSHDir;
+    if (energyAccum > 0.001f)
     {
-        newDominantDir.set(dirAccum).div(dirMag);
-        newDirectionalRatio = _min(dirMag / energyAccum, 1.0f);
+        newSHDir.set(dirAccum).div(energyAccum);
     }
     else
     {
-        newDominantDir.set(0, 1, 0);
-        newDirectionalRatio = 0.0f;
+        newSHDir.set(0, 0, 0);
     }
 
     // =========================================================================
@@ -1378,15 +1376,8 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     // Store environment luminance for ToD snap (used when this probe goes stale)
     probe.envLuminance = m_currentEnvLum;
 
-    // Dominant direction: lerp then re-normalize (prevents vector shrinking)
-    Fvector smoothedDir;
-    smoothedDir.lerp(probe.dominantDir, newDominantDir, blend);
-    float smoothedMag = smoothedDir.magnitude();
-    if (smoothedMag > 0.001f)
-        probe.dominantDir.set(smoothedDir).div(smoothedMag);
-    else
-        probe.dominantDir.set(0, 1, 0);
-    probe.directionalRatio = probe.directionalRatio * keep + newDirectionalRatio * blend;
+    // SH vectors lerp naturally — no re-normalization needed (magnitude IS the signal)
+    probe.shDirection.lerp(probe.shDirection, newSHDir, blend);
 
     // Point light color and intensity
     // Sanitize: clamp to prevent inf/NaN from propagating through temporal smoothing
@@ -1628,11 +1619,11 @@ void CLightProbeGrid::WriteProbeToCache(u32 probeIndex)
     texels[6] = probe.ambient.z;
     texels[7] = probe.sunVisibility;
 
-    // Texel 2: dominantDir.xyz, directionalRatio
-    texels[8]  = probe.dominantDir.x;
-    texels[9]  = probe.dominantDir.y;
-    texels[10] = probe.dominantDir.z;
-    texels[11] = probe.directionalRatio;
+    // Texel 2: shDirection.xyz, 0.0 (L1 SH directional vector)
+    texels[8]  = probe.shDirection.x;
+    texels[9]  = probe.shDirection.y;
+    texels[10] = probe.shDirection.z;
+    texels[11] = 0.0f;
 
     // Texel 3: pointLightColor.xyz, pointLightIntensity
     texels[12] = probe.pointLightColor.x;
@@ -2078,8 +2069,8 @@ void CLightProbeGrid::PropagateLight(int iterations)
             if (totalWeight > 0)
             {
                 neighborContrib.div(totalWeight);
-                // Blend: 80% self, 20% neighbors (increased: probes are now bounce authority)
-                m_propagationBuffer[i].lerp(m_probes[i].ambient, neighborContrib, 0.20f);
+                // Blend: 90% self, 10% neighbors (reduced bleed preserves indoor gradients)
+                m_propagationBuffer[i].lerp(m_probes[i].ambient, neighborContrib, 0.10f);
             }
             else
             {

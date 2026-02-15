@@ -19,7 +19,7 @@
 #define		r2_T_probe_grid		"$user$probe_grid"		// probe data for debug visualization
 // OWA: Irradiance volume textures (Texture3D, replaces spatial hash)
 #define		r2_T_probe_vol0		"$user$probe_vol0"		// ambient.rgb, skyVisibility
-#define		r2_T_probe_vol1		"$user$probe_vol1"		// dominantDir.xyz, directionalRatio
+#define		r2_T_probe_vol1		"$user$probe_vol1"		// shDirection.xyz, 0.0 (L1 SH)
 #define		r2_T_probe_vol2		"$user$probe_vol2"		// pointLightColor.rgb, sunVisibility
 
 #define		r2_T_sky0			"$user$sky0"

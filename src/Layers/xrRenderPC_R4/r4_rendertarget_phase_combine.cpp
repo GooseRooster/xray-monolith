@@ -88,6 +88,12 @@ void CRenderTarget::phase_combine()
 		}
 	}
 
+	// OWA: Sparse probe volume update — dispatch compute shader to scatter
+	// dirty voxels into volume UAVs before they're bound as SRVs below.
+	// Must run after AO passes (which also use compute) and before volume
+	// texture binding at the combine_1 setup section.
+	phase_probe_volume_update();
+
 	// Save previus and current matrices
 	Fvector2 m_blur_scale;
 	{

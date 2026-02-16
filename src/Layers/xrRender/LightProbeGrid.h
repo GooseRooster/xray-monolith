@@ -44,6 +44,7 @@ static const int   MAX_BOUNCE_LIGHTS_PER_RAY = 2;      // cap per bounce ray (co
 // Volume texture constants
 static const u32   MAX_VOLUME_VOXELS = 500000;       // cap total voxels (~24MB for 3 textures)
 static const int   NUM_VOLUME_TEXTURES = 3;           // vol0=ambient+sky, vol1=shDirection+pad, vol2=ptlight+sun
+static const u32   MAX_SPARSE_VOXEL_UPDATES = 65536;  // max dirty voxels before full upload fallback (4MB structured buffer)
 
 // Probe update quality levels
 enum EProbeQuality
@@ -110,6 +111,20 @@ struct VoxelAccum
 };
 
 //////////////////////////////////////////////////////////////////////////
+// VoxelGPUUpdate - Per-voxel data for sparse GPU scatter via compute shader
+// Must match HLSL VoxelUpdate struct layout exactly (64 bytes)
+//////////////////////////////////////////////////////////////////////////
+struct VoxelGPUUpdate
+{
+    u32   x, y, z;       // 3D voxel coordinates
+    u32   _pad0;          // Align vol0 to 16 bytes
+    float vol0[4];        // ambient.rgb, skyVisibility
+    float vol1[4];        // shDirection.xyz, 0.0
+    float vol2[4];        // pointLightColor.rgb, sunVisibility
+};
+static_assert(sizeof(VoxelGPUUpdate) == 64, "VoxelGPUUpdate must be 64 bytes for structured buffer stride");
+
+//////////////////////////////////////////////////////////////////////////
 // CLightProbeGrid - Main probe system class
 //////////////////////////////////////////////////////////////////////////
 class CLightProbeGrid
@@ -137,9 +152,16 @@ public:
     // Volume texture accessors (for render target binding)
     ID3D11Texture3D*          GetVolumeTexture(int idx) const;
     ID3D11ShaderResourceView* GetVolumeSRV(int idx) const;
+    ID3D11UnorderedAccessView* GetVolumeUAV(int idx) const;
     Fvector  GetVolumeMin() const  { return m_volMin; }
     Fvector  GetVolumeSize() const { return m_volSize; }
     float    GetVoxelSize() const  { return m_voxelSize; }
+
+    // Sparse GPU update accessors (for compute dispatch by CRenderTarget)
+    ID3D11ShaderResourceView* GetUpdateSRV() const  { return m_pUpdateSRV; }
+    u32  GetPendingUpdateCount() const               { return m_pendingUpdateCount; }
+    bool HasPendingUpdate() const                     { return m_pendingUpdateCount > 0; }
+    void ClearPendingUpdate()                         { m_pendingUpdateCount = 0; }
 
     // Grid bounds for shader constants
     Fvector GetBoundsMin() const;
@@ -172,15 +194,26 @@ private:
     // =========================================================================
     ID3D11Texture3D*           m_pVolTexture[NUM_VOLUME_TEXTURES];
     ID3D11ShaderResourceView*  m_pVolSRV[NUM_VOLUME_TEXTURES];
+    ID3D11UnorderedAccessView* m_pVolUAV[NUM_VOLUME_TEXTURES];
     Ivector  m_volDims;       // Volume dimensions in voxels
     Fvector  m_volMin;        // Volume world-space minimum
     Fvector  m_volSize;       // Volume world-space extent (max - min)
     float    m_voxelSize;     // Actual voxel size (may auto-coarsen)
-    bool     m_volDirty;      // Needs re-rasterization
+    bool     m_volDirty;      // Needs GPU update
 
     // Rasterization accumulators and staging buffers
     xr_vector<VoxelAccum>  m_volAccum;
     xr_vector<float>       m_volData[NUM_VOLUME_TEXTURES];  // 3 × float4 staging buffers for upload
+
+    // Sparse GPU update infrastructure — eliminates 24MB/frame MAP_WRITE_DISCARD
+    // NormalizeVoxel() sets dirty flags; PrepareVolumeUpdate() fills structured buffer;
+    // CRenderTarget::phase_probe_volume_update() dispatches compute shader to scatter into UAVs
+    ID3D11Buffer*              m_pUpdateBuffer;     // Structured buffer for dirty voxel data
+    ID3D11ShaderResourceView*  m_pUpdateSRV;        // SRV for structured buffer (bound to CS t0)
+    xr_vector<u8>              m_voxelDirtyFlags;   // Per-voxel dirty tracking (0 or 1)
+    u32                        m_dirtyVoxelCount;   // Number of dirty voxels this frame
+    u32                        m_pendingUpdateCount; // Updates ready in structured buffer for GPU dispatch
+    bool                       m_needFullUpload;    // Full UpdateSubresource needed (after RasterizeVolume)
 
     // =========================================================================
     // Simplified 2-tier scheduling (replaces 4-tier distance-based)
@@ -273,11 +306,12 @@ private:
     Ivector WorldToHashCell(const Fvector& pos) const;
 
     // Volume texture methods
-    void BuildVolumeTextures();    // Create Texture3D resources during Build()
+    void BuildVolumeTextures();    // Create Texture3D (DEFAULT+UAV) + structured buffer during Build()
     void RasterizeVolume();        // Full scatter-normalize (Build + time jump only)
     void UpdateVolumeProbe(u32 probeIndex, const CLightProbe& oldValues); // Incremental update
-    void NormalizeVoxel(int voxelIdx); // Re-normalize one voxel from accum → staging
-    void PrepareVolumeGPU();       // Upload staging buffers to Texture3D (MAP_WRITE_DISCARD)
+    void NormalizeVoxel(int voxelIdx); // Re-normalize one voxel from accum → staging + mark dirty
+    void PrepareVolumeUpdate();    // Fill structured buffer from dirty flags for GPU dispatch
+    void UploadFullVolume();       // UpdateSubresource for full rasterization (Build/time jump/overflow)
     void RebuildFrustumList();     // Classify probes as in/out of frustum
 
     // Neighbor connectivity and propagation

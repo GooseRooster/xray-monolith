@@ -55,6 +55,11 @@ CLightProbeGrid::CLightProbeGrid()
     , m_currentEnvLum(1.0f)
     , m_voxelSize(OUTDOOR_GRID_SPACING)
     , m_volDirty(true)
+    , m_pUpdateBuffer(nullptr)
+    , m_pUpdateSRV(nullptr)
+    , m_dirtyVoxelCount(0)
+    , m_pendingUpdateCount(0)
+    , m_needFullUpload(false)
     , m_frustumRobinIndex(0)
     , m_bgRobinIndex(0)
     , m_budgetBoostFramesLeft(0)
@@ -73,6 +78,7 @@ CLightProbeGrid::CLightProbeGrid()
     {
         m_pVolTexture[i] = nullptr;
         m_pVolSRV[i] = nullptr;
+        m_pVolUAV[i] = nullptr;
     }
 
 }
@@ -97,6 +103,10 @@ void CLightProbeGrid::Clear()
     m_volAccum.clear();
     for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
         m_volData[i].clear();
+    m_voxelDirtyFlags.clear();
+    m_dirtyVoxelCount = 0;
+    m_pendingUpdateCount = 0;
+    m_needFullUpload = false;
 
     if (m_pProbeSRV)
     {
@@ -109,9 +119,26 @@ void CLightProbeGrid::Clear()
         m_pProbeTexture = nullptr;
     }
 
+    // Release sparse update structured buffer
+    if (m_pUpdateSRV)
+    {
+        m_pUpdateSRV->Release();
+        m_pUpdateSRV = nullptr;
+    }
+    if (m_pUpdateBuffer)
+    {
+        m_pUpdateBuffer->Release();
+        m_pUpdateBuffer = nullptr;
+    }
+
     // Release volume textures
     for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
     {
+        if (m_pVolUAV[i])
+        {
+            m_pVolUAV[i]->Release();
+            m_pVolUAV[i] = nullptr;
+        }
         if (m_pVolSRV[i])
         {
             m_pVolSRV[i]->Release();
@@ -366,7 +393,8 @@ void CLightProbeGrid::Build()
     // Build volume textures and perform initial rasterization
     BuildVolumeTextures();
     RasterizeVolume();
-    PrepareVolumeGPU();
+    UploadFullVolume();
+    m_needFullUpload = false;  // Initial upload complete
 
     Msg("* [LightProbeGrid] Placed %d probes, bounds (%.1f,%.1f,%.1f) to (%.1f,%.1f,%.1f)",
         m_probes.size(),
@@ -668,6 +696,13 @@ ID3D11ShaderResourceView* CLightProbeGrid::GetVolumeSRV(int idx) const
     return nullptr;
 }
 
+ID3D11UnorderedAccessView* CLightProbeGrid::GetVolumeUAV(int idx) const
+{
+    if (idx >= 0 && idx < NUM_VOLUME_TEXTURES)
+        return m_pVolUAV[idx];
+    return nullptr;
+}
+
 void CLightProbeGrid::BuildVolumeTextures()
 {
     if (m_probes.empty()) return;
@@ -706,9 +741,13 @@ void CLightProbeGrid::BuildVolumeTextures()
     Msg("* [LightProbeGrid] Building volume textures: %dx%dx%d = %d voxels (%.1fm voxel size)",
         volX, volY, volZ, totalVoxels, m_voxelSize);
 
-    // Create 3 × Texture3D with D3D11_USAGE_DYNAMIC
+    // Create 3 × Texture3D with D3D11_USAGE_DEFAULT + UAV
+    // DEFAULT usage: persistent GPU memory, no per-frame reallocation.
+    // Sparse updates via compute shader (structured buffer → UAV scatter).
+    // Full uploads via UpdateSubresource (Build/time jump only).
     for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
     {
+        if (m_pVolUAV[i]) { m_pVolUAV[i]->Release(); m_pVolUAV[i] = nullptr; }
         if (m_pVolSRV[i]) { m_pVolSRV[i]->Release(); m_pVolSRV[i] = nullptr; }
         if (m_pVolTexture[i]) { m_pVolTexture[i]->Release(); m_pVolTexture[i] = nullptr; }
 
@@ -718,9 +757,9 @@ void CLightProbeGrid::BuildVolumeTextures()
         texDesc.Depth = volZ;
         texDesc.MipLevels = 1;
         texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-        texDesc.Usage = D3D11_USAGE_DYNAMIC;
-        texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-        texDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        texDesc.Usage = D3D11_USAGE_DEFAULT;
+        texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_UNORDERED_ACCESS;
+        texDesc.CPUAccessFlags = 0;
 
         HRESULT hr = HW.pDevice->CreateTexture3D(&texDesc, nullptr, &m_pVolTexture[i]);
         if (FAILED(hr))
@@ -729,21 +768,74 @@ void CLightProbeGrid::BuildVolumeTextures()
             return;
         }
 
-        // Create SRV with NULL desc — auto-detects Texture3D dimension
+        // Create SRV (auto-detects Texture3D dimension)
         hr = HW.pDevice->CreateShaderResourceView(m_pVolTexture[i], nullptr, &m_pVolSRV[i]);
         if (FAILED(hr))
         {
             Msg("! [LightProbeGrid] CreateSRV[%d] failed: 0x%08X", i, hr);
             return;
         }
+
+        // Create UAV for compute shader scatter writes
+        D3D11_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+        uavDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+        uavDesc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE3D;
+        uavDesc.Texture3D.MipSlice = 0;
+        uavDesc.Texture3D.FirstWSlice = 0;
+        uavDesc.Texture3D.WSize = volZ;
+
+        hr = HW.pDevice->CreateUnorderedAccessView(m_pVolTexture[i], &uavDesc, &m_pVolUAV[i]);
+        if (FAILED(hr))
+        {
+            Msg("! [LightProbeGrid] CreateUAV[%d] failed: 0x%08X", i, hr);
+            return;
+        }
     }
 
-    // Allocate accumulator and staging buffers
+    // Create structured buffer for sparse voxel updates
+    // CPU fills via MAP_WRITE_DISCARD (tiny: ~64KB normal frame vs 24MB full volume)
+    {
+        if (m_pUpdateSRV) { m_pUpdateSRV->Release(); m_pUpdateSRV = nullptr; }
+        if (m_pUpdateBuffer) { m_pUpdateBuffer->Release(); m_pUpdateBuffer = nullptr; }
+
+        D3D11_BUFFER_DESC bufDesc = {};
+        bufDesc.ByteWidth = MAX_SPARSE_VOXEL_UPDATES * sizeof(VoxelGPUUpdate);
+        bufDesc.Usage = D3D11_USAGE_DYNAMIC;
+        bufDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+        bufDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+        bufDesc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+        bufDesc.StructureByteStride = sizeof(VoxelGPUUpdate);
+
+        HRESULT hr = HW.pDevice->CreateBuffer(&bufDesc, nullptr, &m_pUpdateBuffer);
+        if (FAILED(hr))
+        {
+            Msg("! [LightProbeGrid] CreateBuffer (structured) failed: 0x%08X", hr);
+            return;
+        }
+
+        D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;  // Required for structured buffers
+        srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.NumElements = MAX_SPARSE_VOXEL_UPDATES;
+
+        hr = HW.pDevice->CreateShaderResourceView(m_pUpdateBuffer, &srvDesc, &m_pUpdateSRV);
+        if (FAILED(hr))
+        {
+            Msg("! [LightProbeGrid] CreateSRV (structured) failed: 0x%08X", hr);
+            return;
+        }
+    }
+
+    // Allocate accumulator, staging buffers, and dirty tracking
     m_volAccum.resize(totalVoxels);
     for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
         m_volData[i].resize(totalVoxels * 4);  // 4 floats per voxel
+    m_voxelDirtyFlags.resize(totalVoxels, 0);
+    m_dirtyVoxelCount = 0;
+    m_pendingUpdateCount = 0;
 
-    m_volDirty = true;
+    m_needFullUpload = true;  // First upload after build is always full
 }
 
 void CLightProbeGrid::RasterizeVolume()
@@ -883,7 +975,7 @@ void CLightProbeGrid::RasterizeVolume()
 }
 
 //////////////////////////////////////////////////////////////////////////
-// NormalizeVoxel — re-normalize one voxel from accum → staging buffers
+// NormalizeVoxel — re-normalize one voxel from accum → staging + mark dirty
 //////////////////////////////////////////////////////////////////////////
 void CLightProbeGrid::NormalizeVoxel(int voxelIdx)
 {
@@ -904,6 +996,13 @@ void CLightProbeGrid::NormalizeVoxel(int voxelIdx)
     m_volData[2][voxelIdx * 4 + 1] = acc.pointLight[1] * invW;
     m_volData[2][voxelIdx * 4 + 2] = acc.pointLight[2] * invW;
     m_volData[2][voxelIdx * 4 + 3] = acc.sunVis * invW;
+
+    // Track dirty voxel for sparse GPU update (deduplicates via flag)
+    if (!m_voxelDirtyFlags.empty() && !m_voxelDirtyFlags[voxelIdx])
+    {
+        m_voxelDirtyFlags[voxelIdx] = 1;
+        m_dirtyVoxelCount++;
+    }
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -984,47 +1083,77 @@ void CLightProbeGrid::UpdateVolumeProbe(u32 probeIndex, const CLightProbe& oldVa
     m_volDirty = true;  // Mark for GPU upload (cheap memcpy only, no rasterization)
 }
 
-void CLightProbeGrid::PrepareVolumeGPU()
+//////////////////////////////////////////////////////////////////////////
+// UploadFullVolume — UpdateSubresource for bulk uploads (Build/time jump/overflow)
+// Used when too many voxels changed for sparse path or after full RasterizeVolume().
+//////////////////////////////////////////////////////////////////////////
+void CLightProbeGrid::UploadFullVolume()
 {
     if (m_volDims.x == 0 || m_volDims.y == 0 || m_volDims.z == 0) return;
+
+    u32 rowPitch   = m_volDims.x * 4 * sizeof(float);  // 16 bytes per voxel
+    u32 depthPitch = rowPitch * m_volDims.y;
 
     for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
     {
         if (!m_pVolTexture[i] || m_volData[i].empty()) continue;
+        HW.pContext->UpdateSubresource(m_pVolTexture[i], 0, nullptr,
+            m_volData[i].data(), rowPitch, depthPitch);
+    }
+}
 
-        D3D11_MAPPED_SUBRESOURCE mapped;
-        if (SUCCEEDED(HW.pContext->Map(m_pVolTexture[i], 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-        {
-            // Texture3D layout: RowPitch = bytes per row (width), DepthPitch = bytes per slice (width × height)
-            u32 srcRowPitch = m_volDims.x * 4 * sizeof(float);  // 16 bytes per voxel
-            u32 srcDepthPitch = srcRowPitch * m_volDims.y;
+//////////////////////////////////////////////////////////////////////////
+// PrepareVolumeUpdate — fill structured buffer from dirty flags
+// CPU iterates dirty flag bitset, packs voxel data into VoxelGPUUpdate entries,
+// uploads via MAP_WRITE_DISCARD on the structured buffer (~64KB typical).
+// CRenderTarget::phase_probe_volume_update() dispatches the compute shader later.
+//////////////////////////////////////////////////////////////////////////
+void CLightProbeGrid::PrepareVolumeUpdate()
+{
+    if (!m_pUpdateBuffer || m_dirtyVoxelCount == 0) return;
 
-            if (mapped.RowPitch == srcRowPitch && mapped.DepthPitch == srcDepthPitch)
-            {
-                // Pitches match — single memcpy
-                memcpy(mapped.pData, m_volData[i].data(), m_volData[i].size() * sizeof(float));
-            }
-            else
-            {
-                // Copy row by row, slice by slice (handles GPU padding)
-                const float* src = m_volData[i].data();
-                u8* dst = (u8*)mapped.pData;
+    u32 totalVoxels = m_volDims.x * m_volDims.y * m_volDims.z;
+    int sliceStride = m_volDims.x * m_volDims.y;
 
-                for (int z = 0; z < m_volDims.z; z++)
-                {
-                    for (int y = 0; y < m_volDims.y; y++)
-                    {
-                        const float* srcRow = src + (z * m_volDims.y + y) * m_volDims.x * 4;
-                        u8* dstRow = dst + z * mapped.DepthPitch + y * mapped.RowPitch;
-                        memcpy(dstRow, srcRow, srcRowPitch);
-                    }
-                }
-            }
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    if (FAILED(HW.pContext->Map(m_pUpdateBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+        return;
 
-            HW.pContext->Unmap(m_pVolTexture[i], 0);
-        }
+    VoxelGPUUpdate* updates = (VoxelGPUUpdate*)mapped.pData;
+    u32 count = 0;
+
+    for (u32 v = 0; v < totalVoxels && count < MAX_SPARSE_VOXEL_UPDATES; v++)
+    {
+        if (!m_voxelDirtyFlags[v]) continue;
+
+        VoxelGPUUpdate& u = updates[count];
+
+        // Convert flat index to 3D coordinates
+        int z = v / sliceStride;
+        int remainder = v - z * sliceStride;
+        int y = remainder / m_volDims.x;
+        int x = remainder - y * m_volDims.x;
+
+        u.x = (u32)x;
+        u.y = (u32)y;
+        u.z = (u32)z;
+        u._pad0 = 0;
+
+        // Pack staging buffer data
+        memcpy(u.vol0, &m_volData[0][v * 4], 4 * sizeof(float));
+        memcpy(u.vol1, &m_volData[1][v * 4], 4 * sizeof(float));
+        memcpy(u.vol2, &m_volData[2][v * 4], 4 * sizeof(float));
+
+        count++;
     }
 
+    HW.pContext->Unmap(m_pUpdateBuffer, 0);
+
+    m_pendingUpdateCount = count;
+
+    // Clear dirty tracking
+    memset(m_voxelDirtyFlags.data(), 0, totalVoxels);
+    m_dirtyVoxelCount = 0;
     m_volDirty = false;
 }
 
@@ -1459,7 +1588,7 @@ void CLightProbeGrid::Update()
                     m_gpuBufferDirty = true;
                     // Full rasterization needed — all probes changed at once
                     RasterizeVolume();
-                    m_volDirty = true;  // Trigger GPU upload
+                    m_needFullUpload = true;  // Trigger full UpdateSubresource
                 }
                 m_temporalBlend = 1.0f;  // Instant snap for subsequent ray updates
                 m_budgetBoostFramesLeft = 120;  // 4× budget for ~2 seconds
@@ -1571,17 +1700,41 @@ void CLightProbeGrid::Update()
     m_lastUpdateTimeMs = updateTimer.GetElapsed_sec() * 1000.0f;
 
     // =========================================================================
-    // GPU upload
+    // GPU upload — sparse compute dispatch or full UpdateSubresource
     // =========================================================================
     u32 uploadInterval = (u32)_max(1, ps_r_probe_upload_rate);
     bool shouldUpload = (m_currentFrame - m_lastUploadFrame >= uploadInterval);
 
-    // Volume texture upload — staging buffers are kept up-to-date by
-    // UpdateVolumeProbe() (incremental per-probe updates), so we only
-    // need to memcpy them to the Texture3D here. No full rasterization.
-    if (m_volDirty && shouldUpload)
+    if (m_needFullUpload && shouldUpload)
     {
-        PrepareVolumeGPU();
+        // Full rasterization just happened (Build/time jump) — upload entire volume
+        UploadFullVolume();
+        m_needFullUpload = false;
+        m_dirtyVoxelCount = 0;
+        m_pendingUpdateCount = 0;
+        if (!m_voxelDirtyFlags.empty())
+            memset(m_voxelDirtyFlags.data(), 0, m_voxelDirtyFlags.size());
+        m_volDirty = false;
+        m_lastUploadFrame = m_currentFrame;
+    }
+    else if (m_volDirty && shouldUpload)
+    {
+        if (m_dirtyVoxelCount > MAX_SPARSE_VOXEL_UPDATES)
+        {
+            // Too many dirty voxels for sparse path — fall back to full upload
+            UploadFullVolume();
+            m_dirtyVoxelCount = 0;
+            m_pendingUpdateCount = 0;
+            if (!m_voxelDirtyFlags.empty())
+                memset(m_voxelDirtyFlags.data(), 0, m_voxelDirtyFlags.size());
+            m_volDirty = false;
+        }
+        else
+        {
+            // Sparse path: fill structured buffer for compute dispatch
+            // Actual GPU dispatch happens in CRenderTarget::phase_probe_volume_update()
+            PrepareVolumeUpdate();
+        }
         m_lastUploadFrame = m_currentFrame;
     }
 

@@ -30,6 +30,8 @@
 
 // OWA XeGTAO - Intel's Ground Truth Ambient Occlusion
 #include "blender_cs_xegtao.h"
+// OWA Probe Volume - Sparse compute update for irradiance volumes
+#include "blender_cs_probe_volume.h"
 
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../xrRender/xrRender_console.h"
@@ -455,6 +457,8 @@ CRenderTarget::CRenderTarget()
 	b_ssao = xr_new<CBlender_SSAO_noMSAA>();
 	// OWA XeGTAO - Intel's Ground Truth Ambient Occlusion (compute shader)
 	b_cs_xegtao = xr_new<CBlender_CS_XeGTAO>();
+	// OWA Probe Volume - sparse compute update for irradiance volumes
+	b_cs_probe_volume = xr_new<CBlender_CS_ProbeVolume>();
 	///////////////////////////////////lvutner
 	b_sunshafts = xr_new<CBlender_sunshafts>();
 	b_blur = xr_new<CBlender_blur>();
@@ -1030,6 +1034,7 @@ CRenderTarget::CRenderTarget()
 
 	// OWA XeGTAO compute shader - Intel's Ground Truth Ambient Occlusion
 	s_xegtao.create(b_cs_xegtao, "r2\\xegtao");
+	s_probe_volume_cs.create(b_cs_probe_volume, "r2\\probe_volume");
 
 	// COMBINE
 	{
@@ -1522,6 +1527,7 @@ CRenderTarget::~CRenderTarget()
 	xr_delete(b_ssfx_sss); // SSS Phase
 	xr_delete(b_ssfx_volumetric_blur); // Volumetric Phase
 	xr_delete(b_cs_xegtao); // OWA: XeGTAO compute
+	xr_delete(b_cs_probe_volume); // OWA: Probe volume compute
 
 	if (RImplementation.o.dx10_msaa)
 	{

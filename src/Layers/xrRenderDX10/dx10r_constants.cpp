@@ -379,6 +379,12 @@ BOOL R_constant_table::parse(void* _desc, u32 destination)
 			pTable = pReflection->GetConstantBufferByIndex(iBuf);
 			if (pTable)
 			{
+				// Skip non-cbuffer entries (StructuredBuffer type descriptions appear
+				// as "constant buffers" in D3D reflection with D3D_CT_RESOURCE_BIND_INFO type)
+				D3D_SHADER_BUFFER_DESC bufDesc;
+				pTable->GetDesc(&bufDesc);
+				if (bufDesc.Type != D3D_CT_CBUFFER)
+					continue;
 				//	Encode buffer index into destination
 				u32 updatedDest = destination;
 				updatedDest |= iBuf << dest_to_shift_value(destination); /*((destination&RC_dest_pixel)

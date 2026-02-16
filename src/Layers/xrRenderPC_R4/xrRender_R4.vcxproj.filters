@@ -330,6 +330,9 @@
     <ClInclude Include="blender_cs_xegtao.h">
       <Filter>Shading templates</Filter>
     </ClInclude>
+    <ClInclude Include="blender_cs_probe_volume.h">
+      <Filter>Shading templates</Filter>
+    </ClInclude>
     <ClInclude Include="dx11HDAOCSBlender.h">
       <Filter>Shading templates</Filter>
     </ClInclude>
@@ -986,6 +989,9 @@
     <ClCompile Include="blender_cs_xegtao.cpp">
       <Filter>Shading templates</Filter>
     </ClCompile>
+    <ClCompile Include="blender_cs_probe_volume.cpp">
+      <Filter>Shading templates</Filter>
+    </ClCompile>
     <ClCompile Include="dx11HDAOCSBlender.cpp">
       <Filter>Shading templates</Filter>
     </ClCompile>
@@ -1137,6 +1143,9 @@
       <Filter>Core_Target</Filter>
     </ClCompile>
     <ClCompile Include="r4_rendertarget_phase_xegtao.cpp">
+      <Filter>Core_Target</Filter>
+    </ClCompile>
+    <ClCompile Include="r4_rendertarget_phase_probe_volume.cpp">
       <Filter>Core_Target</Filter>
     </ClCompile>
     <ClCompile Include="..\xrRender\ColorMapManager.cpp">

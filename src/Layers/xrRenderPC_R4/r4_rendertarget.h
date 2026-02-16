@@ -81,6 +81,7 @@ public:
 	IBlender* b_blur_pl; // OWA: Perceptual Lighting cascaded blur
 	IBlender* b_perceptual_lighting; // OWA: Perceptual Lighting final composite
 	IBlender* b_cs_xegtao; // OWA: XeGTAO compute shader (Intel GTAO)
+	IBlender* b_cs_probe_volume; // OWA: Probe volume sparse update compute shader
 
 #ifdef DEBUG
 	struct		dbg_line_t		{
@@ -312,6 +313,9 @@ private:
 	// OWA XeGTAO
 	ref_shader s_xegtao;
 
+	// OWA Probe Volume Compute Update
+	ref_shader s_probe_volume_cs;
+
 	ref_geom g_accum_point;
 	ref_geom g_accum_spot;
 	ref_geom g_accum_omnipart;
@@ -440,6 +444,7 @@ public:
 	void phase_occq();
 	void phase_ssao();
 	void phase_xegtao(); // OWA: XeGTAO (Intel GTAO)
+	void phase_probe_volume_update(); // OWA: Sparse probe volume compute dispatch
 	void phase_hdao();
 	void phase_downsamp();
 	void phase_wallmarks();

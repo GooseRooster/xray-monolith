@@ -29,7 +29,7 @@
 #include "blender_bloom_multiscale.h"
 
 // OWA XeGTAO - Intel's Ground Truth Ambient Occlusion
-#include "blender_xegtao.h"
+#include "blender_cs_xegtao.h"
 
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../xrRender/xrRender_console.h"
@@ -453,8 +453,8 @@ CRenderTarget::CRenderTarget()
 	b_bloom_downsample = xr_new<CBlender_bloom_downsample>();
 	b_bloom_upsample = xr_new<CBlender_bloom_upsample>();
 	b_ssao = xr_new<CBlender_SSAO_noMSAA>();
-	// OWA XeGTAO - Intel's Ground Truth Ambient Occlusion
-	b_xegtao = xr_new<CBlender_XeGTAO>();
+	// OWA XeGTAO - Intel's Ground Truth Ambient Occlusion (compute shader)
+	b_cs_xegtao = xr_new<CBlender_CS_XeGTAO>();
 	///////////////////////////////////lvutner
 	b_sunshafts = xr_new<CBlender_sunshafts>();
 	b_blur = xr_new<CBlender_blur>();
@@ -683,13 +683,14 @@ CRenderTarget::CRenderTarget()
 
 		rt_ssfx_prevPos.create(r2_RT_ssfx_prevPos, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 
-		// OWA XeGTAO render targets
+		// OWA XeGTAO render targets (compute shader — all need UAV)
 		// rt_gtao: 16-bit for bent normals precision (RGB = bent normal, A = obscurance)
-		// rt_gtao_edges: 8-bit for packed edge data (4 edges, 2 bits each)
-		// rt_gtao_temp: same format as rt_gtao, used to avoid read/write hazard in denoise pass
-		rt_gtao.create(r2_RT_gtao, w, h, D3DFMT_A16B16G16R16F, SampleCount);
-		rt_gtao_edges.create(r2_RT_gtao_edges, w, h, D3DFMT_L8);
-		rt_gtao_temp.create(r2_RT_gtao_temp, w, h, D3DFMT_A16B16G16R16F, SampleCount);
+		// rt_gtao_edges: 8-bit for packed edge data (L8 → R8_UNORM, supports UAV)
+		// rt_gtao_temp: same format as rt_gtao, used for main pass output when denoise is active
+		// Note: SampleCount=1 for UAV targets — compute handles MSAA G-buffer via Texture2DMS.Load
+		rt_gtao.create(r2_RT_gtao, w, h, D3DFMT_A16B16G16R16F, 1, true);
+		rt_gtao_edges.create(r2_RT_gtao_edges, w, h, D3DFMT_L8, 1, true);
+		rt_gtao_temp.create(r2_RT_gtao_temp, w, h, D3DFMT_A16B16G16R16F, 1, true);
 
 		//rt_ssfx_hud.create(r2_RT_ssfx_hud, w, h, D3DFMT_A16B16G16R16F); // Deprecated
 
@@ -1027,8 +1028,8 @@ CRenderTarget::CRenderTarget()
 	//}
 
 
-	// OWA XeGTAO shader - Intel's Ground Truth Ambient Occlusion
-	s_xegtao.create(b_xegtao, "r2\\xegtao");
+	// OWA XeGTAO compute shader - Intel's Ground Truth Ambient Occlusion
+	s_xegtao.create(b_cs_xegtao, "r2\\xegtao");
 
 	// COMBINE
 	{
@@ -1520,6 +1521,7 @@ CRenderTarget::~CRenderTarget()
 	xr_delete(b_ssfx_sss_ext); // SSS Phase Ext
 	xr_delete(b_ssfx_sss); // SSS Phase
 	xr_delete(b_ssfx_volumetric_blur); // Volumetric Phase
+	xr_delete(b_cs_xegtao); // OWA: XeGTAO compute
 
 	if (RImplementation.o.dx10_msaa)
 	{

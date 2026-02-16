@@ -327,7 +327,7 @@
     <ClInclude Include="blender_ssao.h">
       <Filter>Shading templates</Filter>
     </ClInclude>
-    <ClInclude Include="blender_xegtao.h">
+    <ClInclude Include="blender_cs_xegtao.h">
       <Filter>Shading templates</Filter>
     </ClInclude>
     <ClInclude Include="dx11HDAOCSBlender.h">
@@ -983,7 +983,7 @@
     <ClCompile Include="blender_ssao.cpp">
       <Filter>Shading templates</Filter>
     </ClCompile>
-    <ClCompile Include="blender_xegtao.cpp">
+    <ClCompile Include="blender_cs_xegtao.cpp">
       <Filter>Shading templates</Filter>
     </ClCompile>
     <ClCompile Include="dx11HDAOCSBlender.cpp">

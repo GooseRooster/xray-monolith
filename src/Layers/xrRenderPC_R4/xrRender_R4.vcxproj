@@ -486,7 +486,7 @@
     <ClInclude Include="blender_bloom_multiscale.h" />
     <ClInclude Include="blender_smaa.h" />
     <ClInclude Include="blender_ssao.h" />
-    <ClInclude Include="blender_xegtao.h" />
+    <ClInclude Include="blender_cs_xegtao.h" />
     <ClInclude Include="blender_ss_sunshafts.h" />
     <ClInclude Include="..\..\xrEngine\cl_intersect.h" />
     <ClInclude Include="ComputeShader.h" />
@@ -681,7 +681,7 @@
     <ClCompile Include="blender_bloom_multiscale.cpp" />
     <ClCompile Include="blender_smaa.cpp" />
     <ClCompile Include="blender_ssao.cpp" />
-    <ClCompile Include="blender_xegtao.cpp" />
+    <ClCompile Include="blender_cs_xegtao.cpp" />
     <ClCompile Include="blender_ss_sunshafts.cpp" />
     <ClCompile Include="ComputeShader.cpp" />
     <ClCompile Include="CSCompiler.cpp" />

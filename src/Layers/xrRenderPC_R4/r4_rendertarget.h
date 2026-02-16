@@ -80,7 +80,7 @@ public:
 	IBlender* b_ssfx_volumetric_blur;
 	IBlender* b_blur_pl; // OWA: Perceptual Lighting cascaded blur
 	IBlender* b_perceptual_lighting; // OWA: Perceptual Lighting final composite
-	IBlender* b_xegtao; // OWA: XeGTAO (Intel GTAO)
+	IBlender* b_cs_xegtao; // OWA: XeGTAO compute shader (Intel GTAO)
 
 #ifdef DEBUG
 	struct		dbg_line_t		{

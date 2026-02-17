@@ -209,6 +209,32 @@ private:
 
 	void Invalidate();
 public:
+#ifdef USE_DX11
+	// Invalidate the compute shader texture cache at BOTH levels:
+	// 1. CBackend::textures_cs[] (CTexture* pointers)
+	// 2. SRVSManager::m_CSViews[] (ID3D11ShaderResourceView* pointers)
+	// Required before set_Textures() in any CS phase where a prior phase nullified
+	// GPU CS SRVs via direct CSSetShaderResources() (bypassing the SRVSManager).
+	// Without this, both caches stay stale and the same-texture rebind is silently skipped.
+	void InvalidateCSTextureCache();
+#endif
+
+	// Invalidate a single CTexture entry in the PS texture cache.
+	// Required when surface_set() changes a CTexture's underlying SRV but the cache
+	// still holds the same CTexture pointer, causing set_Textures() to skip rebind.
+	// Used by ping-pong double-buffering where the same CTexture alternates GPU surfaces.
+	IC void InvalidatePSTextureCacheFor(CTexture* tex)
+	{
+		for (u32 i = 0; i < mtMaxPixelShaderTextures; ++i)
+		{
+			if (textures_ps[i] == tex)
+			{
+				textures_ps[i] = nullptr;
+				break;
+			}
+		}
+	}
+
 	struct _stats
 	{
 		u32 polys;

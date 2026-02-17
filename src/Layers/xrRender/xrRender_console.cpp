@@ -61,6 +61,11 @@ int   ps_r_probe_bounce_lights = 2;    // Max point lights per bounce ray (0=dis
 float ps_r_probe_ambient_floor = 0.15f; // Minimum ambient in deepest interior (0.0-0.5)
 float ps_r_probe_gi_boost = 3.0f;      // GI multiplicative lift on base ambient (0.0-10.0)
 
+// OWA SSPE: Screen-Space Probe Enhancement
+float ps_r_sspe_radius       = 2.0f;   // World-space meters (sample reach)
+float ps_r_sspe_intensity    = 0.3f;   // Multiplicative scale on bounce
+float ps_r_sspe_max_distance = 100.0f; // Fadeout distance (meters)
+
 u32 ps_r_sun_shafts = 2;
 xr_token qsun_shafts_token [ ] = {
 	{"st_opt_low", 1},
@@ -1215,13 +1220,17 @@ void xrRender_initconsole()
 	// OWA: Probe lighting system for static lighting mode
 	CMD4(CCC_Integer, "r_probe_update_rate", &ps_r_probe_update_rate, 10, 200);
 	CMD4(CCC_Float, "r_probe_bounce_intensity", &ps_r_probe_bounce_intensity, 0.0f, 1.0f);
-	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 8);
+	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 9);
 	CMD4(CCC_Float, "r_probe_max_distance", &ps_r_probe_max_distance, 30.0f, 500.0f);
 	CMD4(CCC_Integer, "r_probe_upload_rate", &ps_r_probe_upload_rate, 1, 16);
 	CMD4(CCC_Float, "r_probe_chroma_blend", &ps_r_probe_chroma_blend, 0.0f, 1.0f);
 	CMD4(CCC_Integer, "r_probe_bounce_lights", &ps_r_probe_bounce_lights, 0, 3);
 	CMD4(CCC_Float, "r_probe_ambient_floor", &ps_r_probe_ambient_floor, 0.0f, 0.5f);
 	CMD4(CCC_Float, "r_probe_gi_boost", &ps_r_probe_gi_boost, 0.0f, 10.0f);
+	// OWA SSPE: Screen-Space Probe Enhancement
+	CMD4(CCC_Float, "r_sspe_radius", &ps_r_sspe_radius, 0.5f, 5.0f);
+	CMD4(CCC_Float, "r_sspe_intensity", &ps_r_sspe_intensity, 0.0f, 2.0f);
+	CMD4(CCC_Float, "r_sspe_max_distance", &ps_r_sspe_max_distance, 10.0f, 500.0f);
 	// OWA: Point light shadows (high-end option, expensive - 6 shadow passes per point light)
 	CMD4(CCC_Integer, "r4_point_light_shadows", &ps_r4_point_light_shadows, 0, 1);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);

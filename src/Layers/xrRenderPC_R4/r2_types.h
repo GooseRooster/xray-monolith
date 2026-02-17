@@ -134,6 +134,11 @@
 #define		r2_RT_gtao_edges		"$user$gtao_edges"	// Packed edge data for denoise
 #define		r2_RT_gtao_temp			"$user$gtao_temp"	// Temp copy for denoise read/write hazard
 
+// OWA SSPE - Screen-Space Probe Enhancement (additive color bounce on top of probe GI)
+#define		r2_RT_sspe				"$user$sspe"		// RGB = bounce color, A = confidence
+#define		r2_RT_sspe_prev			"$user$sspe_prev"	// Previous frame for temporal EMA
+#define		r2_RT_sspe_scene		"$user$sspe_scene"	// Copy of combine_1 output for next-frame SSPE reads
+
 #define		JITTER(a) r2_jitter #a
 
 const float SMAP_near_plane = .1f;

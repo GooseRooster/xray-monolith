@@ -9,6 +9,9 @@
 extern int   ps_r3_ssfx_il;
 extern float ps_r_probe_bounce_intensity;
 extern float ps_r_probe_chroma_blend;
+// OWA: SSPE console variables
+extern float ps_r_sspe_max_distance;
+extern float ps_r_sspe_intensity;
 
 #define STENCIL_CULL 0
 
@@ -93,6 +96,11 @@ void CRenderTarget::phase_combine()
 	// Must run after AO passes (which also use compute) and before volume
 	// texture binding at the combine_1 setup section.
 	phase_probe_volume_update();
+
+	// OWA: Screen-Space Probe Enhancement — compute screen-space color bounce
+	// from G-buffer lit surfaces. Must run after probe volume update (needs vol SRVs)
+	// and before combine_1 draw (which reads rt_sspe).
+	phase_sspe();
 
 	// Save previus and current matrices
 	Fvector2 m_blur_scale;
@@ -330,6 +338,8 @@ void CRenderTarget::phase_combine()
 			Fvector volSize = g_LightProbeGrid->GetVolumeSize();
 			RCache.set_c("probe_vol_min",  volMin.x,  volMin.y,  volMin.z,  g_LightProbeGrid->GetVoxelSize());
 			RCache.set_c("probe_vol_size", volSize.x, volSize.y, volSize.z, ps_r_probe_gi_boost);
+			// OWA SSPE: Pass max distance for combine_1.ps distance fade
+			RCache.set_c("sspe_params2", ps_r_sspe_max_distance, ps_r_sspe_intensity, 0.0f, 0.0f);
 		};
 
 		// Draw
@@ -380,6 +390,12 @@ void CRenderTarget::phase_combine()
 			RCache.set_Stencil(FALSE, D3DCMP_EQUAL, 0x01, 0xff, 0);
 		}
 	}
+
+	// OWA: Copy combine_1 output for SSPE to read next frame.
+	// rt_Generic_0 is volatile — water, forward, volumetric, AA all overwrite it.
+	// This copy persists across frames so SSPE reads stable, composited scene data.
+	if (!RImplementation.o.dx10_msaa)
+		HW.pContext->CopyResource(rt_sspe_scene->pTexture->surface_get(), rt_Generic_0->pTexture->surface_get());
 
 	// OWA: Only copy rt_Generic to temp if water SSR needs it
 	// o.ssfx_water now includes r3_ssfx_water check (compile-time)

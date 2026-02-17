@@ -33,6 +33,10 @@ void dx10ShaderResourceStateCache::ResetDeviceState()
 
 	m_uiMinDSView = 0xFFFFFFFF;
 	m_uiMaxDSView = 0xFFFFFFFF;
+
+	ZeroMemory(m_CSViews, sizeof(m_CSViews));
+	m_uiMinCSView = 0xFFFFFFFF;
+	m_uiMaxCSView = 0xFFFFFFFF;
 #endif
 
 	m_bUpdatePSViews = false;
@@ -41,6 +45,7 @@ void dx10ShaderResourceStateCache::ResetDeviceState()
 #ifdef USE_DX11
 	m_bUpdateDSViews = false;
 	m_bUpdateHSViews = false;
+	m_bUpdateCSViews = false;
 #endif
 }
 
@@ -222,5 +227,13 @@ void dx10ShaderResourceStateCache::SetCSResource(u32 uiSlot, ID3DShaderResourceV
 			m_uiMaxCSView = uiSlot;
 		}
 	}
+}
+
+void dx10ShaderResourceStateCache::InvalidateCSViews()
+{
+	ZeroMemory(m_CSViews, sizeof(m_CSViews));
+	m_bUpdateCSViews = false;
+	m_uiMinCSView = 0xFFFFFFFF;
+	m_uiMaxCSView = 0xFFFFFFFF;
 }
 #endif

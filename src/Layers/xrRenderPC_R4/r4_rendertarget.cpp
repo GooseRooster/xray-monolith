@@ -32,6 +32,8 @@
 #include "blender_cs_xegtao.h"
 // OWA Probe Volume - Sparse compute update for irradiance volumes
 #include "blender_cs_probe_volume.h"
+// OWA SSPE - Screen-Space Probe Enhancement
+#include "blender_cs_sspe.h"
 
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../xrRender/xrRender_console.h"
@@ -459,6 +461,8 @@ CRenderTarget::CRenderTarget()
 	b_cs_xegtao = xr_new<CBlender_CS_XeGTAO>();
 	// OWA Probe Volume - sparse compute update for irradiance volumes
 	b_cs_probe_volume = xr_new<CBlender_CS_ProbeVolume>();
+	// OWA SSPE - Screen-Space Probe Enhancement (compute shader)
+	b_cs_sspe = xr_new<CBlender_CS_SSPE>();
 	///////////////////////////////////lvutner
 	b_sunshafts = xr_new<CBlender_sunshafts>();
 	b_blur = xr_new<CBlender_blur>();
@@ -695,6 +699,19 @@ CRenderTarget::CRenderTarget()
 		rt_gtao.create(r2_RT_gtao, w, h, D3DFMT_A16B16G16R16F, 1, true);
 		rt_gtao_edges.create(r2_RT_gtao_edges, w, h, D3DFMT_L8, 1, true);
 		rt_gtao_temp.create(r2_RT_gtao_temp, w, h, D3DFMT_A16B16G16R16F, 1, true);
+
+		// OWA SSPE render targets (half-resolution, compute shader)
+		// Ping-pong double-buffer: both UAV-capable, alternate write/read each frame
+		// Device.dwFrame & 1 determines which is written and which is read as "previous"
+		rt_sspe.create(r2_RT_sspe, w / 2, h / 2, D3DFMT_A16B16G16R16F, 1, true);
+		rt_sspe_prev.create(r2_RT_sspe_prev, w / 2, h / 2, D3DFMT_A16B16G16R16F, 1, true);
+		// Persistent copy of combine_1 output for SSPE to read next frame.
+		// rt_Generic_0 is volatile (water, forward, volumetric, AA overwrite it each frame),
+		// so we CopyResource here after combine_1 finishes. Same format for CopyResource compat.
+		if (use_hires_format)
+			rt_sspe_scene.create(r2_RT_sspe_scene, w, h, D3DFMT_A16B16G16R16F, 1);
+		else
+			rt_sspe_scene.create(r2_RT_sspe_scene, w, h, D3DFMT_A8R8G8B8, 1);
 
 		//rt_ssfx_hud.create(r2_RT_ssfx_hud, w, h, D3DFMT_A16B16G16R16F); // Deprecated
 
@@ -1035,6 +1052,8 @@ CRenderTarget::CRenderTarget()
 	// OWA XeGTAO compute shader - Intel's Ground Truth Ambient Occlusion
 	s_xegtao.create(b_cs_xegtao, "r2\\xegtao");
 	s_probe_volume_cs.create(b_cs_probe_volume, "r2\\probe_volume");
+	// OWA SSPE - Screen-Space Probe Enhancement compute shader
+	s_sspe.create(b_cs_sspe, "r2\\sspe");
 
 	// COMBINE
 	{

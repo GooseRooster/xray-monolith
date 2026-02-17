@@ -7,6 +7,7 @@
 
 #ifdef USE_DX11
 #include "FBasicVisual.h"  // For FloraVertData struct
+#include "../xrRenderDX10/StateManager/dx10ShaderResourceStateCache.h"
 #endif
 
 CBackend RCache;
@@ -187,5 +188,12 @@ ID3DVertexBuffer* CBackend::GetFloraVbuff(u32& size)
 
 	size = it->first;
 	return it->second;
+}
+
+void CBackend::InvalidateCSTextureCache()
+{
+	for (u32 i = 0; i < mtMaxComputeShaderTextures; ++i)
+		textures_cs[i] = 0;
+	SRVSManager.InvalidateCSViews();
 }
 #endif

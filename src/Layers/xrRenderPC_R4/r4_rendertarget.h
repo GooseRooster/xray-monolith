@@ -82,6 +82,7 @@ public:
 	IBlender* b_perceptual_lighting; // OWA: Perceptual Lighting final composite
 	IBlender* b_cs_xegtao; // OWA: XeGTAO compute shader (Intel GTAO)
 	IBlender* b_cs_probe_volume; // OWA: Probe volume sparse update compute shader
+	IBlender* b_cs_sspe; // OWA: Screen-Space Probe Enhancement compute shader
 
 #ifdef DEBUG
 	struct		dbg_line_t		{
@@ -224,6 +225,11 @@ public:
 	ref_rt rt_gtao_edges;	// R8: Packed edge data for denoise
 	ref_rt rt_gtao_temp;	// RGBA16F: Temp copy for denoise pass (avoids read/write hazard)
 
+	// OWA SSPE - Screen-Space Probe Enhancement (ping-pong double-buffer)
+	ref_rt rt_sspe;			// RGBA16F half-res (UAV) — written on even frames, read on odd
+	ref_rt rt_sspe_prev;	// RGBA16F half-res (UAV) — written on odd frames, read on even
+	ref_rt rt_sspe_scene;	// Full-res copy of combine_1 output — persists across frames for SSPE reads
+
 	ref_shader s_ssfx_water;
 	ref_shader s_ssfx_water_blur;
 	ref_shader s_ssfx_water_ssr;
@@ -315,6 +321,9 @@ private:
 
 	// OWA Probe Volume Compute Update
 	ref_shader s_probe_volume_cs;
+
+	// OWA SSPE
+	ref_shader s_sspe;
 
 	ref_geom g_accum_point;
 	ref_geom g_accum_spot;
@@ -445,6 +454,7 @@ public:
 	void phase_ssao();
 	void phase_xegtao(); // OWA: XeGTAO (Intel GTAO)
 	void phase_probe_volume_update(); // OWA: Sparse probe volume compute dispatch
+	void phase_sspe(); // OWA: Screen-Space Probe Enhancement compute dispatch
 	void phase_hdao();
 	void phase_downsamp();
 	void phase_wallmarks();

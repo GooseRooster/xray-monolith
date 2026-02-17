@@ -90,6 +90,9 @@ void CRenderTarget::phase_xegtao()
 		SPass& P = *(S->passes[0]);
 		RCache.set_States(P.state);
 		RCache.set_Constants(P.constants);
+		// Invalidate CS texture cache — pass 1 cleanup nulled GPU SRVs directly,
+		// but textures_cs[] still has stale entries from pass 1
+		RCache.InvalidateCSTextureCache();
 		RCache.set_Textures(P.T);  // s_gtao = rt_gtao_temp (SRV), s_gtao_edges (SRV)
 		RCache.set_CS(P.cs);
 

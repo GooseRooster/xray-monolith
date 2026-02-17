@@ -18,6 +18,10 @@ public:
 	void SetDSResource(u32 uiSlot, ID3DShaderResourceView* pRes);
 	void SetHSResource(u32 uiSlot, ID3DShaderResourceView* pRes);
 	void SetCSResource(u32 uiSlot, ID3DShaderResourceView* pRes);
+	// Zero out the CS SRV cache so the next SetCSResource() always marks dirty.
+	// Must be called when CSSetShaderResources() was used to null GPU SRVs directly
+	// (bypassing the manager), leaving m_CSViews[] stale.
+	void InvalidateCSViews();
 #endif
 
 private:

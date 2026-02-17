@@ -1987,6 +1987,12 @@ HRESULT CRender::shader_compile(
 		defines[def_it].Name = "USE_PROBE_LIGHTING";
 		defines[def_it].Definition = "1";
 		def_it++;
+
+		// OWA SSPE: Screen-Space Probe Enhancement — additive color bounce on top of probe GI
+		// Conditional on probes being active (no point in SS bounce without the probe anchor)
+		defines[def_it].Name = "USE_SSPE";
+		defines[def_it].Definition = "1";
+		def_it++;
 	}
 	else
 	{

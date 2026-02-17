@@ -90,7 +90,7 @@ enum eMaterialStyle : u32
 extern ECORE_API u32 ps_r4_material_style;
 extern ECORE_API xr_token material_style_token[];
 
-// OWA: Probe lighting system for static lighting mode
+// OWA: Probe lighting system
 extern ECORE_API int   ps_r_probe_update_rate;      // Probes updated per frame (10-200)
 extern ECORE_API float ps_r_probe_bounce_intensity; // Indirect sun strength (0.0-1.0)
 extern ECORE_API int   ps_r_debug_probes;           // Debug visualization (0 or 1)
@@ -100,6 +100,11 @@ extern ECORE_API float ps_r_probe_chroma_blend;     // Probe chrominance indoor 
 extern ECORE_API int   ps_r_probe_bounce_lights;   // Max point lights per bounce ray (0=disabled, 0-3)
 extern ECORE_API float ps_r_probe_ambient_floor;   // Minimum ambient in deepest interior (0.0-0.5)
 extern ECORE_API float ps_r_probe_gi_boost;        // GI multiplicative lift on base ambient (0.0-10.0)
+
+// OWA SSPE: Screen-Space Probe Enhancement
+extern ECORE_API float ps_r_sspe_radius;           // World-space sample reach in meters (0.5-5.0)
+extern ECORE_API float ps_r_sspe_intensity;        // Multiplicative scale on bounce (0.0-2.0)
+extern ECORE_API float ps_r_sspe_max_distance;     // Fadeout distance in meters (10-500)
 
 extern ECORE_API u32 ps_r_sun_quality; //	=	0;
 extern ECORE_API xr_token qsun_quality_token[];

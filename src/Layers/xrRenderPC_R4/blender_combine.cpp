@@ -54,6 +54,8 @@ void CBlender_combine::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
+		// OWA SSPE: Half-res screen-space bounce (sampled with bilinear upscale in combine_1)
+		C.r_dx10Texture("s_sspe", r2_RT_sspe);
 
 		jitter(C);
 
@@ -249,6 +251,8 @@ void CBlender_combine_msaa::Compile(CBlender_Compile& C)
 
 		C.r_dx10Texture("s_motion_vectors", r2_RT_ssfx_motion_vectors);
 		C.r_dx10Texture("s_ssfx_sss", r2_RT_ssfx_sss); // Debug
+		// OWA SSPE: Half-res screen-space bounce (MSAA path)
+		C.r_dx10Texture("s_sspe", r2_RT_sspe);
 
 		jitter(C);
 

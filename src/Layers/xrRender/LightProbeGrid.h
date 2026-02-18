@@ -224,7 +224,6 @@ private:
     u32             m_budgetBoostFramesLeft; // Frames remaining with boosted budget
 
     // Update state
-    CDB::COLLIDER m_collider;    // Own instance for thread safety
     u32   m_updateBudget;
     u32   m_currentFrame;
     float m_bounceIntensity;
@@ -259,18 +258,6 @@ private:
     // Per-material RGB albedo (indexed by CDB vector index)
     xr_vector<Fvector> m_materialAlbedos;
 
-    // Reusable spatial query buffer for point light injection
-    xr_vector<ISpatial*> m_lightQueryResults;
-
-    // Cached lights for bounce computation (queried once per UpdateProbe, reused in CastBounceRay)
-    struct CachedBounceLight {
-        Fvector position;
-        Fvector color;     // L->color as Fvector
-        float   range;
-        float   attenuation0, attenuation1, attenuation2;
-    };
-    xr_vector<CachedBounceLight> m_bounceLightCache;
-
     int   m_propagationIters;
     int   m_propagationRate;
 
@@ -287,7 +274,10 @@ private:
     void ComputeGridBounds();
 
     // Internal methods — update
-    void UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQuality quality = PROBE_QUALITY_FULL);
+    // bInitialBuild=true: skips UpdateVolumeProbe (redundant — RasterizeVolume follows),
+    // m_gpuBufferDirty write (set once after the loop), and neighbor sunlit reads (UB with parallel threads).
+    void UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQuality quality = PROBE_QUALITY_FULL,
+                     bool bInitialBuild = false);
     void WriteProbeToCache(u32 probeIndex);   // Write 64 bytes to persistent GPU cache
     void InitGPUCache();                       // Allocate cache and fill all entries
     void CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal, Fvector& bounceAccum,

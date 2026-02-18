@@ -9,6 +9,34 @@
 #include "light.h"
 #include "../../xrCDB/ISpatial.h"
 #include "../../xrEngine/GameMtlLib.h"
+#include "../../xrCore/_thread_types.h"
+
+// =========================================================================
+// Thread-local working buffers for UpdateProbe / CastBounceRay
+//
+// These replace the former per-instance members (m_collider, m_lightQueryResults,
+// m_bounceLightCache). Using thread_local makes UpdateProbe safe to call from
+// xr_parallel_for during Build() — each worker thread gets its own isolated
+// instances. The main thread's instances are reused for the single-threaded
+// runtime Update() path with zero overhead change.
+//
+// CDB::MODEL is read-only after level load, so concurrent ray_query calls on
+// separate COLLIDER instances are safe (they share the BVH but never write it).
+// ISpatial_DB::q_sphere takes a critical-section lock internally — thread-safe
+// but serializing (fine: lock hold time is short, O(log N) octree walk).
+// =========================================================================
+
+// Cached lights for bounce computation — queried once per UpdateProbe, reused in CastBounceRay
+struct CachedBounceLight {
+    Fvector position;
+    Fvector color;
+    float   range;
+    float   attenuation0, attenuation1, attenuation2;
+};
+
+thread_local static CDB::COLLIDER               s_tl_collider;
+thread_local static xr_vector<ISpatial*>        s_tl_lightQueryResults;
+thread_local static xr_vector<CachedBounceLight> s_tl_bounceLightCache;
 
 // External console variables
 extern int   ps_r_probe_update_rate;
@@ -173,7 +201,7 @@ bool CLightProbeGrid::IsPositionIndoor(const Fvector& pos)
     // Cast 5 upward rays from the candidate position
     // If 4+ rays hit geometry overhead, classify as indoor
     int hits = 0;
-    m_collider.ray_options(CDB::OPT_ONLYNEAREST);
+    s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
 
     Fvector upDirs[INDOOR_RAY_COUNT] = {
         {  0.0f, 1.0f,   0.0f },
@@ -186,8 +214,8 @@ bool CLightProbeGrid::IsPositionIndoor(const Fvector& pos)
     for (int i = 0; i < INDOOR_RAY_COUNT; i++)
     {
         upDirs[i].normalize();
-        m_collider.ray_query(staticModel, pos, upDirs[i], INDOOR_RAY_RANGE);
-        if (m_collider.r_count() > 0)
+        s_tl_collider.ray_query(staticModel, pos, upDirs[i], INDOOR_RAY_RANGE);
+        if (s_tl_collider.r_count() > 0)
             hits++;
     }
 
@@ -239,11 +267,11 @@ bool CLightProbeGrid::IsValidProbePosition(const Fvector& pos)
     if (!staticModel) return false;
 
     // Check if position is inside geometry by casting ray down
-    m_collider.ray_options(CDB::OPT_ONLYNEAREST);
-    m_collider.ray_query(staticModel, pos, Fvector().set(0, -1, 0), 2.0f);
+    s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
+    s_tl_collider.ray_query(staticModel, pos, Fvector().set(0, -1, 0), 2.0f);
 
     // Valid if ray hit something below (not floating in air)
-    if (m_collider.r_count() == 0)
+    if (s_tl_collider.r_count() == 0)
         return false;
 
     // Check if not inside solid geometry by casting short rays in 6 directions
@@ -256,8 +284,8 @@ bool CLightProbeGrid::IsValidProbePosition(const Fvector& pos)
     int blockedCount = 0;
     for (int i = 0; i < 6; i++)
     {
-        m_collider.ray_query(staticModel, pos, dirs[i], 0.3f);
-        if (m_collider.r_count() > 0)
+        s_tl_collider.ray_query(staticModel, pos, dirs[i], 0.3f);
+        if (s_tl_collider.r_count() > 0)
             blockedCount++;
     }
 
@@ -373,10 +401,17 @@ void CLightProbeGrid::Build()
     Msg("* [LightProbeGrid] Building neighbor connectivity...");
     BuildNeighborConnectivity();
 
-    // Initial full update of all probes
-    Msg("* [LightProbeGrid] Performing initial probe update...");
-    for (u32 i = 0; i < m_probes.size(); i++)
-        UpdateProbe(m_probes[i], i);
+    // Initial full update of all probes — runs in parallel via PPL.
+    // Each thread uses its own thread_local CDB::COLLIDER, spatial query buffer, and
+    // bounce light cache, so all per-probe computation is fully isolated.
+    // bInitialBuild=true: skips UpdateVolumeProbe (RasterizeVolume() follows),
+    // neighbor sunlit reads (all probes start at default zeros), and the per-probe
+    // m_gpuBufferDirty write (set once below after the loop).
+    Msg("* [LightProbeGrid] Performing initial probe update (parallel)...");
+    xr_parallel_for(0u, (u32)m_probes.size(), [this](u32 i) {
+        UpdateProbe(m_probes[i], i, PROBE_QUALITY_FULL, /*bInitialBuild=*/true);
+    });
+    m_gpuBufferDirty = true;
 
     // Initial propagation pass
     PropagateLight(m_propagationIters);
@@ -604,10 +639,10 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
     if (!staticModel) return;
 
     // Check if sun is visible from hit point
-    m_collider.ray_options(CDB::OPT_ONLYNEAREST);
-    m_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
+    s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
+    s_tl_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
 
-    if (m_collider.r_count() == 0)
+    if (s_tl_collider.r_count() == 0)
     {
         // Sun visible - compute Lambertian bounce with material-colored albedo
         // Fixed 0.3 internal scale: physical diffuse bounce attenuation (energy lost
@@ -641,9 +676,9 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
     if (maxBounceLights > 0)
     {
         int bounceLightsUsed = 0;
-        for (size_t li = 0; li < m_bounceLightCache.size() && bounceLightsUsed < maxBounceLights; li++)
+        for (size_t li = 0; li < s_tl_bounceLightCache.size() && bounceLightsUsed < maxBounceLights; li++)
         {
-            const CachedBounceLight& cl = m_bounceLightCache[li];
+            const CachedBounceLight& cl = s_tl_bounceLightCache[li];
 
             Fvector dirToLight;
             dirToLight.sub(cl.position, hitPos);
@@ -664,9 +699,9 @@ void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNor
             if (atten < 0.01f) continue;
 
             // Shadow test: is light visible from hit surface?
-            m_collider.ray_options(CDB::OPT_ONLYNEAREST);
-            m_collider.ray_query(staticModel, hitPos, dirToLight, distToLight - 0.05f);
-            if (m_collider.r_count() > 0) continue;
+            s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
+            s_tl_collider.ray_query(staticModel, hitPos, dirToLight, distToLight - 0.05f);
+            if (s_tl_collider.r_count() > 0) continue;
 
             // Colored bounce: lightColor × surfaceAlbedo × NdotL × attenuation
             Fvector contrib;
@@ -1172,7 +1207,7 @@ void CLightProbeGrid::RebuildFrustumList()
     }
 }
 
-void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQuality quality)
+void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQuality quality, bool bInitialBuild)
 {
     // Snapshot old values BEFORE modification for incremental volume update
     CLightProbe oldValues = probe;
@@ -1209,7 +1244,7 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     CDB::MODEL* staticModel = g_pGameLevel ? g_pGameLevel->ObjectSpace.GetStaticModel() : nullptr;
     if (!staticModel) return;
 
-    m_collider.ray_options(CDB::OPT_ONLYNEAREST);
+    s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
 
     // Quality-dependent ray counts: reduced quality cuts rays from ~30 to ~11 CDB queries
     int hemisphereRayCount = (quality == PROBE_QUALITY_FULL) ? RAYS_PER_PROBE : 6;
@@ -1225,17 +1260,17 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     // =========================================================================
     // Cache nearby point/spot lights for bounce + direct injection (one query)
     // =========================================================================
-    m_bounceLightCache.clear();
+    s_tl_bounceLightCache.clear();
     if (g_SpatialSpace)
     {
-        m_lightQueryResults.clear();
-        g_SpatialSpace->q_sphere(m_lightQueryResults, 0,
+        s_tl_lightQueryResults.clear();
+        g_SpatialSpace->q_sphere(s_tl_lightQueryResults, 0,
             STYPE_LIGHTSOURCE | STYPE_LIGHTSOURCEHEMI,
             probe.position, POINT_LIGHT_SEARCH_RADIUS);
 
-        for (u32 li = 0; li < m_lightQueryResults.size() && (int)m_bounceLightCache.size() < MAX_POINT_LIGHTS_PER_PROBE; li++)
+        for (u32 li = 0; li < s_tl_lightQueryResults.size() && (int)s_tl_bounceLightCache.size() < MAX_POINT_LIGHTS_PER_PROBE; li++)
         {
-            ISpatial* spatial = m_lightQueryResults[li];
+            ISpatial* spatial = s_tl_lightQueryResults[li];
             if (!spatial) continue;
             IRender_Light* ilight = spatial->dcast_Light();
             if (!ilight) continue;
@@ -1255,7 +1290,7 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
             cl.attenuation0 = L->attenuation0;
             cl.attenuation1 = L->attenuation1;
             cl.attenuation2 = L->attenuation2;
-            m_bounceLightCache.push_back(cl);
+            s_tl_bounceLightCache.push_back(cl);
         }
     }
 
@@ -1277,10 +1312,10 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
         dir.z = sinf(theta) * radius_h;
         dir.normalize();
 
-        m_collider.ray_query(staticModel, probe.position, dir, RAY_MAX_DISTANCE);
+        s_tl_collider.ray_query(staticModel, probe.position, dir, RAY_MAX_DISTANCE);
         totalRays += 1.0f;
 
-        if (m_collider.r_count() == 0)
+        if (s_tl_collider.r_count() == 0)
         {
             // Ray escaped to sky
             skyHits += 1.0f;
@@ -1301,7 +1336,7 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
         else
         {
             // Ray hit geometry
-            CDB::RESULT* hit = m_collider.r_begin();
+            CDB::RESULT* hit = s_tl_collider.r_begin();
             Fvector hitNormal = ComputeTriangleNormal(*hit);
             Fvector hitPos;
             hitPos.mad(probe.position, dir, hit->range);
@@ -1325,8 +1360,8 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
                 }
 
                 // Check if the surface we hit is sunlit (receiving reflected sunlight)
-                m_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
-                if (m_collider.r_count() == 0)
+                s_tl_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
+                if (s_tl_collider.r_count() == 0)
                 {
                     float NdotL = hitNormal.dotproduct(sunDir);
                     if (NdotL > 0)
@@ -1373,8 +1408,8 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
         jitteredDir.mad(sunBitangent, sinf(angle) * radius);
         jitteredDir.normalize();
 
-        m_collider.ray_query(staticModel, probe.position, jitteredDir, RAY_MAX_DISTANCE);
-        if (m_collider.r_count() == 0)
+        s_tl_collider.ray_query(staticModel, probe.position, jitteredDir, RAY_MAX_DISTANCE);
+        if (s_tl_collider.r_count() == 0)
         {
             directSunVis += 1.0f / shadowRayCount;
         }
@@ -1386,7 +1421,10 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     float combinedSunVis = _max(directSunVis, receivedSunlight * RECEIVED_LIGHT_WEIGHT);
 
     // Gather bounce light from sunlit neighbors (Phase 4: Sunlit Bounce)
-    if (probeIndex < m_probeNeighbors.size())
+    // Skipped during initial build: all neighbors start at default zeros (sunVisibility=0),
+    // so this section contributes nothing useful. Skipping also avoids a benign but technically
+    // undefined C++ data race (reading neighbor probe data while other threads initialize it).
+    if (!bInitialBuild && probeIndex < m_probeNeighbors.size())
     {
         const ProbeNeighbors& neighbors = m_probeNeighbors[probeIndex];
         Fvector sunlitBounce = { 0, 0, 0 };
@@ -1422,9 +1460,9 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     // =========================================================================
     // Point Light Injection (uses cached lights from earlier spatial query)
     // =========================================================================
-    for (size_t li = 0; li < m_bounceLightCache.size(); li++)
+    for (size_t li = 0; li < s_tl_bounceLightCache.size(); li++)
     {
-        const CachedBounceLight& cl = m_bounceLightCache[li];
+        const CachedBounceLight& cl = s_tl_bounceLightCache[li];
 
         Fvector dirToLight;
         dirToLight.sub(cl.position, probe.position);
@@ -1445,9 +1483,9 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
         if (atten < 0.001f) continue;
 
         // Shadow test — is the light visible from the probe?
-        m_collider.ray_options(CDB::OPT_ONLYNEAREST);
-        m_collider.ray_query(staticModel, probe.position, dirToLight, distToLight - 0.05f);
-        if (m_collider.r_count() > 0) continue;  // Occluded
+        s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
+        s_tl_collider.ray_query(staticModel, probe.position, dirToLight, distToLight - 0.05f);
+        if (s_tl_collider.r_count() > 0) continue;  // Occluded
 
         // Accumulate attenuated light color
         Fvector lightContrib;
@@ -1524,10 +1562,18 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     probe.pointLightColor.lerp(probe.pointLightColor, pointLightAccum, 0.1f);
     probe.pointLightIntensity = probe.pointLightIntensity * 0.9f + pointIntensityAccum * 0.1f;
 
-    WriteProbeToCache(probeIndex);
-    m_gpuBufferDirty = true;
-    // Incremental volume update: only touches 27 voxels instead of full rasterization
-    UpdateVolumeProbe(probeIndex, oldValues);
+    // During initial build (bInitialBuild=true):
+    //   - WriteProbeToCache is a no-op anyway (m_gpuCache is empty before InitGPUCache())
+    //   - m_gpuBufferDirty is set once outside the parallel loop
+    //   - UpdateVolumeProbe is skipped entirely: RasterizeVolume() follows the loop and rebuilds
+    //     the volume from scratch, so per-probe incremental updates here are pure wasted work.
+    if (!bInitialBuild)
+    {
+        WriteProbeToCache(probeIndex);
+        m_gpuBufferDirty = true;
+        // Incremental volume update: only touches 27 voxels instead of full rasterization
+        UpdateVolumeProbe(probeIndex, oldValues);
+    }
 }
 
 void CLightProbeGrid::Update()

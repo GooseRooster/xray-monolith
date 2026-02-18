@@ -23,11 +23,28 @@ void CRenderTarget::phase_sspe()
 {
 	// Guard: probes must be active
 	if (!g_LightProbeGrid || g_LightProbeGrid->GetProbeCount() == 0)
+	{
+		static const float zeros[4] = { 0.f, 0.f, 0.f, 0.f };
+		if (rt_sspe && rt_sspe->pUAView)
+			HW.pContext->ClearUnorderedAccessViewFloat(rt_sspe->pUAView, zeros);
+		if (rt_sspe_prev && rt_sspe_prev->pUAView)
+			HW.pContext->ClearUnorderedAccessViewFloat(rt_sspe_prev->pUAView, zeros);
 		return;
+	}
 
-	// Skip if intensity is zero (effectively disabled)
+	// Skip if intensity is zero (effectively disabled).
+	// Must clear both ping-pong buffers before returning — without this, the last
+	// accumulated SSPE output persists in combine_1 indefinitely after disabling,
+	// because rt_sspe->pTexture SRV still points to the last-written surface.
 	if (ps_r_sspe_intensity <= 0.001f)
+	{
+		static const float zeros[4] = { 0.f, 0.f, 0.f, 0.f };
+		if (rt_sspe->pUAView)
+			HW.pContext->ClearUnorderedAccessViewFloat(rt_sspe->pUAView, zeros);
+		if (rt_sspe_prev->pUAView)
+			HW.pContext->ClearUnorderedAccessViewFloat(rt_sspe_prev->pUAView, zeros);
 		return;
+	}
 
 	u32 w = Device.dwWidth / 2;
 	u32 h = Device.dwHeight / 2;

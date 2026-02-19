@@ -122,10 +122,24 @@ void CActor::VehicleHeadCallback(CBoneInstance* B)
 void STorsoWpn::Create(IKinematicsAnimated* K, LPCSTR base0, LPCSTR base1)
 {
 	char buf[128];
-	moving[eIdle] = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_aim_1"));
-	moving[eWalk] = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_aim_2"));
-	moving[eRun] = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_aim_3"));
-	moving[eSprint] = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_escape_0"));
+	if (!strcmp(base1, "_0"))
+	{
+		// Unarmed slot: use natural walk/run animations instead of aim poses, matching NPC movement
+		if (strcmp(base0, "norm"))
+			moving[eIdle] = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_aim_1"));
+		else
+			moving[eIdle] = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_idle_1"));
+		moving[eWalk]   = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_walk_1"));
+		moving[eRun]    = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_run_1"));
+		moving[eSprint] = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_escape_0"));
+	}
+	else
+	{
+		moving[eIdle]   = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_aim_1"));
+		moving[eWalk]   = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_aim_2"));
+		moving[eRun]    = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_aim_3"));
+		moving[eSprint] = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_escape_0"));
+	}
 	zoom = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_aim_0"));
 	holster = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_holster_0"));
 	draw = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_draw_0"));
@@ -140,7 +154,9 @@ void STorsoWpn::Create(IKinematicsAnimated* K, LPCSTR base0, LPCSTR base1)
 	all_attack_0 = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_all", base1, "_attack_0"));
 	all_attack_1 = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_all", base1, "_attack_1"));
 	all_attack_2 = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_all", base1, "_attack_2"));
-	safemode = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_idle_1"));
+	safemode      = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_idle_1"));
+	safemode_walk = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_walk_1"));
+	safemode_run  = K->ID_Cycle_Safe(strconcat(sizeof(buf), buf, base0, "_torso", base1, "_run_1"));
 }
 
 void SAnimState::Create(IKinematicsAnimated* K, LPCSTR base0, LPCSTR base1)
@@ -182,6 +198,7 @@ void SActorState::CreateClimb(IKinematicsAnimated* K)
 	m_torso[10].Create(K, base, "_11");
 	m_torso[11].Create(K, base, "_12");
 	m_torso[12].Create(K, base, "_13");
+	m_torso[13].Create(K, base, "_0");
 
 
 	m_head_idle.invalidate(); ///K->ID_Cycle("head_idle_0");
@@ -218,6 +235,7 @@ void SActorState::Create(IKinematicsAnimated* K, LPCSTR base)
 	m_torso[10].Create(K, base, "_11");
 	m_torso[11].Create(K, base, "_12");
 	m_torso[12].Create(K, base, "_13");
+	m_torso[13].Create(K, base, "_0");
 
 	m_torso_idle = K->ID_Cycle(strconcat(sizeof(buf), buf, base, "_torso_0_aim_0"));
 	m_head_idle = K->ID_Cycle("head_idle_0");
@@ -394,15 +412,28 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 	//если мы просто стоим на месте
 	bool is_standing = false;
 
+	// Cache active item early — needed for both leg and torso animation selection
+	CInventoryItem* _i = inventory().ActiveItem();
+
 	// Legs
 	if (mstate_rl & mcLanding) M_legs = ST->landing[0];
 	else if (mstate_rl & mcLanding2) M_legs = ST->landing[1];
-	else if ((mstate_rl & mcTurn) &&
-		!(mstate_rl & mcClimb))
-		M_legs = ST->legs_turn;
+	else if ((mstate_rl & mcTurn) && !(mstate_rl & mcClimb))
+	{
+		// Relaxed turn used when unarmed or weapon is lowered (safemode)
+		if ((!_i || m_bSafemode) && !(mstate_rl & mcCrouch))
+			M_legs = smart_cast<IKinematicsAnimated*>(Visual())->ID_Cycle_Safe("norm_turn_right_1");
+		if (!M_legs) M_legs = ST->legs_turn;
+	}
 	else if (mstate_rl & mcFall) M_legs = ST->jump_idle;
 	else if (mstate_rl & mcJump) M_legs = ST->jump_begin;
-	else if (mstate_rl & mcFwd) M_legs = AS->legs_fwd;
+	else if (mstate_rl & mcFwd)
+	{
+		// Relaxed forward movement used when unarmed or weapon is lowered (safemode)
+		if ((!_i || m_bSafemode) && !(mstate_rl & mcCrouch) && !(mstate_rl & mcClimb))
+			M_legs = smart_cast<IKinematicsAnimated*>(Visual())->ID_Cycle_Safe(bAccelerated ? "norm_run_fwd_1" : "norm_walk_fwd_1");
+		if (!M_legs) M_legs = AS->legs_fwd;
+	}
 	else if (mstate_rl & mcBack) M_legs = AS->legs_back;
 	else if (mstate_rl & mcLStrafe) M_legs = AS->legs_ls;
 	else if (mstate_rl & mcRStrafe) M_legs = AS->legs_rs;
@@ -448,7 +479,6 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 
 	if (!M_torso)
 	{
-		CInventoryItem* _i = inventory().ActiveItem();
 		CHudItem* H = smart_cast<CHudItem*>(_i);
 
 		if (H)
@@ -513,7 +543,23 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 						{
 							switch (W->GetState())
 							{
-							case CWeapon::eIdle: M_torso = W->IsZoomed() ? TW->zoom : (m_bSafemode && moving_idx != STorsoWpn::eSprint) ? TW->safemode : TW->moving[moving_idx];
+							case CWeapon::eIdle:
+								if (W->IsZoomed())
+									M_torso = TW->zoom;
+								else if (mstate_rl & (mcJump | mcFall | mcLanding | mcLanding2))
+									M_torso = TW->moving[STorsoWpn::eIdle]; // Aim-based pose during airborne states, same as unarmed jump override
+								else if (m_bSafemode && moving_idx != STorsoWpn::eSprint)
+								{
+									// Select relaxed animation based on movement speed, matching NPC eMentalStateFree behaviour
+									if (moving_idx == STorsoWpn::eWalk && TW->safemode_walk)
+										M_torso = TW->safemode_walk;
+									else if (moving_idx == STorsoWpn::eRun && TW->safemode_run)
+										M_torso = TW->safemode_run;
+									else
+										M_torso = TW->safemode; // Relaxed idle (standing)
+								}
+								else
+									M_torso = TW->moving[moving_idx];
 								break;
 							case CWeapon::eFire: M_torso = W->IsZoomed() ? TW->attack_zoom : TW->attack;
 								break;
@@ -631,10 +677,19 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 		}
 		else if (!m_bAnimTorsoPlayed)
 		{
-			if (moving_idx == STorsoWpn::eSprint)
-				M_torso = ST->m_torso[0].moving[moving_idx];
+			// No item equipped: use dedicated unarmed slot with natural walk/run animations
+			STorsoWpn* TW = &ST->m_torso[13];
+			if (mstate_rl & (mcJump | mcFall | mcLanding | mcLanding2))
+			{
+				// During airborne states the natural idle torso has hand-jog motion that looks wrong.
+				// Use the aim-based pose instead (same convention as all armed slots use for eIdle).
+				M_torso = smart_cast<IKinematicsAnimated*>(Visual())->ID_Cycle_Safe("norm_torso_0_aim_1");
+				if (!M_torso) M_torso = TW->zoom; // Fallback to aim_0 if aim_1 doesn't exist
+			}
 			else
-				M_torso = ST->m_torso[4].moving[moving_idx]; //Alundaio: Fix torso animations for no weapon
+			{
+				M_torso = TW->moving[moving_idx];
+			}
 		}
 	}
 	MotionID mid = smart_cast<IKinematicsAnimated*>(Visual())->ID_Cycle("norm_idle_0");
@@ -644,6 +699,12 @@ void CActor::g_SetAnimation(u32 mstate_rl)
 		if ((mstate_rl & mcCrouch) && !isActorAccelerated(mstate_rl, IsZoomAimingMode())) //!(mstate_rl&mcAccel))
 		{
 			M_legs = smart_cast<IKinematicsAnimated*>(Visual())->ID_Cycle("cr_idle_1");
+		}
+		else if ((!_i || m_bSafemode) && !(mstate_rl & mcCrouch) && !(mstate_rl & mcClimb))
+		{
+			// Relaxed idle used when unarmed or weapon is lowered (safemode)
+			M_legs = smart_cast<IKinematicsAnimated*>(Visual())->ID_Cycle_Safe("norm_idle_1");
+			if (!M_legs) M_legs = ST->legs_idle;
 		}
 		else
 			M_legs = ST->legs_idle;

@@ -34,11 +34,13 @@ struct STorsoWpn
 	MotionID all_attack_1;
 	MotionID all_attack_2;
 
-	MotionID safemode;
+	MotionID safemode;       // Relaxed idle  (_idle_1) — weapon lowered, standing
+	MotionID safemode_walk;  // Relaxed walk  (_walk_1) — weapon at ease, walking
+	MotionID safemode_run;   // Relaxed run   (_run_1)  — weapon at ease, running
 	void Create(IKinematicsAnimated* K, LPCSTR base0, LPCSTR base1);
 };
 
-#define _total_anim_slots_ 13
+#define _total_anim_slots_ 14
 
 struct SActorState
 {

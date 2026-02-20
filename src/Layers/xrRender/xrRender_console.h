@@ -425,6 +425,10 @@ enum
 
 //-Swartz
 
+// OWA: first-person body
+extern ECORE_API BOOL ps_r_fp_body;
+extern ECORE_API float ps_r_fp_body_cam_offset;
+
 extern void xrRender_initconsole();
 extern BOOL xrRender_test_hw();
 

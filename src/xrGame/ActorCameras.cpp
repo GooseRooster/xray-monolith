@@ -467,6 +467,8 @@ static const float ik_cam_shift_speed = 0.01f;
 #endif
 
 BOOL firstPersonDeath = TRUE;
+extern BOOL ps_r_fp_body;             // OWA: first-person body
+extern float ps_r_fp_body_cam_offset; // OWA: forward offset from eye bone
 float offsetH = 0;
 float offsetP = 0;
 float offsetB = 0;
@@ -582,6 +584,35 @@ void CActor::cam_Update(float dt, float fFOV)
 	float _viewport_near = VIEWPORT_NEAR;
 	// calc point
 	xform.transform_tiny(point);
+
+	// OWA: FP body - override camera position with the animated eye bone world position.
+	// The fixed-offset camera sits independently of the skeleton, so sprint/lean animations
+	// move the body in front of the camera. By driving the camera from the eye bone (the same
+	// bone the death camera uses), the camera stays locked to the character's actual eye level
+	// through all animations. Falls back to bip01_head if eye_right is absent.
+	if (ps_r_fp_body && g_Alive() && IsFocused() && cam_active == eacFirstEye)
+	{
+		IKinematics* k = Visual()->dcast_PKinematics();
+		if (k)
+		{
+			k->CalculateBones(TRUE);
+			u16 eye_bone = (m_eye_right != BI_NONE) ? m_eye_right : m_head;
+			if (eye_bone != BI_NONE)
+			{
+				Fmatrix eyeWorld;
+				eyeWorld.mul_43(XFORM(), k->LL_GetBoneInstance(eye_bone).mTransform);
+				point = eyeWorld.c;
+				// Push forward from the eye bone along the actor's horizontal facing direction.
+				// This keeps the camera slightly in front of the neck hole left by hidden head bones,
+				// making it invisible when looking straight ahead. xform.k is the torso yaw forward.
+				if (ps_r_fp_body_cam_offset > 0.f)
+					point.mad(point, xform.k, ps_r_fp_body_cam_offset);
+				// Keep fPrevCamPos aligned with the foot Y so the stair-step
+				// accumulator doesn't snap when FP body mode is toggled off.
+				fPrevCamPos = xform.c.y;
+			}
+		}
+	}
 
 	CCameraBase* C = cam_Active();
 

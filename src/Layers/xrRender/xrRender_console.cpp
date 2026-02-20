@@ -519,6 +519,8 @@ float ps_r3_dyn_wet_surf_far = 30.f; // 30.0f
 int ps_r3_dyn_wet_surf_sm_res = 256; // 256
 Flags32 psDeviceFlags2 = { 0 };
 Flags32 ps_actor_shadow_flags = {0}; //Swartz: actor shadow
+BOOL ps_r_fp_body = FALSE; // OWA: first-person body
+float ps_r_fp_body_cam_offset = 0.07f; // OWA: forward offset (metres) from eye bone to avoid head-hole artefact
 
 //AVO: detail draw radius
 Flags32 ps_common_flags = {0}; // r1-only
@@ -1153,6 +1155,8 @@ void xrRender_initconsole()
 	CMD3(CCC_Mask, "r2_allow_r1_lights", &ps_r2_ls_flags, R2FLAG_R1LIGHTS);
 
 	CMD3(CCC_Mask, "r__actor_shadow", &ps_actor_shadow_flags, RFLAG_ACTOR_SHADOW); //Swartz: actor shadow
+	CMD4(CCC_Integer, "r_fp_body", &ps_r_fp_body, 0, 1); // OWA: first-person body
+	CMD4(CCC_Float, "r_fp_body_cam_offset", &ps_r_fp_body_cam_offset, 0.0f, 0.5f); // OWA: eye bone forward offset
 
 	//- Mad Max
 	CMD4(CCC_Float, "r2_gloss_factor", &ps_r2_gloss_factor, .001f, 10.f);

@@ -747,6 +747,9 @@ void CActor::net_Destroy()
 	xr_delete(m_pActorEffector);
 	pCamBobbing = NULL;
 
+	// OWA: Release FP body model duplicate
+	DestroyFPBody();
+
 #ifdef DEBUG
 	LastPosS.clear();
 	LastPosH.clear();
@@ -888,6 +891,11 @@ void CActor::OnChangeVisual()
 		m_current_legs_blend = NULL;
 		m_current_torso_blend = NULL;
 		m_current_jump_blend = NULL;
+		//-------------------------------------------------------------------------------
+		// OWA: Recreate FP body whenever the visual changes (outfit change, level load, etc.)
+		// DestroyFPBody is a no-op if m_fpBody is null, so this is safe on first call from net_Spawn.
+		DestroyFPBody();
+		InitFPBody();
 	}
 };
 

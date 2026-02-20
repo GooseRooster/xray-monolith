@@ -2154,6 +2154,7 @@ void CActor::RenderCamAttached()
 }
 
 extern Flags32 ps_actor_shadow_flags;
+extern BOOL ps_r_fp_body;
 
 bool CActor::AllowActorShadow()
 {
@@ -2167,19 +2168,137 @@ bool CActor::AllowActorShadow()
 	return true;
 }
 
+// OWA: First-Person Body -------------------------------------------------------
+
+void CActor::InitFPBody()
+{
+	VERIFY(!m_fpBody);
+
+	m_fpBody = ::Render->model_Duplicate(Visual());
+	VERIFY(m_fpBody);
+
+	IKinematics* k = m_fpBody->dcast_PKinematics();
+	VERIFY(k);
+
+	// Hide the head bone recursively - this covers jaw, eyes, hair, etc. (all children of bip01_head).
+	// Do NOT hide bip01_neck: it is the parent of bip01_head, and hiding it removes the neck geometry
+	// that connects the torso to where the head would be, causing the model to fold at the shoulders.
+	static const char* s_head[] = { "bip01_head", nullptr };
+	for (int i = 0; s_head[i]; i++)
+	{
+		u16 id = k->LL_BoneID(s_head[i]);
+		if (id != BI_NONE)
+			k->LL_SetBoneVisible(id, FALSE, TRUE);
+	}
+
+	// Arms start hidden - HUD hands take over visual responsibility when weapon is equipped.
+	// Force state to true first so the change is applied unconditionally.
+	m_fpBodyArmsShown = true;
+	SetFPBodyArms(false);
+
+	// Permanently set callback_overwrite=TRUE on every bone instance.
+	// This prevents CalculateBones (triggered by the renderer via add_Visual) from calling
+	// BuildBoneMatrix, which would overwrite our manually-copied mTransform values with the
+	// duplicate's empty animation state (bind/T-pose). With this flag set, CLBone skips
+	// BuildBoneMatrix and goes straight to computing mRenderTransform = mTransform × m2b_transform,
+	// using whatever mTransform we last wrote in SyncFPBodyTransforms.
+	u16 bone_count = k->LL_BoneCount();
+	for (u16 i = 0; i < bone_count; i++)
+		k->LL_GetBoneInstance(i).set_callback_overwrite(TRUE);
+}
+
+void CActor::DestroyFPBody()
+{
+	if (m_fpBody)
+	{
+		::Render->model_Delete(m_fpBody);
+		m_fpBody = nullptr;
+	}
+}
+
+void CActor::SetFPBodyArms(bool visible)
+{
+	if (!m_fpBody) return;
+	if (m_fpBodyArmsShown == visible) return; // avoid redundant LL_SetBoneVisible calls
+
+	IKinematics* k = m_fpBody->dcast_PKinematics();
+	VERIFY(k);
+
+	static const char* s_arms[] = { "bip01_l_upperarm", "bip01_r_upperarm", nullptr };
+	for (int i = 0; s_arms[i]; i++)
+	{
+		u16 id = k->LL_BoneID(s_arms[i]);
+		if (id != BI_NONE)
+			k->LL_SetBoneVisible(id, visible ? TRUE : FALSE, TRUE);
+	}
+	m_fpBodyArmsShown = visible;
+}
+
+void CActor::SyncFPBodyTransforms()
+{
+	if (!m_fpBody) return;
+
+	IKinematics* dst = m_fpBody->dcast_PKinematics();
+	IKinematics* src = Visual()->dcast_PKinematics();
+	if (!dst || !src) return;
+
+	// Force-calculate the source skeleton's bones. In first-person mode on R4, Visual() is never
+	// added to the render queue (AllowActorShadow returns false for R4), so the renderer never
+	// triggers CalculateBones for it. We must call it explicitly here.
+	src->CalculateBones(TRUE);
+
+	// Copy mTransform (model-space accumulated bone matrix) for visible bones only.
+	// We copy mTransform rather than mRenderTransform because the renderer will call
+	// CalculateBones(TRUE) on m_fpBody after add_Visual, which recomputes:
+	//   mRenderTransform = mTransform × m2b_transform
+	// With callback_overwrite=TRUE set on all m_fpBody bones (done in InitFPBody),
+	// BuildBoneMatrix is skipped and our mTransform values are preserved through that call.
+	//
+	// Hidden bones (head, arms when weapon equipped) keep their zero-scale mTransform
+	// set by LL_SetBoneVisible, so their mRenderTransform collapses to a degenerate matrix
+	// and their skinned vertices collapse to the model origin — effectively invisible.
+	u16 src_count = src->LL_BoneCount();
+	u16 dst_count = dst->LL_BoneCount();
+	u16 count = src_count < dst_count ? src_count : dst_count;
+
+	for (u16 i = 0; i < count; i++)
+	{
+		if (dst->LL_GetBoneVisible(i))
+			dst->LL_GetBoneInstance(i).mTransform = src->LL_GetBoneInstance(i).mTransform;
+	}
+}
+
+// OWA: End First-Person Body ---------------------------------------------------
+
 #include "debug_renderer.h"
 void CActor::renderable_Render()
 {
 	VERIFY(_valid(XFORM()));
-	
+
 	if (cam_active == eacFirstEye)
 	{
-		if (::Render->active_phase() == 0) // can render first person body here
+		if (::Render->active_phase() == 0)
 		{
-			//if (fpBody) 
-			//	inherited::renderable_Render();
+			// Render first-person body when enabled and this is the local player.
+			// m_fpBody is a duplicate of Visual() with head + arm bones hidden.
+			// SyncFPBodyTransforms copies mRenderTransform from the live animated
+			// actor skeleton so the body matches movement animations exactly.
+			// Visual() is never modified, so shadow generation remains unaffected.
+			if (ps_r_fp_body && m_fpBody && IsFocused())
+			{
+				// Show arms only when no HUD item is attached (weapon/detector hidden).
+				// When a weapon is equipped the HUD hands own that visual responsibility.
+				bool has_hud_item = g_player_hud &&
+					(g_player_hud->attached_item(0) != nullptr ||
+					 g_player_hud->attached_item(1) != nullptr);
+				SetFPBodyArms(!has_hud_item);
+
+				SyncFPBodyTransforms();
+				::Render->set_Transform(&XFORM());
+				::Render->add_Visual(m_fpBody);
+			}
 		}
-		else if (AllowActorShadow()) // render actor shadow
+		else if (AllowActorShadow()) // render actor shadow (R2 path, full Visual())
 		{
 			inherited::renderable_Render();
 			if ((IsFocused() || (!(IsFocused() && ((!m_holder) ||

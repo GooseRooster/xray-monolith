@@ -95,6 +95,16 @@ public:
 	void initFPCam();
 	void removeFPCam();
 
+// OWA: First-Person Body
+public:
+	IRenderVisual*  m_fpBody           {nullptr};  // duplicate of actor visual, head+arm bones hidden
+	bool            m_fpBodyArmsShown  {false};    // tracks current arm bone visibility state
+
+	void InitFPBody();
+	void DestroyFPBody();
+	void SetFPBodyArms(bool visible);
+	void SyncFPBodyTransforms();
+
 public:
 	virtual BOOL AlwaysTheCrow() { return TRUE; }
 

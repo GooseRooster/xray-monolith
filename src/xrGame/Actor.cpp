@@ -2154,7 +2154,9 @@ void CActor::RenderCamAttached()
 }
 
 extern Flags32 ps_actor_shadow_flags;
-extern BOOL ps_r_fp_body;
+extern BOOL  ps_r_fp_body;
+extern float ps_r_fp_body_base_offset; // constant backward body shift (always applied)
+extern float ps_r_fp_body_cam_offset;  // extra backward body shift scaled by look_down
 
 bool CActor::AllowActorShadow()
 {
@@ -2301,15 +2303,60 @@ void CActor::renderable_Render()
 			// Visual() is never modified, so shadow generation remains unaffected.
 			if (ps_r_fp_body && m_fpBody && IsFocused())
 			{
-				// Show arms only when no HUD item is attached (weapon/detector hidden).
-				// When a weapon is equipped the HUD hands own that visual responsibility.
+				// Show arms only when no HUD item is attached AND no HUD script animation
+				// is playing. When a weapon is equipped, the HUD hands own that visual
+				// responsibility. When a script animation plays (e.g. headlamp toggle),
+				// the animated HUD arm takes over -- showing the body arm simultaneously
+				// would produce a doubled, clipping limb.
 				bool has_hud_item = g_player_hud &&
 					(g_player_hud->attached_item(0) != nullptr ||
 					 g_player_hud->attached_item(1) != nullptr);
-				SetFPBodyArms(!has_hud_item);
+				bool hud_script_anim = g_player_hud &&
+					g_player_hud->script_anim_part != u8(-1);
+				SetFPBodyArms(!has_hud_item && !hud_script_anim);
 
 				SyncFPBodyTransforms();
-				::Render->set_Transform(&XFORM());
+
+				// Render the body at a virtual root aligned to the camera's smoothed,
+				// collision-resolved position rather than the raw physics XFORM.
+				// This makes the body inherit wall push-back and stair smoothing from
+				// the camera, so it never clips into walls and rises stairs smoothly.
+				// Bone animation is unaffected -- SyncFPBodyTransforms still drives
+				// all transforms from the live physics skeleton, so head-bob and limb
+				// motion remain natural.
+				//
+				// Virtual root formula:
+				//   virtual_root.c = cam_pos - (XFORM().rotation * eye_bone_model_pos) - pullback
+				// cam_pos = camera's resolved position (eye bone + stair smoothing + wall collision).
+				// pullback = (base_offset + cam_offset * look_down) along XFORM().k, backward.
+				// When no smoothing/collision/offsets are active the shift is zero (body == XFORM).
+				Fmatrix bodyXform = XFORM();
+				if (g_Alive())
+				{
+					IKinematics* sk = Visual()->dcast_PKinematics();
+					u16 eye_bone = (m_eye_right != BI_NONE) ? m_eye_right : m_head;
+					if (sk && eye_bone != BI_NONE)
+					{
+						// Eye bone offset from actor root in world space (rotation only,
+						// no translation -- mTransform.c is model-space bone position).
+						Fvector eyeWorldOffset;
+						XFORM().transform_dir(eyeWorldOffset, sk->LL_GetBoneInstance(eye_bone).mTransform.c);
+						// Place root so the eye bone aligns with the camera's resolved position.
+						bodyXform.c.sub(cam_FirstEye()->vPosition, eyeWorldOffset);
+						// Then push the body backward (away from the camera) along the actor's
+						// horizontal-forward axis. Two additive components:
+						//   base_offset  -- constant gap at all angles (handles animation clipping)
+						//   cam_offset * look_down -- extra gap when looking down (hides neck hole)
+						// XFORM().k is the actor's horizontal-forward, same as xform.k in cam_Update.
+						// Negative sign = backward. Camera is no longer pushed forward at all, so
+						// wall collision on the camera is never triggered by these offsets.
+						float look_down   = _max(0.f, -cam_FirstEye()->vDirection.y);
+						float bodyPullBack = ps_r_fp_body_base_offset + ps_r_fp_body_cam_offset * look_down;
+						if (bodyPullBack > 0.f)
+							bodyXform.c.mad(bodyXform.c, XFORM().k, -bodyPullBack);
+					}
+				}
+				::Render->set_Transform(&bodyXform);
 				::Render->add_Visual(m_fpBody);
 			}
 		}

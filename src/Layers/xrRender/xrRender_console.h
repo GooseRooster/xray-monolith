@@ -427,7 +427,8 @@ enum
 
 // OWA: first-person body
 extern ECORE_API BOOL ps_r_fp_body;
-extern ECORE_API float ps_r_fp_body_cam_offset;
+extern ECORE_API float ps_r_fp_body_base_offset; // constant backward body offset (always applied)
+extern ECORE_API float ps_r_fp_body_cam_offset;  // extra backward body offset when looking down
 extern ECORE_API float ps_r_fp_body_smooth_v;        // vertical EMA time constant (seconds), 0 = off
 extern ECORE_API float ps_r_fp_body_smooth_h;        // horizontal EMA time constant (seconds), 0 = off
 extern ECORE_API float ps_r_fp_body_smooth_h_limit;  // max horizontal camera lag (metres) before hard clamp

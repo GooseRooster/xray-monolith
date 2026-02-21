@@ -520,7 +520,8 @@ int ps_r3_dyn_wet_surf_sm_res = 256; // 256
 Flags32 psDeviceFlags2 = { 0 };
 Flags32 ps_actor_shadow_flags = {0}; //Swartz: actor shadow
 BOOL ps_r_fp_body = FALSE; // OWA: first-person body
-float ps_r_fp_body_cam_offset    = 0.07f; // OWA: forward offset (metres) from eye bone to avoid head-hole artefact
+float ps_r_fp_body_base_offset   = 0.05f; // OWA: constant backward body offset (metres) — always applied, handles animation clipping
+float ps_r_fp_body_cam_offset    = 0.07f; // OWA: additional backward body offset (metres) when looking down — hides neck hole
 float ps_r_fp_body_smooth_v      = 0.0f;  // OWA: vertical bob smoothing time constant (seconds), 0 = off
 float ps_r_fp_body_smooth_h      = 0.0f;  // OWA: horizontal sway smoothing time constant (seconds), 0 = off
 float ps_r_fp_body_smooth_h_limit = 0.1f; // OWA: max horizontal camera lag (metres) before hard clamp
@@ -1159,7 +1160,8 @@ void xrRender_initconsole()
 
 	CMD3(CCC_Mask, "r__actor_shadow", &ps_actor_shadow_flags, RFLAG_ACTOR_SHADOW); //Swartz: actor shadow
 	CMD4(CCC_Integer, "r_fp_body", &ps_r_fp_body, 0, 1); // OWA: first-person body
-	CMD4(CCC_Float, "r_fp_body_cam_offset", &ps_r_fp_body_cam_offset, 0.0f, 0.5f); // OWA: eye bone forward offset
+	CMD4(CCC_Float, "r_fp_body_base_offset", &ps_r_fp_body_base_offset, 0.0f, 0.5f); // OWA: constant backward body offset (animation clipping)
+	CMD4(CCC_Float, "r_fp_body_cam_offset",  &ps_r_fp_body_cam_offset,  0.0f, 0.5f); // OWA: extra backward body offset when looking down (neck hole)
 	CMD4(CCC_Float, "r_fp_body_smooth_v", &ps_r_fp_body_smooth_v, 0.0f, 0.5f);   // OWA: vertical bob smoothing (0=off, 0.1=light, 0.3=heavy)
 	CMD4(CCC_Float, "r_fp_body_smooth_h", &ps_r_fp_body_smooth_h, 0.0f, 0.15f);  // OWA: horizontal sway smoothing (0=off, bounded by h_limit)
 	CMD4(CCC_Float, "r_fp_body_smooth_h_limit", &ps_r_fp_body_smooth_h_limit, 0.02f, 0.5f); // OWA: horizontal clamp (metres)

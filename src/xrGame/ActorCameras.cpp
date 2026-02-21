@@ -467,8 +467,9 @@ static const float ik_cam_shift_speed = 0.01f;
 #endif
 
 BOOL firstPersonDeath = TRUE;
-extern BOOL ps_r_fp_body;                  // OWA: first-person body
-extern float ps_r_fp_body_cam_offset;      // OWA: forward offset from eye bone
+extern BOOL  ps_r_fp_body;                 // OWA: first-person body
+// Note: ps_r_fp_body_base_offset and ps_r_fp_body_cam_offset are applied to the
+// body root in renderable_Render, not to the camera here. See Actor.cpp.
 extern float ps_r_fp_body_smooth_v;        // OWA: vertical EMA time constant (seconds)
 extern float ps_r_fp_body_smooth_h;        // OWA: horizontal EMA time constant (seconds)
 extern float ps_r_fp_body_smooth_h_limit;  // OWA: max horizontal camera lag (metres)
@@ -568,7 +569,11 @@ void CActor::cam_Update(float dt, float fFOV)
 
 	float flCurrentPlayerY = xform.c.y;
 
-	// Smooth out stair step ups
+	// Smooth out stair step ups.
+	// stairYAdjust (≤ 0 when stepping up) is saved so the FP body path can apply
+	// the same offset to the eye-bone camera Y, giving stairs the same smoothness
+	// in FP body mode without recomputing anything.
+	float stairYAdjust = 0.f;
 	if ((character_physics_support()->movement()->Environment() == CPHMovementControl::peOnGround) && (flCurrentPlayerY
 		- fPrevCamPos > 0))
 	{
@@ -577,7 +582,8 @@ void CActor::cam_Update(float dt, float fFOV)
 			fPrevCamPos = flCurrentPlayerY;
 		if (flCurrentPlayerY - fPrevCamPos > 0.2f)
 			fPrevCamPos = flCurrentPlayerY - 0.2f;
-		point.y += fPrevCamPos - flCurrentPlayerY;
+		stairYAdjust = fPrevCamPos - flCurrentPlayerY;
+		point.y += stairYAdjust;
 	}
 	else
 	{
@@ -664,20 +670,13 @@ void CActor::cam_Update(float dt, float fFOV)
 					point = rawPos;
 				}
 
-				// Push forward from the eye bone along the actor's horizontal facing direction.
-				// This keeps the camera slightly in front of the neck hole left by hidden head bones,
-				// making it invisible when looking down. xform.k is the torso yaw forward.
-				// Scale by how far the player is looking down so the offset vanishes when
-				// looking horizontal (letting you see your hands during sprinting) and
-				// reaches full strength only when looking straight down at your body.
-				if (ps_r_fp_body_cam_offset > 0.f)
-				{
-					float look_down = _max(0.f, -cameras[eacFirstEye]->vDirection.y);
-					point.mad(point, xform.k, ps_r_fp_body_cam_offset * look_down);
-				}
-				// Keep fPrevCamPos aligned with the foot Y so the stair-step
-				// accumulator doesn't snap when FP body mode is toggled off.
-				fPrevCamPos = xform.c.y;
+				// Re-apply the stair-step smoothing that was computed before this block
+				// ran. The regular smoother modified the old point.y, but that was then
+				// discarded when point was replaced with the eye-bone world position above.
+				// Applying stairYAdjust here restores smooth stair ascent in FP body mode.
+				// fPrevCamPos is intentionally NOT reset here -- letting the accumulator
+				// run naturally means no snap if FP body is toggled off mid-stair.
+				point.y += stairYAdjust;
 			}
 		}
 	}

@@ -604,9 +604,15 @@ void CActor::cam_Update(float dt, float fFOV)
 				point = eyeWorld.c;
 				// Push forward from the eye bone along the actor's horizontal facing direction.
 				// This keeps the camera slightly in front of the neck hole left by hidden head bones,
-				// making it invisible when looking straight ahead. xform.k is the torso yaw forward.
+				// making it invisible when looking down. xform.k is the torso yaw forward.
+				// Scale by how far the player is looking down so the offset vanishes when
+				// looking horizontal (letting you see your hands during sprinting) and
+				// reaches full strength only when looking straight down at your body.
 				if (ps_r_fp_body_cam_offset > 0.f)
-					point.mad(point, xform.k, ps_r_fp_body_cam_offset);
+				{
+					float look_down = _max(0.f, -cameras[eacFirstEye]->vDirection.y);
+					point.mad(point, xform.k, ps_r_fp_body_cam_offset * look_down);
+				}
 				// Keep fPrevCamPos aligned with the foot Y so the stair-step
 				// accumulator doesn't snap when FP body mode is toggled off.
 				fPrevCamPos = xform.c.y;

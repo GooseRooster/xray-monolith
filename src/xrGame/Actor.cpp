@@ -2247,16 +2247,20 @@ void CActor::SyncFPBodyTransforms()
 	// triggers CalculateBones for it. We must call it explicitly here.
 	src->CalculateBones(TRUE);
 
-	// Copy mTransform (model-space accumulated bone matrix) for visible bones only.
+	// Copy mTransform (model-space accumulated bone matrix) for each bone.
 	// We copy mTransform rather than mRenderTransform because the renderer will call
-	// CalculateBones(TRUE) on m_fpBody after add_Visual, which recomputes:
-	//   mRenderTransform = mTransform × m2b_transform
+	// CalculateBones(TRUE) on m_fpBody after add_Visual, which runs CLBone for every bone.
+	// CLBone always recomputes mRenderTransform = mTransform × m2b_transform at the end.
 	// With callback_overwrite=TRUE set on all m_fpBody bones (done in InitFPBody),
-	// BuildBoneMatrix is skipped and our mTransform values are preserved through that call.
+	// BuildBoneMatrix is skipped and our mTransform values drive that recomputation.
 	//
-	// Hidden bones (head, arms when weapon equipped) keep their zero-scale mTransform
-	// set by LL_SetBoneVisible, so their mRenderTransform collapses to a degenerate matrix
-	// and their skinned vertices collapse to the model origin — effectively invisible.
+	// For hidden bones (head, arms when weapon equipped): CKinematics::BuildBoneMatrix
+	// normally tracks parent position for hidden bones every frame by setting
+	// mTransform.c = parent.mTransform.c — but callback_overwrite=TRUE skips that.
+	// Without this update, mTransform.c stays at its InitFPBody value (uninitialized
+	// parent position ≈ model origin), so CLBone computes a degenerate mRenderTransform
+	// that pulls head-weighted vertices towards the model's feet each frame.
+	// We replicate BuildBoneMatrix's hidden-bone logic here to fix that.
 	u16 src_count = src->LL_BoneCount();
 	u16 dst_count = dst->LL_BoneCount();
 	u16 count = src_count < dst_count ? src_count : dst_count;
@@ -2264,7 +2268,18 @@ void CActor::SyncFPBodyTransforms()
 	for (u16 i = 0; i < count; i++)
 	{
 		if (dst->LL_GetBoneVisible(i))
+		{
 			dst->LL_GetBoneInstance(i).mTransform = src->LL_GetBoneInstance(i).mTransform;
+		}
+		else
+		{
+			// Replicate CKinematics::BuildBoneMatrix's hidden-bone branch:
+			// collapse vertices to the parent's current model-space position
+			// rather than the stale init-time position (≈ origin).
+			u16 parent_id = dst->LL_GetData(i).GetParentID();
+			if (parent_id != BI_NONE && parent_id < src_count)
+				dst->LL_GetBoneInstance(i).mTransform.c = src->LL_GetBoneInstance(parent_id).mTransform.c;
+		}
 	}
 }
 

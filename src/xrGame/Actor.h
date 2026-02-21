@@ -99,6 +99,9 @@ public:
 public:
 	IRenderVisual*  m_fpBody           {nullptr};  // duplicate of actor visual, head+arm bones hidden
 	bool            m_fpBodyArmsShown  {false};    // tracks current arm bone visibility state
+	// Accessibility smoothing: EMA state for eye-bone camera position
+	Fvector         m_fpBodySmoothedDelta    {0.f, 0.f, 0.f}; // smoothed eye-bone offset relative to actor root
+	bool            m_fpBodySmoothedDeltaValid {false};        // true once the smoother has been seeded
 
 	void InitFPBody();
 	void DestroyFPBody();

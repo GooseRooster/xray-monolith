@@ -47,9 +47,17 @@ void CEffectorBobbing::SetState(u32 mstate, bool limping, bool ZoomMode)
 }
 
 extern float g_head_bob_factor;
+extern BOOL ps_r_fp_body; // OWA: first-person body (provides natural eye-bone inertia; skip synthetic bob)
 BOOL CEffectorBobbing::ProcessCam(SCamEffectorInfo& info)
 {
 	fTime += Device.fTimeDelta;
+
+	// OWA: FP body drives the camera from the animated eye bone, which already provides
+	// natural locomotion bob and inertia. Applying the synthetic sinusoidal effector on top
+	// causes double-bobbing. Let fTime keep ticking so phase is continuous if toggled off.
+	if (ps_r_fp_body)
+		return TRUE;
+
 	if (dwMState & ACTOR_DEFS::mcAnyMove)
 	{
 		if (fReminderFactor < 1.f) fReminderFactor += SPEED_REMINDER * Device.fTimeDelta;

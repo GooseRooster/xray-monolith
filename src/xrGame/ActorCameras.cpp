@@ -467,8 +467,11 @@ static const float ik_cam_shift_speed = 0.01f;
 #endif
 
 BOOL firstPersonDeath = TRUE;
-extern BOOL ps_r_fp_body;             // OWA: first-person body
-extern float ps_r_fp_body_cam_offset; // OWA: forward offset from eye bone
+extern BOOL ps_r_fp_body;                  // OWA: first-person body
+extern float ps_r_fp_body_cam_offset;      // OWA: forward offset from eye bone
+extern float ps_r_fp_body_smooth_v;        // OWA: vertical EMA time constant (seconds)
+extern float ps_r_fp_body_smooth_h;        // OWA: horizontal EMA time constant (seconds)
+extern float ps_r_fp_body_smooth_h_limit;  // OWA: max horizontal camera lag (metres)
 float offsetH = 0;
 float offsetP = 0;
 float offsetB = 0;
@@ -601,7 +604,66 @@ void CActor::cam_Update(float dt, float fFOV)
 			{
 				Fmatrix eyeWorld;
 				eyeWorld.mul_43(XFORM(), k->LL_GetBoneInstance(eye_bone).mTransform);
-				point = eyeWorld.c;
+				Fvector rawPos = eyeWorld.c;
+
+				// OWA: Accessibility smoothing for FP body eye-bone camera position.
+				//
+				// We smooth the *delta* between the eye bone and the actor's root position
+				// rather than the absolute world position. This is crucial because:
+				//
+				//   - Large-scale movement (player walking/running): XFORM().c moves in lock-step
+				//     with the body, so rawDelta (eye-to-root offset) stays nearly constant.
+				//     The smoothed position follows the body instantly — no body/camera desync.
+				//
+				//   - Oscillatory animation movement (walk bob, strafe sway): XFORM().c is stable
+				//     while the eye bone oscillates around it. rawDelta oscillates, and *that*
+				//     oscillation is what we attenuate — exactly the motion-sickness trigger.
+				//
+				// Separate time constants for vertical (heavier smoothing safe) and horizontal
+				// (lighter, bounded by a hard clamp to prevent the body running ahead of view).
+				// Frame-rate independent EMA: alpha = 1 - exp(-dt / tau), tau = time constant (s).
+				if (ps_r_fp_body_smooth_v > 0.f || ps_r_fp_body_smooth_h > 0.f)
+				{
+					// rawDelta: eye bone offset relative to actor root in world space.
+					// For a standing player this is roughly (0, 1.7, 0) plus animation wiggle.
+					Fvector rawDelta;
+					rawDelta.sub(rawPos, xform.c);
+
+					// Seed the smoother on first frame (or after gap) to avoid a startup snap.
+					if (!m_fpBodySmoothedDeltaValid)
+					{
+						m_fpBodySmoothedDelta      = rawDelta;
+						m_fpBodySmoothedDeltaValid = true;
+					}
+
+					// Clamp dt to [0, 100ms] to stay stable across lag spikes or pauses.
+					float safeDt = _max(0.f, _min(dt, 0.1f));
+
+					float tauV   = ps_r_fp_body_smooth_v;
+					float tauH   = ps_r_fp_body_smooth_h;
+					float alphaV = (tauV > 0.f) ? (1.f - expf(-safeDt / tauV)) : 1.f;
+					float alphaH = (tauH > 0.f) ? (1.f - expf(-safeDt / tauH)) : 1.f;
+
+					m_fpBodySmoothedDelta.x += alphaH * (rawDelta.x - m_fpBodySmoothedDelta.x);
+					m_fpBodySmoothedDelta.y += alphaV * (rawDelta.y - m_fpBodySmoothedDelta.y);
+					m_fpBodySmoothedDelta.z += alphaH * (rawDelta.z - m_fpBodySmoothedDelta.z);
+
+					// Hard horizontal clamp: smoothed delta must stay within r_fp_body_smooth_h_limit
+					// metres of the raw delta. This prevents the body from visually "running ahead"
+					// of the camera when horizontal smoothing is set aggressively.
+					float hLim = ps_r_fp_body_smooth_h_limit;
+					clamp(m_fpBodySmoothedDelta.x, rawDelta.x - hLim, rawDelta.x + hLim);
+					clamp(m_fpBodySmoothedDelta.z, rawDelta.z - hLim, rawDelta.z + hLim);
+
+					point.add(xform.c, m_fpBodySmoothedDelta);
+				}
+				else
+				{
+					// Smoothing disabled: reset so re-enabling starts fresh without a snap.
+					m_fpBodySmoothedDeltaValid = false;
+					point = rawPos;
+				}
+
 				// Push forward from the eye bone along the actor's horizontal facing direction.
 				// This keeps the camera slightly in front of the neck hole left by hidden head bones,
 				// making it invisible when looking down. xform.k is the torso yaw forward.

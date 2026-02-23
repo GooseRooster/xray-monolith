@@ -1131,6 +1131,8 @@ public:
 
 	float GetActorCrouchCoef() const;
 	void SetActorCrouchCoef(float val);
+	// OWA: slide inertia flag — enables carry velocity even when g_movement_inertia_enabled=0
+	void SetSlideInertiaActive(bool val);
 	float GetActorClimbCoef() const;
 	void SetActorClimbCoef(float val);
 	float GetActorWalkStrafeCoef() const;

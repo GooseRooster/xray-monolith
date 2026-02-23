@@ -102,6 +102,8 @@ public:
 	// Accessibility smoothing: EMA state for eye-bone camera position
 	Fvector         m_fpBodySmoothedDelta    {0.f, 0.f, 0.f}; // smoothed eye-bone offset relative to actor root
 	bool            m_fpBodySmoothedDeltaValid {false};        // true once the smoother has been seeded
+	// OWA chest-level obstacle clearance (metres of extra pullback, EMA-smoothed)
+	float           m_fpBodyChestClearance {0.f};
 
 	void InitFPBody();
 	void DestroyFPBody();
@@ -497,6 +499,10 @@ public:
 
 	// demonized: lookout modifier
 	float m_fLookoutFactor = 1;
+
+	// OWA: Movement inertia — world-space carry velocity, updated every frame
+	Fvector m_vMomentum          {0.f, 0.f, 0.f};
+	bool    m_bSlideInertiaActive {false};  // set from Lua to enable carry even when g_movement_inertia_enabled=0
 
 public:
 	Fvector GetMovementSpeed() { return NET_SavedAccel; };

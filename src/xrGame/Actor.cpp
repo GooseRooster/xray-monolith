@@ -1094,6 +1094,13 @@ void CActor::g_Physics(Fvector& _accel, float jump, float dt)
 float g_fov = 55.0f;
 extern float g_ironsights_factor;
 
+// OWA: Movement inertia console vars
+int   g_bMovementInertiaEnabled = 0;    // 0 = off (slide still works via Lua flag), 1 = general inertia on
+float g_fMovementInertiaAccel   = 4.0f; // rate at which momentum builds  (higher = snappier ramp-up)
+float g_fMovementInertiaDecel   = 1.5f; // rate at which momentum decays for normal movement (lower = longer glide)
+float g_fMovementSlideDecel     = 1.5f; // rate at which slide carry decays (independent of general decel)
+float g_fMovementSlideBrakeMult = 3.0f; // decel multiplier when pushing against slide direction (1 = no brake)
+
 float CActor::currentFOV()
 {
 	if (!psHUD_Flags.is(HUD_WEAPON | HUD_WEAPON_RT | HUD_WEAPON_RT2))
@@ -2355,7 +2362,11 @@ void CActor::renderable_Render()
 						// Negative sign = backward. Camera is no longer pushed forward at all, so
 						// wall collision on the camera is never triggered by these offsets.
 						float look_down   = _max(0.f, -cam_FirstEye()->vDirection.y);
-						float bodyPullBack = ps_r_fp_body_base_offset + ps_r_fp_body_cam_offset * look_down;
+						// m_fpBodyChestClearance: extra pullback from chest-level obstacle scan
+						// (Fix B). Zero unless a sub-eye-height obstacle is within range.
+						float bodyPullBack = ps_r_fp_body_base_offset
+							+ ps_r_fp_body_cam_offset * look_down
+							+ m_fpBodyChestClearance;
 						if (bodyPullBack > 0.f)
 							bodyXform.c.mad(bodyXform.c, XFORM().k, -bodyPullBack);
 					}

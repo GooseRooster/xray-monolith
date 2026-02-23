@@ -46,7 +46,9 @@ static void cammera_shell_collide_callback_common(bool& do_collide, bool bo1, dC
 	VERIFY(my_data);
 	if (oposite_data && oposite_data->ph_ref_object == my_data->ph_ref_object)
 		return;
-	if (c.geom.depth > camera_collision_sckin_depth / 2.f)
+	// OWA: lowered from skin_depth/2 (0.02m) to 0.005m so thin obstacles
+	// (fence posts, wires) reliably trigger the correction loop.
+	if (c.geom.depth > 0.005f)
 		cam_collided = true;
 
 	if (!cam_step)

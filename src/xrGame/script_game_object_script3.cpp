@@ -615,6 +615,8 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("set_actor_walk_back_coef", &CScriptGameObject::SetActorWalkBackCoef)
 		.def("get_actor_crouch_coef", &CScriptGameObject::GetActorCrouchCoef)
 		.def("set_actor_crouch_coef", &CScriptGameObject::SetActorCrouchCoef)
+		// OWA: activate/deactivate per-slide inertia carry (bypasses g_movement_inertia_enabled)
+		.def("set_slide_inertia_active", &CScriptGameObject::SetSlideInertiaActive)
 		.def("get_actor_climb_coef", &CScriptGameObject::GetActorClimbCoef)
 		.def("set_actor_climb_coef", &CScriptGameObject::SetActorClimbCoef)
 		.def("get_actor_walk_strafe_coef", &CScriptGameObject::GetActorWalkStrafeCoef)

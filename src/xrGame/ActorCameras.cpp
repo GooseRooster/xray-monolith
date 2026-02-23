@@ -695,7 +695,42 @@ void CActor::cam_Update(float dt, float fFOV)
 	{
 		collide_camera(*cameras[eacFirstEye], _viewport_near, this);
 	}
-	
+
+	// chest-level obstacle scan for FP body.
+	// The camera collision runs at eye level (~1.7 m) and misses lower obstacles
+	// (fence rails, low walls, waist-high posts).  Cast a ray from chest height
+	// along the actor's horizontal-forward axis; if it hits within SCAN_DIST,
+	// compute extra pullback so the body mesh doesn't penetrate the obstacle.
+	// EMA-smoothed to avoid single-frame pops.
+	if (ps_r_fp_body && g_Alive() && IsFocused() && cam_active == eacFirstEye
+		&& !(mstate_real & mcClimb))
+	{
+		const float CHEST_HEIGHT  = 0.9f;   // metres above actor root (≈ lower chest)
+		const float SCAN_DIST     = 0.30f;  // forward scan range
+		const float CHEST_FORWARD = 0.12f;  // approximate chest mesh forward extent
+		const float CLEARANCE     = 0.03f;  // minimum gap to maintain
+
+		Fvector origin;
+		origin.set(XFORM().c);
+		origin.y += CHEST_HEIGHT;
+
+		collide::rq_result RQ;
+		BOOL hit = Level().ObjectSpace.RayPick(
+			origin, xform.k, SCAN_DIST, collide::rqtStatic, RQ, nullptr);
+
+		float target = hit ? _max(0.f, (CHEST_FORWARD + CLEARANCE) - RQ.range) : 0.f;
+
+		// EMA with ~50 ms time constant — snappy enough for fast movement,
+		// smooth enough to avoid per-frame jitter on curved surfaces.
+		const float TAU = 0.05f;
+		float alpha = 1.f - expf(-Device.fTimeDelta / TAU);
+		m_fpBodyChestClearance += alpha * (target - m_fpBodyChestClearance);
+	}
+	else
+	{
+		m_fpBodyChestClearance = 0.f;
+	}
+
 	if (cam_active == eacFirstEye) {
 		if (firstPersonDeath && !g_Alive() && m_FPCam) {
 			IKinematics* k = Visual()->dcast_PKinematics();

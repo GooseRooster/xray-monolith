@@ -113,6 +113,13 @@ extern float g_smart_cover_factor;
 extern int g_upgrades_log;
 extern float g_smart_cover_animation_speed_factor;
 
+// OWA: Movement inertia (defined in Actor.cpp)
+extern int   g_bMovementInertiaEnabled;
+extern float g_fMovementInertiaAccel;
+extern float g_fMovementInertiaDecel;
+extern float g_fMovementSlideDecel;
+extern float g_fMovementSlideBrakeMult;
+
 extern BOOL g_ai_use_old_vision;
 float g_aim_predict_time = 0.40f;
 float g_head_bob_factor = 1.00f;
@@ -2392,6 +2399,13 @@ void CCC_RegisterCommands()
 	CMD3(CCC_Mask, "g_crouch_toggle", &psActorFlags, AF_CROUCH_TOGGLE);
 	CMD3(CCC_Mask, "g_walk_toggle", &psActorFlags, AF_WALK_TOGGLE);
 	CMD3(CCC_Mask, "g_sprint_toggle", &psActorFlags, AF_SPRINT_TOGGLE);
+
+	// OWA: Movement inertia — general toggle and tuning knobs
+	CMD4(CCC_Integer, "g_movement_inertia_enabled", &g_bMovementInertiaEnabled, 0, 1);
+	CMD4(CCC_Float,   "g_movement_inertia_accel",   &g_fMovementInertiaAccel,   0.5f, 20.0f);
+	CMD4(CCC_Float,   "g_movement_inertia_decel",   &g_fMovementInertiaDecel,   0.1f, 10.0f);
+	CMD4(CCC_Float,   "g_movement_slide_decel",     &g_fMovementSlideDecel,     0.1f, 10.0f);
+	CMD4(CCC_Float,   "g_movement_slide_brake",     &g_fMovementSlideBrakeMult, 1.0f, 10.0f);
 	CMD3(CCC_Mask, "g_lookout_toggle", &psActorFlags, AF_LOOKOUT_TOGGLE);
 	CMD3(CCC_Mask, "g_freelook_toggle", &psActorFlags, AF_FREELOOK_TOGGLE);
 	CMD3(CCC_Mask, "g_3d_pda", &psActorFlags, AF_3D_PDA);

@@ -2703,6 +2703,21 @@ void CScriptGameObject::SetActorCrouchCoef(float val)
 	}
 	pActor->m_fCrouchFactor = val;
 }
+
+// OWA: Called from Lua slide system to activate/deactivate per-slide inertia carry.
+// When true, m_vMomentum is applied to vControlAccel even if g_movement_inertia_enabled=0.
+void CScriptGameObject::SetSlideInertiaActive(bool val)
+{
+	CActor* pActor = smart_cast<CActor*>(&object());
+	if (!pActor)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+			"CActor : cannot access class member SetSlideInertiaActive!");
+		return;
+	}
+	pActor->m_bSlideInertiaActive = val;
+}
+
 float CScriptGameObject::GetActorClimbCoef() const
 {
 	CActor* pActor = smart_cast<CActor*>(&object());

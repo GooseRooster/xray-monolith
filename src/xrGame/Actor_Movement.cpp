@@ -20,6 +20,13 @@
 #ifdef DEBUG
 #include "phdebug.h"
 #endif
+// OWA: Movement inertia globals (defined in Actor.cpp, registered in console_commands.cpp)
+extern int   g_bMovementInertiaEnabled;
+extern float g_fMovementInertiaAccel;
+extern float g_fMovementInertiaDecel;
+extern float g_fMovementSlideDecel;
+extern float g_fMovementSlideBrakeMult;
+
 static const float s_fLandingTime1 = 0.1f; // через сколько снять флаг Landing1 (т.е. включить следующую анимацию)
 static const float s_fLandingTime2 = 0.3f; // через сколько снять флаг Landing2 (т.е. включить следующую анимацию)
 static const float s_fJumpTime = 0.3f;
@@ -364,6 +371,77 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector& vControlAccel, float& Ju
 	Fmatrix mOrient;
 	mOrient.rotateY(-r_model_yaw);
 	mOrient.transform_dir(vControlAccel);
+
+	// OWA: Movement Inertia -------------------------------------------------------
+	// Block 1: Always track momentum silently (no gameplay effect when disabled).
+	// This ensures m_vMomentum holds the correct sprint carry value the instant
+	// the Lua slide system sets m_bSlideInertiaActive, with no warmup delay.
+	{
+		const bool is_crouching = (mstate_real & mcCrouch) != 0;
+		const float target_mag  = vControlAccel.magnitude();
+
+		if (!is_crouching && target_mag > EPS)
+		{
+			// Accelerate: lerp toward current input velocity
+			const float alpha = _min(g_fMovementInertiaAccel * dt, 1.0f);
+			m_vMomentum.lerp(m_vMomentum, vControlAccel, alpha);
+		}
+		else
+		{
+			// Decelerate: use the slide-specific rate when a slide is active so
+			// the slide duration is tunable independently of normal glide-to-stop.
+			float decelRate = m_bSlideInertiaActive ? g_fMovementSlideDecel : g_fMovementInertiaDecel;
+
+			// Braking: if the player is pushing against the slide direction, ramp
+			// up the decel rate proportionally to how opposing the input is.
+			// dot = -1 (fully opposite) → decelRate *= g_fMovementSlideBrakeMult
+			// dot = 0  (perpendicular)  → decelRate unchanged
+			if (m_bSlideInertiaActive && target_mag > EPS)
+			{
+				const float mom_mag = m_vMomentum.magnitude();
+				if (mom_mag > EPS)
+				{
+					Fvector mom_dir = m_vMomentum;   mom_dir.div(mom_mag);
+					Fvector inp_dir = vControlAccel; inp_dir.div(target_mag);
+					const float dot = mom_dir.dotproduct(inp_dir);
+					if (dot < 0.0f)
+						decelRate *= 1.0f + (-dot) * (g_fMovementSlideBrakeMult - 1.0f);
+				}
+			}
+
+			const float decay = _min(decelRate * dt, 1.0f);
+			m_vMomentum.mul(1.0f - decay);
+			if (m_vMomentum.magnitude() < 0.05f)
+				m_vMomentum.set(0.f, 0.f, 0.f);
+		}
+	}
+
+	// Block 2: Apply momentum to physics only when permitted.
+	// General inertia: g_movement_inertia_enabled=1 (player toggle).
+	// Slide inertia:   m_bSlideInertiaActive=true   (set by Lua slide system).
+	if (g_bMovementInertiaEnabled || m_bSlideInertiaActive)
+	{
+		const bool  is_crouching = (mstate_real & mcCrouch) != 0;
+		const float target_mag   = vControlAccel.magnitude();
+
+		if (!is_crouching && target_mag > EPS)
+		{
+			// Smooth acceleration: replace input with ramped momentum
+			vControlAccel.set(m_vMomentum);
+		}
+		else if (is_crouching)
+		{
+			// Slide: add decaying sprint carry ON TOP of (already crouch-scaled) input.
+			// The crouch factor already reduced vControlAccel; momentum bypasses it.
+			vControlAccel.add(m_vMomentum);
+		}
+		else
+		{
+			// Glide to stop: replace zero-input with decaying carry
+			vControlAccel.set(m_vMomentum);
+		}
+	}
+	// OWA: End Movement Inertia ---------------------------------------------------
 }
 
 #define ACTOR_ANIM_SECT "actor_animation"

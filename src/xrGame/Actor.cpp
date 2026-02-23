@@ -2313,7 +2313,11 @@ void CActor::renderable_Render()
 					 g_player_hud->attached_item(1) != nullptr);
 				bool hud_script_anim = g_player_hud &&
 					g_player_hud->script_anim_part != u8(-1);
-				SetFPBodyArms(!has_hud_item && !hud_script_anim);
+				// Suppress arms while on a ladder — the climbing animation is not geometry-matched
+				// so the arms look visibly janky. mcClimb is cleared as soon as the actor leaves
+				// the ladder, so arms restore naturally on the next frame.
+				bool is_climbing = (mstate_real & mcClimb) != 0;
+				SetFPBodyArms(!has_hud_item && !hud_script_anim && !is_climbing);
 
 				SyncFPBodyTransforms();
 

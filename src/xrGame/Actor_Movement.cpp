@@ -228,7 +228,14 @@ void CActor::g_cl_CheckControls(u32 mstate_wf, Fvector& vControlAccel, float& Ju
 		{
 			mstate_real |= mcJump;
 			m_bJumpKeyPressed = TRUE;
-			Jump = m_fJumpSpeed;
+
+			// Fire before-jump callback so Lua can call set_actor_jump_speed()
+			// (e.g. crouch-jump height boost) before the local copy is made.
+			::luabind::functor<bool> before_jump;
+			if (ai().script_engine().functor("_G.CActor_before_jump", before_jump))
+				before_jump(mstate_real);
+
+			Jump = m_fJumpSpeed;  // reads any modification made by the callback above
 			m_fJumpTime = s_fJumpTime;
 
 			::luabind::functor<bool> on_jump;

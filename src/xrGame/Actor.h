@@ -102,7 +102,9 @@ public:
 	// Accessibility smoothing: EMA state for eye-bone camera position
 	Fvector         m_fpBodySmoothedDelta    {0.f, 0.f, 0.f}; // smoothed eye-bone offset relative to actor root
 	bool            m_fpBodySmoothedDeltaValid {false};        // true once the smoother has been seeded
-	// OWA chest-level obstacle clearance (metres of extra pullback, EMA-smoothed)
+	// OWA: FP body forward obstacle clearance (metres of extra backward pullback, EMA-smoothed).
+	// Updated each frame from multi-height forward raycasts (lower chest + upper chest/shoulder)
+	// in ActorCameras.cpp so the visible torso never clips into geometry the camera cleared.
 	float           m_fpBodyChestClearance {0.f};
 
 	void InitFPBody();

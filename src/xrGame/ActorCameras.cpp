@@ -612,6 +612,55 @@ void CActor::cam_Update(float dt, float fFOV)
 				eyeWorld.mul_43(XFORM(), k->LL_GetBoneInstance(eye_bone).mTransform);
 				Fvector rawPos = eyeWorld.c;
 
+				// OWA: Eye-bone geometry safety clamp.
+				//
+				// The 3rd-person physics capsule allows the rendered skeleton to animate beyond
+				// its boundary. When crouching against a wall the forward-lean animation can push
+				// the eye bone into the wall even though the physics body is technically valid.
+				// collide_camera() is supposed to push the camera back out, but it operates
+				// reactively on the camera box — it can fail for thin geometry or when the
+				// clamp_change early-exit treats a stable penetration as "no change needed".
+				//
+				// Fix: clamp rawPos proactively before it is ever used as the camera position.
+				// Cast HORIZONTALLY at eye-bone height from the actor's body axis to the raw
+				// eye position. If static geometry is in the way, snap rawPos.x/z to just
+				// outside the surface. rawPos.y is deliberately left unchanged — the actor
+				// crouches vertically, not forward-tilts, so eye-bone Y is the correct height.
+				//
+				// The actor's physics guarantees XFORM().c is outside geometry, so starting
+				// 1 cm behind the actor's horizontal centre is always a safe ray origin.
+				// collide_camera() still runs afterwards for final viewport-near placement.
+				{
+					Fvector to_eye_h;
+					to_eye_h.set(rawPos.x - XFORM().c.x, 0.f, rawPos.z - XFORM().c.z);
+					const float h_dist = to_eye_h.magnitude();
+					if (h_dist > 0.001f)
+					{
+						to_eye_h.mul(1.f / h_dist);  // normalize (horizontal only)
+
+						// 1 cm behind actor horizontal centre at eye height — guaranteed
+						// outside any wall the capsule is currently touching.
+						Fvector origin;
+						origin.set(XFORM().c.x, rawPos.y, XFORM().c.z);
+						origin.mad(origin, to_eye_h, -0.01f);
+
+						collide::rq_result RQ;
+						const float ray_len = h_dist + 0.01f;  // just past the eye bone
+						BOOL hit = Level().ObjectSpace.RayPick(
+							origin, to_eye_h, ray_len, collide::rqtStatic, RQ, nullptr);
+
+						if (hit)
+						{
+							// Wall found between actor body and eye bone.
+							// Snap X/Z to just outside the surface; leave Y unchanged.
+							const float ROUGH_SKIN = 0.02f;
+							float safe_h = _max(0.f, RQ.range - ROUGH_SKIN);
+							rawPos.x = origin.x + to_eye_h.x * safe_h;
+							rawPos.z = origin.z + to_eye_h.z * safe_h;
+						}
+					}
+				}
+
 				// OWA: Accessibility smoothing for FP body eye-bone camera position.
 				//
 				// We smooth the *delta* between the eye bone and the actor's root position
@@ -696,35 +745,57 @@ void CActor::cam_Update(float dt, float fFOV)
 		collide_camera(*cameras[eacFirstEye], _viewport_near, this);
 	}
 
-	// chest-level obstacle scan for FP body.
-	// The camera collision runs at eye level (~1.7 m) and misses lower obstacles
-	// (fence rails, low walls, waist-high posts).  Cast a ray from chest height
-	// along the actor's horizontal-forward axis; if it hits within SCAN_DIST,
-	// compute extra pullback so the body mesh doesn't penetrate the obstacle.
-	// EMA-smoothed to avoid single-frame pops.
+	// OWA: FP body forward obstacle clearance — multi-height scan.
+	//
+	// The camera collision runs at eye level and is immune to clipping, but the visible
+	// FP body mesh extends above and below the eye bone. In crouch-against-wall poses the
+	// upper-chest/shoulder zone can extend further forward than the eye bone and clip into
+	// geometry even though the camera view is clear.
+	//
+	// Fix: cast two forward rays along the actor's horizontal-forward axis at heights that
+	// proportionally bracket the visible torso — lower chest and upper chest/shoulder.
+	// Because the heights are expressed as fractions of the actual camera eye height above
+	// the actor root, they adapt automatically to both standing and crouching states:
+	//   standing  (eye ≈ 1.65 m above root): scans at ≈0.91 m and ≈1.32 m
+	//   crouching (eye ≈ 1.00 m above root): scans at ≈0.55 m and ≈0.80 m
+	// The maximum pullback from all rays drives m_fpBodyChestClearance.
+	// EMA-smoothed to avoid single-frame pops on curved surfaces.
 	if (ps_r_fp_body && g_Alive() && IsFocused() && cam_active == eacFirstEye
 		&& !(mstate_real & mcClimb))
 	{
-		const float CHEST_HEIGHT  = 0.9f;   // metres above actor root (≈ lower chest)
-		const float SCAN_DIST     = 0.30f;  // forward scan range
-		const float CHEST_FORWARD = 0.12f;  // approximate chest mesh forward extent
-		const float CLEARANCE     = 0.03f;  // minimum gap to maintain
+		const float SCAN_DIST    = 0.30f;  // forward scan range
+		const float BODY_FORWARD = 0.15f;  // conservative body mesh forward extent from root
+		const float CLEARANCE    = 0.03f;  // minimum gap to maintain
 
-		Fvector origin;
-		origin.set(XFORM().c);
-		origin.y += CHEST_HEIGHT;
+		// Derive eye height from the collision-resolved camera position (post-collide_camera).
+		// Falls back to a sane default in the unlikely event the camera hasn't been seeded yet.
+		float eye_height = cam_FirstEye()->vPosition.y - XFORM().c.y;
+		if (eye_height < 0.1f)
+			eye_height = 0.9f;
 
-		collide::rq_result RQ;
-		BOOL hit = Level().ObjectSpace.RayPick(
-			origin, xform.k, SCAN_DIST, collide::rqtStatic, RQ, nullptr);
+		// Lower chest and upper chest/shoulder — two fractions of eye height.
+		const float scan_fracs[2] = { 0.55f, 0.80f };
 
-		float target = hit ? _max(0.f, (CHEST_FORWARD + CLEARANCE) - RQ.range) : 0.f;
+		float max_target = 0.f;
+		for (int si = 0; si < 2; si++)
+		{
+			Fvector origin;
+			origin.set(XFORM().c);
+			origin.y += eye_height * scan_fracs[si];
+
+			collide::rq_result RQ;
+			BOOL hit = Level().ObjectSpace.RayPick(
+				origin, xform.k, SCAN_DIST, collide::rqtStatic, RQ, nullptr);
+
+			if (hit)
+				max_target = _max(max_target, _max(0.f, (BODY_FORWARD + CLEARANCE) - RQ.range));
+		}
 
 		// EMA with ~50 ms time constant — snappy enough for fast movement,
 		// smooth enough to avoid per-frame jitter on curved surfaces.
 		const float TAU = 0.05f;
 		float alpha = 1.f - expf(-Device.fTimeDelta / TAU);
-		m_fpBodyChestClearance += alpha * (target - m_fpBodyChestClearance);
+		m_fpBodyChestClearance += alpha * (max_target - m_fpBodyChestClearance);
 	}
 	else
 	{

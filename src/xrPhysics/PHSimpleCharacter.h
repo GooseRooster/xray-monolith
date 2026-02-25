@@ -87,6 +87,7 @@ protected:
 	dVector3 m_ground_contact_position;
 	dReal jump_up_velocity; //=6.0f;//5.6f;
 	dReal m_collision_damage_factor;
+	dReal m_damage_friction_scale;  // OWA: scales fPHFriction contribution in UpdateStaticDamage
 	dReal m_max_velocity;
 
 	float m_air_control_factor;
@@ -212,6 +213,7 @@ public:
 	virtual void SetElevator(IClimableObject* climable) { m_elevator_state.SetElevator(climable); };
 	virtual CElevatorState* ElevatorState();
 	virtual void SetCollisionDamageFactor(float f) { m_collision_damage_factor = f; }
+	virtual void SetDamageFrictionScale(float f)  { m_damage_friction_scale   = f; }
 	virtual void GetPosition(Fvector& vpos);
 	virtual void GetPreviousPosition(Fvector& pos);
 	virtual float FootRadius();

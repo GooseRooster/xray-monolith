@@ -617,6 +617,8 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("set_actor_crouch_coef", &CScriptGameObject::SetActorCrouchCoef)
 		// OWA: activate/deactivate per-slide inertia carry (bypasses g_movement_inertia_enabled)
 		.def("set_slide_inertia_active", &CScriptGameObject::SetSlideInertiaActive)
+		// OWA: surface friction from physics contacts (0 = airborne, ~0.5-2.0 on ground)
+		.def("get_actor_ground_friction", &CScriptGameObject::GetActorGroundFriction)
 		.def("get_actor_climb_coef", &CScriptGameObject::GetActorClimbCoef)
 		.def("set_actor_climb_coef", &CScriptGameObject::SetActorClimbCoef)
 		.def("get_actor_walk_strafe_coef", &CScriptGameObject::GetActorWalkStrafeCoef)

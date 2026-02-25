@@ -1133,6 +1133,8 @@ public:
 	void SetActorCrouchCoef(float val);
 	// OWA: slide inertia flag — enables carry velocity even when g_movement_inertia_enabled=0
 	void SetSlideInertiaActive(bool val);
+	// OWA: current surface friction factor from physics (0 when airborne, ~0.5-2.0 on ground)
+	float GetActorGroundFriction() const;
 	float GetActorClimbCoef() const;
 	void SetActorClimbCoef(float val);
 	float GetActorWalkStrafeCoef() const;

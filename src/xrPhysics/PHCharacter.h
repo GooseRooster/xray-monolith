@@ -189,6 +189,10 @@ public:
 	virtual void GetFootCenter(Fvector& vpos) { vpos.set(*(Fvector*)dBodyGetPosition(m_body)); }
 	virtual void SetMas(dReal mass) =0;
 	virtual void SetCollisionDamageFactor(float f) =0;
+	// OWA: scale applied to the friction-weighted tangential velocity in UpdateStaticDamage.
+	// 0.0 = actor-style (normal component only, eliminates sprint-graze damage).
+	// 1.0 = default physics-object behaviour (unchanged).
+	virtual void SetDamageFrictionScale(float f) =0;
 	virtual float Mass() =0;
 	virtual void SetPhysicsRefObject(IPhysicsShellHolder* ref_object) =0;
 	virtual void SetNonInteractive(bool v) =0;

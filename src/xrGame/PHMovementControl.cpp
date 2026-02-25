@@ -71,6 +71,7 @@ CPHMovementControl::CPHMovementControl(CObject* parent)
 	m_character = NULL;
 	m_dwCurBox = 0xffffffff;
 	fCollisionDamageFactor = 1.f;
+	fDamageFrictionScale   = 1.f;
 	in_dead_area_count = 0;
 	bNonInteractiveMode = false;
 	block_damage_step_end = u64(-1);
@@ -814,6 +815,8 @@ void CPHMovementControl::Load(LPCSTR section)
 		SetRestrictionType(ERestrictionType(pSettings->r_token(section, "actor_restrictor", retrictor_types)));
 	fCollisionDamageFactor = READ_IF_EXISTS(pSettings, r_float, section, "ph_collision_damage_factor", fCollisionDamageFactor);
 	R_ASSERT3(fCollisionDamageFactor <= 1.f, "ph_collision_damage_factor > 1.", section);
+	// OWA: 0.0 = normal-component-only damage (actor); 1.0 = default object behaviour
+	fDamageFrictionScale = READ_IF_EXISTS(pSettings, r_float, section, "ph_collision_damage_friction_scale", fDamageFrictionScale);
 	SetCrashSpeeds(cs_min, cs_max);
 	SetMass(mass);
 }
@@ -1096,6 +1099,7 @@ void CPHMovementControl::CreateCharacter()
 #endif
 	m_character->SetPosition(vPosition);
 	m_character->SetCollisionDamageFactor(fCollisionDamageFactor * fCollisionDamageFactor);
+	m_character->SetDamageFrictionScale(fDamageFrictionScale);
 	trying_times[0] = trying_times[1] = trying_times[2] = trying_times[3] = u32(-1);
 	trying_poses[0].set(vPosition);
 	trying_poses[1].set(vPosition);

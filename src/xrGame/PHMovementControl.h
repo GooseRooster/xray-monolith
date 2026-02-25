@@ -127,6 +127,7 @@ private:
 	float fMinCrashSpeed;
 	float fMaxCrashSpeed;
 	float fCollisionDamageFactor;
+	float fDamageFrictionScale;   // OWA: passed to CPHSimpleCharacter::m_damage_friction_scale
 	float fAirControlParam;
 
 	Fvector vVelocity;

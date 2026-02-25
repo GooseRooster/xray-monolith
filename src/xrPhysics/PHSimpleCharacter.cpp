@@ -165,7 +165,8 @@ CPHSimpleCharacter::CPHSimpleCharacter(): m_last_environment_update(Fvector().se
 	m_ext_imulse.set(0, 0, 0);
 	m_phys_ref_object = NULL;
 	b_on_object = false;
-	m_friction_factor = 1.f;
+	m_friction_factor        = 1.f;
+	m_damage_friction_scale  = 1.f;
 	dVectorSetZero(m_control_force);
 	dVectorSetZero(m_depart_position);
 	is_contact = false;

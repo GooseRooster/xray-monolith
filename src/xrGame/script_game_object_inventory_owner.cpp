@@ -2718,6 +2718,20 @@ void CScriptGameObject::SetSlideInertiaActive(bool val)
 	pActor->m_bSlideInertiaActive = val;
 }
 
+// OWA: Returns the current surface friction factor sampled from physics contacts this step.
+// Returns 0 when the actor is airborne. Typical ground range: ~0.5 (ice) to ~2.0 (rough concrete).
+float CScriptGameObject::GetActorGroundFriction() const
+{
+	CActor* pActor = smart_cast<CActor*>(&object());
+	if (!pActor)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+			"CActor : cannot access class member GetActorGroundFriction!");
+		return 0.f;
+	}
+	return pActor->character_physics_support()->movement()->GetFrictionFactor();
+}
+
 float CScriptGameObject::GetActorClimbCoef() const
 {
 	CActor* pActor = smart_cast<CActor*>(&object());

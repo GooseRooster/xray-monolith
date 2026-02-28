@@ -8,6 +8,7 @@
 
 #include "pch_script.h"
 #include "script_game_object.h"
+#include "../Include/xrRender/KinematicsAnimated.h" // CBlend, CMotionDef, IKinematicsAnimated
 #include "script_game_object_impl.h"
 #include "ai_space.h"
 #include "script_engine.h"
@@ -444,6 +445,43 @@ int CScriptGameObject::animation_count() const
 		return (-1);
 	}
 	return ((int)stalker->animation().script_animations().size());
+}
+
+float CScriptGameObject::play_body_animation(LPCSTR animation, bool mix_in, float speed)
+{
+	IKinematicsAnimated* skeleton = smart_cast<IKinematicsAnimated*>(object().Visual());
+	if (!skeleton)
+	{
+		ai().script_engine().script_log(eLuaMessageTypeError,
+		                                "play_body_animation: [%s] has no animated skeleton", object().cName().c_str());
+		return 0.f;
+	}
+
+	MotionID motion = skeleton->ID_Cycle_Safe(animation);
+	if (!motion.valid())
+	{
+		ai().script_engine().script_log(eLuaMessageTypeError,
+		                                "play_body_animation: animation [%s] not found on [%s]",
+		                                animation, object().cName().c_str());
+		return 0.f;
+	}
+
+	// PlayCycle(MotionID, bMixIn) uses the motion def's own bone_or_part as partition,
+	// which is correct for authored animations that target a specific skeleton partition.
+	// Returns nullptr when bone_or_part == BI_NONE (plays on all parts but can't return one blend).
+	CBlend* blend = skeleton->PlayCycle(motion, mix_in ? TRUE : FALSE);
+	if (!blend)
+		return 0.f; // BI_NONE partition: animation plays but we can't read back timeTotal
+
+	// Post-multiply the blend speed so the animation plays faster/slower than authored.
+	// blend->speed was set from m_def->Speed() inside PlayCycle; multiplying here is
+	// the same pattern used by stalker_movement_manager_smart_cover for smart-cover speed.
+	if (speed != 1.f && speed > EPS)
+		blend->speed *= speed;
+
+	// Return wall-clock seconds: animation_length / actual_playback_speed.
+	// Lua can pass this directly to CreateTimeEvent for the cleanup timer.
+	return (blend->speed > EPS) ? (blend->timeTotal / blend->speed) : 0.f;
 }
 
 Flags32 CScriptGameObject::get_actor_relation_flags() const

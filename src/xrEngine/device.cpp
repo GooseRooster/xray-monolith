@@ -44,6 +44,10 @@ ENGINE_API BOOL g_bRendering = FALSE;
 BOOL g_bLoaded = FALSE;
 ref_light precache_light = 0;
 
+BOOL psLua_ParallelGC = TRUE;
+BOOL psLua_ParallelGC_debug = FALSE;
+int psLua_ParallelGC_CallAmount = 25;
+
 extern discord::Core* discord_core;
 extern bool use_discord;
 
@@ -55,10 +59,6 @@ std::chrono::high_resolution_clock::time_point tlastf = std::chrono::high_resolu
 std::chrono::duration<float> time_span;
 ENGINE_API float refresh_rate = 0;
 #endif // ECO_RENDER
-
-BOOL psLua_ParallelGC = TRUE;
-int psLua_ParallelGC_CallAmount = 25;
-
 
 BOOL CRenderDevice::Begin()
 {
@@ -214,7 +214,7 @@ void mt_Thread(void* ptr)
 				do
 				{
 					Device.LuaGCCount++;
-					if (Device.LuaGC(false) == 1) // 1 informs that GC cycle is complete
+					if (Device.LuaGC() == 1) // 1 informs that GC cycle is complete
 					{
 						Device.LuaGCDone = true;
 						break;
@@ -269,14 +269,24 @@ ENGINE_API xr_list<LOADING_EVENT> g_loading_events;
 
 extern bool IsMainMenuActive(); //ECO_RENDER add
 
+static HMONITOR g_StartupMonitor = NULL;
+void InitMonitor()
+{
+	if (!g_StartupMonitor)
+	{
+		POINT cursorPos;
+		GetCursorPos(&cursorPos);
+		g_StartupMonitor = MonitorFromPoint(cursorPos, MONITOR_DEFAULTTOPRIMARY);
+	}
+}
+
 void GetMonitorResolution(u32& horizontal, u32& vertical)
 {
-	HMONITOR hMonitor = MonitorFromWindow(
-		Device.m_hWnd, MONITOR_DEFAULTTOPRIMARY);
+	InitMonitor();
 
 	MONITORINFO mi;
 	mi.cbSize = sizeof(mi);
-	if (GetMonitorInfoA(hMonitor, &mi))
+	if (GetMonitorInfoA(g_StartupMonitor, &mi))
 	{
 		horizontal = mi.rcMonitor.right - mi.rcMonitor.left;
 		vertical = mi.rcMonitor.bottom - mi.rcMonitor.top;
@@ -288,6 +298,24 @@ void GetMonitorResolution(u32& horizontal, u32& vertical)
 		GetWindowRect(hDesktop, &desktop);
 		horizontal = desktop.right - desktop.left;
 		vertical = desktop.bottom - desktop.top;
+	}
+}
+
+void GetMonitorPosition(int& x, int& y)
+{
+	InitMonitor();
+
+	MONITORINFO mi;
+	mi.cbSize = sizeof(mi);
+	if (GetMonitorInfoA(g_StartupMonitor, &mi))
+	{
+		x = mi.rcMonitor.left;
+		y = mi.rcMonitor.top;
+	}
+	else
+	{
+		x = 0;
+		y = 0;
 	}
 }
 
@@ -509,10 +537,9 @@ void CRenderDevice::on_idle()
 		seqFrameMT.Process(rp_Frame);
 	}
 
-	if (psLua_ParallelGC && Device.LuaGC && !Device.LuaGCDone)
+	if (psLua_ParallelGC_debug && psLua_ParallelGC && Device.LuaGCDebug)
 	{
-		PROF_EVENT("LuaGC Cleanup");
-		Device.LuaGC(true);
+		Device.LuaGCDebug();
 	}
 
 #ifdef DEDICATED_SERVER
@@ -616,8 +643,8 @@ void CRenderDevice::Run()
 	thread_spawn(mt_DiscordThread, "X-RAY Discord thread", 0, 0);
 	// Message cycle
 	seqAppStart.Process(rp_AppStart);
-
 	m_pRender->ClearTarget();
+	SetForegroundWindow(m_hWnd);
 	message_loop();
 	seqAppEnd.Process(rp_AppEnd);
 	// Stop Balance-Thread

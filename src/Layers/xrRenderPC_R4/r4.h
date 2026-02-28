@@ -286,9 +286,8 @@ public:
 
 	IC void apply_lmaterial()
 	{
-		// Use ._get() for safe null check (OGSR pattern) - avoids crash if ctable is null
-		R_constant* C = RCache.get_c(c_sbase)._get();
-		if (!C) return;
+		R_constant* C = RCache.get_c(c_sbase); // get sampler
+		if (0 == C) return;
 		VERIFY(RC_dest_sampler == C->destination);
 		VERIFY(RC_dx10texture == C->type);
 		CTexture* T = RCache.get_ActiveTexture(u32(C->samp.index));

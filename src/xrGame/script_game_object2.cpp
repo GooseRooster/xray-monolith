@@ -360,6 +360,13 @@ void CScriptGameObject::RestoreDefaultStartDialog()
 	pDialogManager->RestoreDefaultStartDialog();
 }
 
+void CScriptGameObject::SetFPBodyHidden(bool hidden)
+{
+	CActor* actor = smart_cast<CActor*>(&object());
+	if (actor)
+		actor->SetFPBodyScriptHidden(hidden);
+}
+
 void CScriptGameObject::SetActorPosition(Fvector pos, bool bskip_collision_correct, bool bkeep_speed)
 {
 	CActor* actor = smart_cast<CActor*>(&object());

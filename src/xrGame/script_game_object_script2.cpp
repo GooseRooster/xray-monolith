@@ -331,6 +331,7 @@ class_<CScriptGameObject> script_register_game_object1(class_<CScriptGameObject>
 
 		.def("head_orientation", &CScriptGameObject::head_orientation)
 
+		.def("set_fp_body_hidden", &CScriptGameObject::SetFPBodyHidden)
 		.def("set_actor_position", &CScriptGameObject::SetActorPosition)
 		.def("set_actor_direction", (void (CScriptGameObject::*)(float)) &CScriptGameObject::SetActorDirection)
 		.def("set_actor_direction", (void (CScriptGameObject::*)(float, float))& CScriptGameObject::SetActorDirection)

@@ -106,10 +106,12 @@ public:
 	// Updated each frame from multi-height forward raycasts (lower chest + upper chest/shoulder)
 	// in ActorCameras.cpp so the visible torso never clips into geometry the camera cleared.
 	float           m_fpBodyChestClearance {0.f};
+	bool            m_fpBodyScriptHidden   {false}; // script-forced suppress (e.g. during mantle animations)
 
 	void InitFPBody();
 	void DestroyFPBody();
 	void SetFPBodyArms(bool visible);
+	void SetFPBodyScriptHidden(bool hidden);
 	void SyncFPBodyTransforms();
 
 public:

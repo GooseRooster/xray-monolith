@@ -276,6 +276,7 @@ public:
 	void AddAction(const CScriptEntityAction* tpEntityAction, bool bHighPriority = false);
 	void ResetActionQueue();
 	// Actor only
+	void SetFPBodyHidden(bool hidden);
 	void SetActorPosition(Fvector pos, bool bskip_collision_correct = false, bool bkeep_speed = false);	// momopate: allow movespeed to be kept if bskip_collision_correct == true
 	void SetActorDirection(float dir);
 	void SetActorDirection(float dir, float pitch);

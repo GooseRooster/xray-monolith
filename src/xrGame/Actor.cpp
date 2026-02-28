@@ -2243,6 +2243,11 @@ void CActor::SetFPBodyArms(bool visible)
 	m_fpBodyArmsShown = visible;
 }
 
+void CActor::SetFPBodyScriptHidden(bool hidden)
+{
+	m_fpBodyScriptHidden = hidden;
+}
+
 void CActor::SyncFPBodyTransforms()
 {
 	if (!m_fpBody) return;
@@ -2308,7 +2313,7 @@ void CActor::renderable_Render()
 			// SyncFPBodyTransforms copies mRenderTransform from the live animated
 			// actor skeleton so the body matches movement animations exactly.
 			// Visual() is never modified, so shadow generation remains unaffected.
-			if (ps_r_fp_body && m_fpBody && IsFocused())
+			if (ps_r_fp_body && m_fpBody && IsFocused() && !m_fpBodyScriptHidden)
 			{
 				// Show arms only when no HUD item is attached AND no HUD script animation
 				// is playing. When a weapon is equipped, the HUD hands own that visual

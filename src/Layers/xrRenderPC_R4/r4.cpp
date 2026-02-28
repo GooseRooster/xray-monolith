@@ -2058,8 +2058,25 @@ HRESULT CRender::shader_compile(
 	FS.update_path(folder_name, "$game_shaders$", folder);
 	xr_strcat(folder_name, "\\");
 
+	// Prevent any pending VFS rescan from firing mid-compile.
+	// FS operations (file_list, exist, r_open in includer::Open) all call check_pathes(),
+	// which can trigger rescan_pathes() -> Recurse() — a recursive filesystem scan that
+	// hangs under Wine/Proton when filesystem change notifications are pending (e.g.,
+	// after writing previous shader cache files to disk). We defer the rescan to the
+	// end of this function instead, where D3DCompile has already finished.
+	// See: FS.unlock_rescan() call before return below.
+	FS.lock_rescan();
+
 	m_file_set.clear();
-	FS.file_list(m_file_set, folder_name, FS_ListFiles | FS_RootOnly, "*");
+	// Only scan for precompiled shaders when the lookup result would actually be used.
+	// When rsPrecompiledShaders is set, match_shader_id is short-circuited out, so
+	// file_list is wasted. Once an empty result is seen (no precompiled dir), stop calling.
+	if (!psDeviceFlags2.test(rsPrecompiledShaders) && m_has_precompiled_shaders)
+	{
+		FS.file_list(m_file_set, folder_name, FS_ListFiles | FS_RootOnly, "*");
+		if (m_file_set.empty())
+			m_has_precompiled_shaders = false;
+	}
 
 	string_path temp_file_name, file_name;
 	if (psDeviceFlags2.test(rsPrecompiledShaders) || !match_shader_id(name, sh_name, m_file_set, temp_file_name))
@@ -2143,6 +2160,11 @@ HRESULT CRender::shader_compile(
 		if (pErrorBuf)
 			pErrorBuf->Release();
 	}
+
+	// Allow any deferred VFS rescan to run now that D3DCompile has finished.
+	// This ensures the FS cache stays consistent between shaders without
+	// blocking compilation itself.
+	FS.unlock_rescan();
 
 	return _result;
 }

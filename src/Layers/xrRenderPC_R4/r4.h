@@ -465,6 +465,11 @@ protected:
 
 private:
 	FS_FileSet m_file_set;
+
+	// Tracks whether a precompiled shader directory was found on first check.
+	// False after the first empty result — skips all future file_list calls.
+	// Avoids triggering VFS rescans unnecessarily under Wine/Proton.
+	bool m_has_precompiled_shaders = true;
 };
 
 extern CRender RImplementation;

@@ -169,8 +169,9 @@ void CResourceManager::_DeleteElement(const ShaderElement* S)
 Shader* CResourceManager::_cpp_Create(IBlender* B, LPCSTR s_shader, LPCSTR s_textures, LPCSTR s_constants,
                                       LPCSTR s_matrices)
 {
-	xrCriticalSectionGuard guard(creationGuard);
-
+	// NOTE: No outer creationGuard here — shader compilation (D3DCompile) is expensive and must not
+	// hold the lock. Individual _CreatePS/_CreateVS/etc. and _CreateElement calls each take the lock
+	// briefly for their own cache checks and registrations.
 	CBlender_Compile C;
 	Shader S;
 
@@ -266,7 +267,8 @@ Shader* CResourceManager::_cpp_Create(IBlender* B, LPCSTR s_shader, LPCSTR s_tex
 			S.E[0]->passes[0]->ps->hud_disabled = TRUE;
 	}
 
-	// Search equal in shaders array
+	// Search equal in shaders array and register — narrow lock scope, no D3DCompile inside.
+	xrCriticalSectionGuard guard(creationGuard);
 	for (u32 it = 0; it < v_shaders.size(); it++)
 		if (S.equal(v_shaders[it])) return v_shaders[it];
 

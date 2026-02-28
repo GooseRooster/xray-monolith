@@ -513,7 +513,9 @@ BOOL CResourceManager::_lua_HasShader(LPCSTR s_shader)
 
 Shader* CResourceManager::_lua_Create(LPCSTR d_shader, LPCSTR s_textures)
 {
-	xrCriticalSectionGuard guard(creationGuard);
+	// NOTE: No outer creationGuard — all shared-state accesses are guarded inside _cpp_Create
+	// and the individual _CreatePS/_CreateVS/etc. functions. Holding a lock here would keep it
+	// held across D3DCompile, which causes hangs under Wine/Proton.
 	CBlender_Compile C;
 	Shader S;
 

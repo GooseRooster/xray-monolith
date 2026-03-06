@@ -2300,9 +2300,12 @@ void CActor::SyncFPBodyTransforms()
 // OWA: End First-Person Body ---------------------------------------------------
 
 #include "debug_renderer.h"
+#include "../xrEngine/FDemoRecord.h"
+extern xr_unordered_set<CDemoRecord*> pDemoRecords;
 void CActor::renderable_Render()
 {
 	VERIFY(_valid(XFORM()));
+
 
 	if (cam_active == eacFirstEye)
 	{
@@ -2389,7 +2392,7 @@ void CActor::renderable_Render()
 		}
 	}
 
-// Third Person Body and Weapon/Item
+	// Third Person Body and Weapon/Item
 	else
 	{
 		inherited::renderable_Render();

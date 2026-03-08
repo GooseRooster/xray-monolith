@@ -4,6 +4,7 @@
 
 // Common
 extern ECORE_API float ps_ssfx_fog_scattering;
+extern ECORE_API float ps_ssfx_fog_terrain_y;  // OWA: terrain Y under camera + pressure offset
 extern ECORE_API Fvector4 ps_ssfx_taa;
 extern ECORE_API int ps_ssfx_terrain_grass_align;
 extern ECORE_API int ps_ssfx_terrain_pom_refine;

@@ -415,6 +415,7 @@ Fvector4 ps_ssfx_floravariation = { 0.025, 0.1, 0.025, 0.05 }; // Grass Int, Gra
 Fvector4 ps_ssfx_taa = { 1, 0.5f, 0.6f, 0 }; // Enable, Jitter, Sharpness, -
 Fvector4 ps_ssfx_fog = { 8, 1.3f, 0.1f, 0 }; // Height, Density, SunColor, -
 float ps_ssfx_fog_scattering = 0.6f; // Fog scattering intensity
+float ps_ssfx_fog_terrain_y = 0.0f;  // OWA: terrain Y under camera + pressure offset (set from Lua)
 
 int ps_ssfx_pom_refine = 0;
 Fvector4 ps_ssfx_pom = { 16, 12, 0.035f, 0.4f };  // Samples , Range, Height, AO
@@ -1327,6 +1328,7 @@ void xrRender_initconsole()
 	CMD4(CCC_Vector4, "ssfx_taa", &ps_ssfx_taa, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 1, 2, 1));
 	CMD4(CCC_Float, "ssfx_fog_scattering", &ps_ssfx_fog_scattering, 0, 1);
 	CMD4(CCC_Vector4, "ssfx_fog", &ps_ssfx_fog, Fvector4().set(0, 0, 0, 0), Fvector4().set(20, 5, 1, 100));
+	CMD4(CCC_Float, "ssfx_fog_terrain_y", &ps_ssfx_fog_terrain_y, -500.f, 500.f); // OWA: terrain Y offset for dynamic height fog
 
 	// OWA SSFX feature toggles (requires restart for shader recompilation)
 	CMD4(CCC_Integer, "r3_ssfx_fog", &ps_r3_ssfx_fog, 0, 1);

@@ -808,6 +808,7 @@ static class cl_near_far_plane : public R_constant_setup
 // Screen Space Shaders Stuff
 extern Fvector4 ps_ssfx_floravariation;
 extern Fvector4 ps_ssfx_fog;
+extern float    ps_ssfx_fog_terrain_y;
 
 extern Fvector4 ps_ssfx_pom;
 extern Fvector4 ps_ssfx_terrain_pom;
@@ -1185,6 +1186,14 @@ static class ssfx_fog : public R_constant_setup
 	}
 }    ssfx_fog;
 
+static class ssfx_fog_terrain_y_setup : public R_constant_setup
+{
+	virtual void setup(R_constant* C)
+	{
+		RCache.set_c(C, ps_ssfx_fog_terrain_y);
+	}
+}    ssfx_fog_terrain_y_setup;
+
 static class ssfx_floravariation : public R_constant_setup
 {
 	virtual void setup(R_constant* C)
@@ -1495,6 +1504,7 @@ void CBlender_Compile::SetMapping()
 	// Screen Space Shaders	
 	r_Constant("ssfx_floravariation", &ssfx_floravariation);
 	r_Constant("ssfx_fog", &ssfx_fog);
+	r_Constant("ssfx_fog_terrain_y", &ssfx_fog_terrain_y_setup);
 	r_Constant("ssfx_timedelta", &ssfx_fTimeDelta);
 	r_Constant("ssfx_jitter", &ssfx_jitter);
 	r_Constant("ssfx_pom", &ssfx_pom);

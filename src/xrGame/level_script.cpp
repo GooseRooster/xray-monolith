@@ -1559,6 +1559,11 @@ void sun_time(int hour, int minute)
 
 	R_ASSERT(_valid(E.sun_dir));
 
+	// OWA: Keep visual_sun_dir in sync so L_visual_sun_dir_e (procedural sun shader)
+	// follows the editor-scrubbed position. Without this, visual_sun_dir only updates
+	// inside calculate_config/dynamic_sun_dir, which are skipped when engine is paused.
+	E.visual_sun_dir = E.sun_dir;
+
 	// OWA: Set visual time override so timers_game shader constant matches
 	// the scrubbed time (needed for procedural sun/moon shader)
 	environment()->editor_sun_time = float(hour) * 3600.f + float(minute) * 60.f;

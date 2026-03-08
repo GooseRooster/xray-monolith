@@ -78,8 +78,8 @@ u32 ps_sunshafts_mode = 2;
 xr_token sunshafts_mode_token [ ] = {
 	{"off", 0},
 	{"volumetric", 1},
-	{"screen_space", 3},
-	{"combined", 4},
+	{"screen_space", 2},
+	{"combined", 3},
 	{0, 0}
 };
 

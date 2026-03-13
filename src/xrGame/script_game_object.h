@@ -638,6 +638,8 @@ public:
 	// returns 0 on failure or when the motion's partition is BI_NONE (animation still plays).
 	// speed: multiplier on the motion def's authored speed (1.0 = normal, 0.5 = half speed).
 	float play_body_animation(LPCSTR animation, bool mix_in, float speed);
+	void set_ik_enabled(bool enabled);
+	bool get_ik_enabled();
 	CScriptBinderObject* binded_object();
 	void set_previous_point(int point_index);
 	void set_start_point(int point_index);

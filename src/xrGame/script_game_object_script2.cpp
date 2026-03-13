@@ -313,6 +313,8 @@ class_<CScriptGameObject> script_register_game_object1(class_<CScriptGameObject>
 		.def("animation_count", &CScriptGameObject::animation_count)
 		.def("animation_slot", &CScriptGameObject::animation_slot)
 		.def("play_body_animation", &CScriptGameObject::play_body_animation)
+		.def("set_ik_enabled", &CScriptGameObject::set_ik_enabled)
+		.def("get_ik_enabled", &CScriptGameObject::get_ik_enabled)
 
 		.def("ignore_monster_threshold", &CScriptGameObject::set_ignore_monster_threshold)
 		.def("restore_ignore_monster_threshold", &CScriptGameObject::restore_ignore_monster_threshold)

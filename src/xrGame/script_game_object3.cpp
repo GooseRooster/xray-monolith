@@ -9,6 +9,8 @@
 #include "pch_script.h"
 #include "script_game_object.h"
 #include "../Include/xrRender/KinematicsAnimated.h" // CBlend, CMotionDef, IKinematicsAnimated
+#include "PhysicsShellHolder.h"
+#include "IKLimbsController.h"
 #include "script_game_object_impl.h"
 #include "ai_space.h"
 #include "script_engine.h"
@@ -447,6 +449,28 @@ int CScriptGameObject::animation_count() const
 	return ((int)stalker->animation().script_animations().size());
 }
 
+void CScriptGameObject::set_ik_enabled(bool enabled)
+{
+	CPhysicsShellHolder* sh = smart_cast<CPhysicsShellHolder*>(&object());
+	if (!sh)
+		return;
+	CIKLimbsController* ik = sh->character_ik_controller();
+	if (!ik)
+		return;
+	ik->set_ik_enabled(enabled);
+}
+
+bool CScriptGameObject::get_ik_enabled()
+{
+	CPhysicsShellHolder* sh = smart_cast<CPhysicsShellHolder*>(&object());
+	if (!sh)
+		return true;
+	CIKLimbsController* ik = sh->character_ik_controller();
+	if (!ik)
+		return true;
+	return ik->get_ik_enabled();
+}
+
 float CScriptGameObject::play_body_animation(LPCSTR animation, bool mix_in, float speed)
 {
 	IKinematicsAnimated* skeleton = smart_cast<IKinematicsAnimated*>(object().Visual());
@@ -468,10 +492,26 @@ float CScriptGameObject::play_body_animation(LPCSTR animation, bool mix_in, floa
 
 	// PlayCycle(MotionID, bMixIn) uses the motion def's own bone_or_part as partition,
 	// which is correct for authored animations that target a specific skeleton partition.
-	// Returns nullptr when bone_or_part == BI_NONE (plays on all parts but can't return one blend).
+	//
+	// Null return has two distinct meanings:
+	//   bone_or_part == BI_NONE  →  animation plays on all parts; no single blend to return. Return 0.f.
+	//   bone_or_part != BI_NONE  →  IBlend_Create() failed (pool exhausted, same-frame UpdateTracks guard
+	//                               prevented cleanup). Animation did NOT play. Return -1.f so Lua can abort.
+	bool const bi_none = [&]() -> bool {
+		CMotionDef* m_def = skeleton->LL_GetMotionDef(motion);
+		return m_def && (m_def->bone_or_part == BI_NONE);
+	}();
+
 	CBlend* blend = skeleton->PlayCycle(motion, mix_in ? TRUE : FALSE);
 	if (!blend)
-		return 0.f; // BI_NONE partition: animation plays but we can't read back timeTotal
+	{
+		if (bi_none)
+			return 0.f; // BI_NONE: animation plays but we can't return a single blend handle
+		// Real failure: blend pool exhausted. Caller should abort rather than fire timers with no anim.
+		Msg("! play_body_animation: blend pool exhausted for [%s] on [%s]",
+		    animation, object().cName().c_str());
+		return -1.f;
+	}
 
 	// Post-multiply the blend speed so the animation plays faster/slower than authored.
 	// blend->speed was set from m_def->Speed() inside PlayCycle; multiplying here is

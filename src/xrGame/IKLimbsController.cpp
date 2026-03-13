@@ -17,7 +17,7 @@
 #endif // DEBUG
 
 
-CIKLimbsController::CIKLimbsController(): m_object(0), m_legs_blend(0)
+CIKLimbsController::CIKLimbsController(): m_object(0), m_legs_blend(0), m_ik_disabled(false)
 {
 }
 
@@ -244,6 +244,9 @@ int ik_shift_object = 1;
 
 void CIKLimbsController::Calculate()
 {
+	if (m_ik_disabled)
+		return;
+
 	update_blend(m_legs_blend);
 
 	Fmatrix& obj = m_object->XFORM();

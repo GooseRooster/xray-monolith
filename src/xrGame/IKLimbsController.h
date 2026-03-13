@@ -37,7 +37,12 @@ private:
 private:
 	static void __stdcall IKVisualCallback(IKinematics* K);
 
+public:
+	void set_ik_enabled(bool enabled) { m_ik_disabled = !enabled; }
+	bool get_ik_enabled() const { return !m_ik_disabled; }
+
 private:
+	bool m_ik_disabled;
 	CBlend* m_legs_blend;
 	CGameObject* m_object;
 	xr_vector<CIKLimb> _bone_chains;

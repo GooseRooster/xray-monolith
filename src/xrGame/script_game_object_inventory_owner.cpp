@@ -888,6 +888,19 @@ LPCSTR CScriptGameObject::CharacterName()
 	return pInventoryOwner->Name();
 }
 
+void CScriptGameObject::SetCharacterName(LPCSTR name)
+{
+	CInventoryOwner* pInventoryOwner = smart_cast<CInventoryOwner*>(&object());
+
+	if (!pInventoryOwner)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "SetCharacterName available only for InventoryOwner");
+		return;
+	}
+	pInventoryOwner->ChangeName(name);
+}
+
 LPCSTR CScriptGameObject::CharacterIcon()
 {
 	CInventoryOwner* pInventoryOwner = smart_cast<CInventoryOwner*>(&object());

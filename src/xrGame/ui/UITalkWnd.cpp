@@ -263,6 +263,13 @@ void CUITalkWnd::Show(bool status)
 	}
 }
 
+void CUITalkWnd::SetVisibleNoState(bool status)
+{
+	// Bypass CUITalkWnd::Show() and CUIDialogWnd::Show() — both have side effects.
+	// CUIWindow::Show() just sets the visibility flag, preserving all dialogue state.
+	CUIWindow::Show(status);
+}
+
 bool CUITalkWnd::TopicMode()
 {
 	return NULL == m_pCurrentDialog.get();

@@ -44,6 +44,7 @@ public:
 	virtual void Update();
 
 	virtual void Show(bool status);
+	void SetVisibleNoState(bool status); // Hide/show visually without state teardown or Lua callbacks
 
 	void Stop(); //deffered
 	void StopTalk();

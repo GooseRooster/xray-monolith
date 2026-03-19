@@ -16,7 +16,9 @@
 #include "../xrEngine/igame_persistent.h"
 #include "game_cl_base.h"
 #include "UIGameCustom.h"
+#include "UIGameSP.h"
 #include "UI/UIDialogWnd.h"
+#include "UI/UITalkWnd.h"
 #include "date_time.h"
 #include "ai_space.h"
 #include "level_graph.h"
@@ -547,6 +549,15 @@ void show_indicators()
 		CurrentGameUI()->ShowCrosshair(true);
 	}
 	psActorFlags.set(AF_GODMODE_RT, FALSE);
+}
+
+// OWA: Hide/show the talk window visually without destroying dialogue state.
+// Called from Lua (level.talk_wnd_set_visible) when actor menus open over an active dialogue.
+void talk_wnd_set_visible(bool status)
+{
+	CUIGameSP* pGameSP = smart_cast<CUIGameSP*>(CurrentGameUI());
+	if (pGameSP && pGameSP->TalkMenu)
+		pGameSP->TalkMenu->SetVisibleNoState(status);
 }
 
 void show_weapon(bool b)
@@ -2582,6 +2593,7 @@ void CLevel::script_register(lua_State* L)
 			def("hide_indicators_safe", hide_indicators_safe),
 
 			def("show_indicators", show_indicators),
+			def("talk_wnd_set_visible", talk_wnd_set_visible),
 			def("show_weapon", show_weapon),
 			def("add_call", ((void (*)(const ::luabind::functor<bool>&, const ::luabind::functor<void>&))&add_call)),
 			def("add_call", ((void (*)(const ::luabind::object&, const ::luabind::functor<bool>&,

@@ -1,5 +1,5 @@
 // GlowManager.cpp: implementation of the CGlowManager class.
-//
+//  
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
@@ -14,7 +14,6 @@
 #define FADE_SCALE_DOWN		1024.f
 #define MAX_GlowsDist1		float(g_pGamePersistent->Environment().CurrentEnv->far_plane)
 #define MAX_GlowsDist2		float(MAX_GlowsDist1*MAX_GlowsDist1)
-
 
 //////////////////////////////////////////////////////////////////////
 CGlow::CGlow() : ISpatial(g_SpatialSpace)

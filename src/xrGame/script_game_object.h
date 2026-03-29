@@ -307,6 +307,8 @@ public:
 
 	void ChangeTeam(u8 team, u8 squad, u8 group);
 	void SetVisualMemoryEnabled(bool enabled);
+    float GetObjectVisibleDistance(const CScriptGameObject* obj);
+    float GetObjectLuminocity(const CScriptGameObject* obj);
 
 	// CAI_Stalker
 	CScriptGameObject* GetCurrentWeapon() const;

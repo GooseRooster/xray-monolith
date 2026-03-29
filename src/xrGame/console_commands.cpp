@@ -179,6 +179,7 @@ extern BOOL interruptFireOnAimToggle;
 extern BOOL mt_UpdateWeaponSounds;
 
 extern BOOL alifeObjectHangingLampIgnoreMatchConfiguration;
+extern BOOL duplicate_story_id_crash;
 
 extern BOOL spawn_antifreeze;
 extern BOOL spawn_antifreeze_debug;
@@ -3042,6 +3043,9 @@ void CCC_RegisterCommands()
         CMD4(CCC_Float, "g_streff", &streff, -10.f, 10.f);
     //No need for server commands in a singleplayer-only mod
     //register_mp_console_commands();
+
+    // Ignore "Specified story object is already in the Story registry!: error
+    CMD4(CCC_Integer, "duplicate_story_id_crash", &duplicate_story_id_crash, 0, 1);
 
     zoomFlags.set(NEW_ZOOM, FALSE);
     zoomFlags.set(SDS_ZOOM, TRUE);

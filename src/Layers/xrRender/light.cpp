@@ -63,6 +63,9 @@ light::~light()
 	for (u32 it = 0; it < RImplementation.Lights_LastFrame.size(); it++)
 		if (this == RImplementation.Lights_LastFrame[it]) RImplementation.Lights_LastFrame[it] = 0;
 #endif // (RENDER==R_R2) || (RENDER==R_R3) || (RENDER==R_R4)
+
+    if (sss_on_light_destroy)
+        sss_on_light_destroy(this);
 }
 
 #if (RENDER==R_R2) || (RENDER==R_R3) || (RENDER==R_R4)

@@ -656,8 +656,20 @@
 	<string id="ui_mm_modded_exes_gameplay_gameplay_general_g_legs_in_demo_record">
 		<text>Показывать в demo_record (g_legs_in_demo_record)</text>
 	</string>
+	<string id="ui_mm_modded_exes_gameplay_gameplay_general_g_legs_in_low_crouch">
+		<text>Показывать в низком приседе (g_legs_in_low_crouch)</text>
+	</string>
+	<string id="ui_mm_modded_exes_gameplay_gameplay_general_g_legs_render_attachments_shadow">
+		<text>Рисовать тени аттачментов (g_legs_render_attachments_shadow)</text>
+	</string>
 	<string id="ui_mm_modded_exes_gameplay_gameplay_general_g_legs_fwd_offset">
 		<text>Смещение вперед/назад (g_legs_fwd_offset)</text>
+	</string>
+	<string id="ui_mm_modded_exes_gameplay_gameplay_general_g_legs_spine_offset_y">
+		<text>Вертикальное смещение позвоночника (g_legs_spine_offset_y)</text>
+	</string>
+	<string id="ui_mm_modded_exes_gameplay_gameplay_general_disable_actor_body_rotation_delay">
+		<text>Мгновенный поворот модели игрока (disable_actor_body_rotation_delay)</text>
 	</string>
 
 	<!-- Aim -->
@@ -870,6 +882,9 @@
 	<string id="ui_mm_modded_exes_debug_errors_hanging_lamp_ignore_match_configuration">
 		<text>Не крашить на ошибке "no renderer type set for hanging-lamp" (hanging_lamp_ignore_match_configuration)</text>
 	</string>
+	<string id="ui_mm_modded_exes_debug_errors_lua_busy_hands_debug">
+		<text>Lua дебаг "Busy Hands" (lua_busy_hands_debug)</text>
+	</string>
 
 	<!-- optimizations -->
 	<string id="ui_mm_menu_optimizations">
@@ -877,6 +892,13 @@
 	</string>
 	<string id="ui_mm_optimizations_modded_exes">
 		<text>Оптимизации</text>
+	</string>
+
+	<string id="ui_mm_modded_exes_optimizations_g_enemy_manager_useful_cache_time">
+		<text>CEnemyManager::useful кэш время(g_enemy_manager_useful_cache_time)</text>
+	</string>
+	<string id="ui_mm_modded_exes_optimizations_g_enemy_manager_useful_cache_time_desc">
+		<text>Сохраняет результат вызова CEnemyManager::useful на короткое время в мс чтобы ограничить затратные вызовы Lua и значительно увеличить ФПС в перестрелках. -1 отключает кэш</text>
 	</string>
 
 	<string id="ui_mm_modded_exes_optimizations_r2_mt">

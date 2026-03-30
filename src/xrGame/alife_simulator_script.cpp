@@ -93,27 +93,25 @@ void generate_story_ids(
 {
 	result.clear();
 
-	CInifile* Ini = pGameIni;
+    const CInifile* Ini = pGameIni;
 
 	LPCSTR N, V;
-	u32 k;
-	shared_str temp;
-	LPCSTR section = section_name;
-	R_ASSERT(Ini->section_exist(section));
+    u32 k = 0;
+    R_ASSERT(Ini->section_exist(section_name));
 
-	for (k = 0; Ini->r_line(section, k, &N, &V); ++k)
+    result.reserve(Ini->line_count(section_name) + 1);
+    while (Ini->r_line(section_name, k, &N, &V))
 	{
-		temp = Ini->r_string_wb(section,N);
+        const shared_str& temp = Ini->r_string_wb(section_name, N);
 
 		R_ASSERT3(!strchr(*temp,' '), invalid_id_description, *temp);
 		R_ASSERT2(xr_strcmp(*temp,INVALID_ID_STRING), invalid_id_redefinition);
 
-		STORY_PAIRS::const_iterator I = result.begin();
-		STORY_PAIRS::const_iterator E = result.end();
-		for (; I != E; ++I)
-			R_ASSERT3((*I).first != temp, duplicated_id_description, *temp);
+        for (const auto& story : result)
+            R_ASSERT3(story.first != temp, duplicated_id_description, *temp);
 
 		result.push_back(std::make_pair(*temp, atoi(N)));
+        ++k;
 	}
 
 	result.push_back(std::make_pair(INVALID_ID_STRING, INVALID_ID));
@@ -454,6 +452,11 @@ void set_process_time(CALifeSimulator* self, int micro)
 	self->set_process_time(micro);
 }
 
+void force_update(CALifeSimulator* self)
+{
+	self->update_scheduled(true);
+}
+
 // demonized: iterate alife objects, functor style
 void CALifeSimulator__iterate_objects(const CALifeSimulator* self, const luabind::functor<bool>& functor)
 {
@@ -525,6 +528,11 @@ alife_object_without_actor_iterator alife_object_without_actor_iter(const CALife
 ALife::_OBJECT_ID alife_max_id(const CALifeSimulator* self)
 {
 	return self->objects().max_id;
+}
+
+ALife::_OBJECT_ID alife_object_count(const CALifeSimulator* self)
+{
+    return self->objects().objects().size();
 }
 
 ::luabind::object alife_object_ids(const CALifeSimulator* self, const bool keytable = false, const bool withActor = false)
@@ -626,10 +634,12 @@ void CALifeSimulator::script_register(lua_State* L)
 		.def("register", &reprocess_spawn)
 		.def("set_objects_per_update", &set_objects_per_update)
 		.def("set_process_time", &set_process_time)
+		.def("force_update", &force_update)
 		.def("get_children", &get_children, return_stl_iterator)
 		//Alundaio: END
 
 		// demonized: iterate alife objects
+        .def("object_count", &alife_object_count)
 		.def("object_ids", &alife_object_ids)
 		.def("objects", &alife_objects)
 		.def("iterate_objects", &CALifeSimulator__iterate_objects)

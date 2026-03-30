@@ -216,6 +216,10 @@ void CSoundRender_CoreA::refresh_devices()
 
 	pDeviceList->Enumerate();
 	Msg("SOUND: OpenAL: Device list refreshed, %d devices found", pDeviceList->GetNumDevices());
+
+	if (pDeviceList->GetNumDevices() == 0)
+		return;
+
 	const ALDeviceDesc* pDeviceDesc = pDeviceList->GetDeviceDescByName(snd_device_name.c_str());
 	if (!pDeviceDesc)
     {
@@ -227,6 +231,9 @@ void CSoundRender_CoreA::refresh_devices()
 void CSoundRender_CoreA::default_device_changed()
 {
     if (!pDeviceList)
+        return;
+
+    if (pDeviceList->GetNumDevices() == 0)
         return;
 
     if (_stricmp(snd_device_name.c_str(), pDeviceList->GetDefaultDeviceName()) == 0)
@@ -261,7 +268,8 @@ void CSoundRender_CoreA::switch_device(LPCSTR device_name)
 		return;
 	}
 
-	ALCcontext* newContext = alcCreateContext(newDevice, nullptr);
+	ALCint switchAttrs[] = { ALC_MONO_SOURCES, psSoundTargets + 4, 0 };
+	ALCcontext* newContext = alcCreateContext(newDevice, switchAttrs);
 	if (!newContext)
 	{
 		Msg("! SOUND: Failed to create context for device: %s", deviceDesc.name);
@@ -352,14 +360,17 @@ void CSoundRender_CoreA::_initialize(int stage)
 	deviceSpecifier = alcGetString(pDevice, ALC_DEVICE_SPECIFIER);
 
 	// Create context (with HRTF if requested)
+	// Reserve extra mono source slots beyond psSoundTargets for Steam Audio (reverb bus + headroom)
+	const ALCint sa_reserved = 4;
 	if (psSoundFlags.test(ss_HRTF))
 	{
-		ALCint attrs[] = { ALC_HRTF_SOFT, ALC_TRUE, 0 };
+		ALCint attrs[] = { ALC_HRTF_SOFT, ALC_TRUE, ALC_MONO_SOURCES, psSoundTargets + sa_reserved, 0 };
 		pContext = alcCreateContext(pDevice, attrs);
 	}
 	else
 	{
-		pContext = alcCreateContext(pDevice, NULL);
+		ALCint attrs[] = { ALC_MONO_SOURCES, psSoundTargets + sa_reserved, 0 };
+		pContext = alcCreateContext(pDevice, attrs);
 	}
 
 	if (pContext == nullptr) {
@@ -491,9 +502,12 @@ void CSoundRender_CoreA::_initialize(int stage)
 
 	if (stage == 1) //first initialize
 	{
-		// Pre-create targets
+		// Pre-create targets.
+		// When Steam Audio is active, reserve one source slot for the reverb bus — it is created
+		// later during level load (set_geometry_occ) and must not find the pool exhausted.
+		const u32 maxTargets = m_bSteamAudioEnabled ? (u32)psSoundTargets - 1 : (u32)psSoundTargets;
 		CSoundRender_Target* T = nullptr;
-		for (u32 tit = 0; tit < u32(psSoundTargets); tit++)
+		for (u32 tit = 0; tit < maxTargets; tit++)
 		{
 			T = xr_new<CSoundRender_TargetA>();
 			if (T->_initialize())

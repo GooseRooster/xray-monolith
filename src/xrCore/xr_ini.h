@@ -74,7 +74,7 @@ public:
 		BOOL line_exist(LPCSTR L, LPCSTR* val = 0);
 	};
 
-	typedef xr_vector<Sect*> Root;
+	typedef xr_vector<Sect> Root;
 	typedef Root::iterator RootIt;
 	typedef Root::const_iterator RootCIt;
 
@@ -128,7 +128,7 @@ public:
 	bool DLTX_isOverride(LPCSTR sec, LPCSTR line);
 	
 private:
-	static xr_unordered_flat_map<xr_string, xr_unordered_flat_map<shared_str, CInifile::Items>> CachedData;
+	static xr_unordered_flat_map<xr_string, Root> CachedData;
 	static xrCriticalSection CacheCS;
 
 public:
@@ -150,10 +150,12 @@ public:
 				section_count++;
 				// Each section name
 				// Plus the overhead of the xr_vector structure
-				total_bytes += sizeof(sect_pair.first) + sizeof(sect_pair.second);
+				total_bytes += sizeof(sect_pair.Data) + sizeof(sect_pair.Name);
 
-				// Items
-				total_bytes += sect_pair.second.capacity() * sizeof(Item);
+                // Items
+                for (const auto& d : sect_pair.Data)
+                    total_bytes += sizeof(d.depth) + sizeof(d.filename) + d.filename.size() + sizeof(d.first) + d.first.size() + sizeof(d.second.size()) + sizeof(d.insertionIndex);
+
 			}
 		}
 	}

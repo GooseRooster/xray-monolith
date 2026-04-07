@@ -138,6 +138,7 @@ public:
 		total_bytes = 0;
 		section_count = 0;
 		files_cached = CachedData.size();
+        xr_unordered_flat_set<shared_str> strings;
 
 		for (const auto& file_pair : CachedData)
 		{
@@ -150,14 +151,21 @@ public:
 				section_count++;
 				// Each section name
 				// Plus the overhead of the xr_vector structure
-				total_bytes += sizeof(sect_pair.Data) + sizeof(sect_pair.Name);
+                strings.insert(sect_pair.Name);
+				total_bytes += sizeof(sect_pair.Data);
 
                 // Items
                 for (const auto& d : sect_pair.Data)
-                    total_bytes += sizeof(d.depth) + sizeof(d.filename) + d.filename.size() + sizeof(d.first) + d.first.size() + sizeof(d.second.size()) + sizeof(d.insertionIndex);
-
+                {
+                    strings.insert(d.first);
+                    strings.insert(d.second);
+                    strings.insert(d.filename);
+                    total_bytes += sizeof(d.depth) + sizeof(d.insertionIndex);
+                }
 			}
 		}
+        for (const auto& s : strings)
+            total_bytes += sizeof(s) + s.size();
 	}
 
 private:

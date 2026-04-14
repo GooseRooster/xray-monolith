@@ -291,11 +291,16 @@ void CMovementManager::move_along_path(CPHMovementControl* movement_control, Fve
 		Device.Statistic->Physics.Begin();
 
 		// получить физ. объекты в радиусе
-		m_nearest_objects.clear_not_free();
-		Level().ObjectSpace.GetNearest(m_nearest_objects, dest_position,
-		                               DISTANCE_PHISICS_ENABLE_CHARACTERS + (movement_control->IsCharacterEnabled()
-			                                                                     ? 0.5f
-			                                                                     : 0.f), &object());
+        if (m_nearest_objects_query_pos.distance_to_sqr(dest_position) > 0.25f || m_nearest_objects.empty())
+        {
+            m_nearest_objects.clear_not_free();
+            // Add 0.5f to cover more objects for more reliability when using position cache
+            Level().ObjectSpace.GetNearest(m_nearest_objects, dest_position,
+                DISTANCE_PHISICS_ENABLE_CHARACTERS + 0.5f + (movement_control->IsCharacterEnabled()
+                    ? 0.5f
+                    : 0.f), &object());
+            m_nearest_objects_query_pos = dest_position;
+        }
 
 		// установить позицию
 		VERIFY(dist >= 0.f);

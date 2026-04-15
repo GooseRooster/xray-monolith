@@ -304,6 +304,7 @@ void CTorch::SwitchLightOnly()
 	}
 }
 
+extern BOOL r_optimize_torch = TRUE;
 void CTorch::UpdateCL()
 {
 	inherited::UpdateCL();
@@ -398,8 +399,9 @@ void CTorch::UpdateCL()
 		} // if(actor)
 		else
 		{
-            float eps = clampr<float>(Device.vCameraPosition.distance_to(M.c) * 0.002f, 0.01f, 0.12f);
-            float d_eps = 0.01f;
+            float dist = Device.GetPerceivedDist(M.c);
+            float eps = r_optimize_torch ? clampr<float>(dist * 0.002f, 0.01f, 0.12f) : 0.001f;
+            float d_eps = r_optimize_torch ? 0.01f : 0.001f;
 			if (can_use_dynamic_lights())
 			{
 				light_render->set_position(M.c, eps);

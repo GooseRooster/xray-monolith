@@ -1,8 +1,5 @@
 function on_game_start()
 	local modded_exes_operations_per_version = {
-		[20260406] = function()
-			exec_console_cmd("r_wallmarks_ssa_k 40")
-		end,
 		[20260405] = function()
 			exec_console_cmd("g_legs_fwd_offset -0.5")
 			exec_console_cmd("g_enemy_manager_useful_cache_time 200")

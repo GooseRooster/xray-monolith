@@ -2160,13 +2160,17 @@ void CActor::RenderCamAttached()
 	}
 }
 
+#include "../xrEngine/FDemoRecord.h"
+extern xr_unordered_set<CDemoRecord*> pDemoRecords;
 extern Flags32 ps_actor_shadow_flags;
 extern BOOL  ps_r_fp_body;
 extern float ps_r_fp_body_base_offset; // constant backward body shift (always applied)
 extern float ps_r_fp_body_cam_offset;  // extra backward body shift scaled by look_down
+BOOL r__actor_shadow_in_demo_record = TRUE;
 
 bool CActor::AllowActorShadow()
 {
+	if (!r__actor_shadow_in_demo_record && !pDemoRecords.empty()) return false;
 	if (!ps_actor_shadow_flags.test(1)) return false;
 	if (::Render->get_generation() != ::Render->GENERATION_R2) return false;
 
@@ -2300,8 +2304,6 @@ void CActor::SyncFPBodyTransforms()
 // OWA: End First-Person Body ---------------------------------------------------
 
 #include "debug_renderer.h"
-#include "../xrEngine/FDemoRecord.h"
-extern xr_unordered_set<CDemoRecord*> pDemoRecords;
 void CActor::renderable_Render()
 {
 	VERIFY(_valid(XFORM()));

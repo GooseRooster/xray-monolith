@@ -190,6 +190,8 @@ extern float IK_ALWAYS_CALC_DIST;
 extern BOOL r_optimize_calculate_bones;
 extern BOOL r_optimize_torch;
 
+extern BOOL r__actor_shadow_in_demo_record;
+
 extern int enemy_manager_useful_cache_time;
 
 
@@ -2943,6 +2945,8 @@ void CCC_RegisterCommands()
     CMD4(CCC_Float, "ik_always_calc_dist", &IK_ALWAYS_CALC_DIST, 10, 50);
     CMD4(CCC_Integer, "r__optimize_calculate_bones", &r_optimize_calculate_bones, 0, 1);
     CMD4(CCC_Integer, "r__optimize_torch", &r_optimize_torch, 0, 1);
+
+    CMD4(CCC_Integer, "r__actor_shadow_in_demo_record", &r__actor_shadow_in_demo_record, 0, 1);
 
     CMD4(CCC_Integer, "g_progressive_stamina_cost", &progressiveStaminaCost, 0, 1);
     CMD4(CCC_Integer, "g_npcs_look_at_actor", &NPCsLookAtActor, 0, 1);

@@ -64,6 +64,7 @@ public:
 public:
     IDXGIFactory2*          m_pFactory; //  DXGI factory
 	IDXGIAdapter1*			m_pAdapter;	//	pD3D equivalent
+	IDXGIOutput*			m_pOutput;	//	the output we render to (belongs to m_pAdapter)
 	ID3D11Device1*			pDevice;	//	combine with DX9 pDevice via typedef
 	ID3D11DeviceContext1*   pContext;	//	combine with DX9 pDevice via typedef
 	IDXGISwapChain1*        m_pSwapChain;
@@ -83,6 +84,7 @@ public:
 #elif defined(USE_DX10)
 public:
 	IDXGIAdapter*			m_pAdapter;	//	pD3D equivalent
+	IDXGIOutput*			m_pOutput;	//	the output we render to (belongs to m_pAdapter)
 	ID3D10Device1*       	pDevice1;	//	combine with DX9 pDevice via typedef
 	ID3D10Device*        	pDevice;	//	combine with DX9 pDevice via typedef
 	ID3D10Device1*       	pContext1;	//	combine with DX9 pDevice via typedef
@@ -95,6 +97,7 @@ public:
 
 	D3D10_DRIVER_TYPE		m_DriverType;	//	DevT equivalent
 	DXGI_SWAP_CHAIN_DESC	m_ChainDesc;	//	DevPP equivalent
+	HWND					m_hWnd;
 	bool					m_bUsePerfhud;
 	D3D_FEATURE_LEVEL		FeatureLevel;
 #else
@@ -128,6 +131,12 @@ public:
 #endif	//	USE_DX10
 
 private:
+#if defined(USE_DX10) || defined(USE_DX11)
+	void AcquireDefaultOutput();
+#endif
+#if defined(USE_DX11)
+	void SelectAdapterAndOutput(HMONITOR hTargetMonitor);
+#endif
 	bool m_move_window;
 };
 

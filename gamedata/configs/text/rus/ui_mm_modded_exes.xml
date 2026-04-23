@@ -8,6 +8,10 @@
 		<text>Modded Exes</text>
 	</string>
 
+	<string id="ui_mm_video_basic_monitor">
+		<text>Монитор</text>
+	</string>
+
 	<string id="ui_mm_lst_ON">
 		<text>ВКЛ</text>
 	</string>

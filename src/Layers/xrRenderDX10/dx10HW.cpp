@@ -78,6 +78,26 @@ void CHW::AcquireDefaultOutput()
     R_CHK(m_pAdapter->EnumOutputs(0, &m_pOutput));
 }
 
+IDXGIOutput* CHW::FindOutputOnCurrentAdapter(HMONITOR hMon)
+{
+    if (!m_pAdapter || !hMon)
+        return nullptr;
+
+    UINT oi = 0;
+    IDXGIOutput* pOut = nullptr;
+    while (m_pAdapter->EnumOutputs(oi, &pOut) != DXGI_ERROR_NOT_FOUND)
+    {
+        DXGI_OUTPUT_DESC desc;
+        if (SUCCEEDED(pOut->GetDesc(&desc)) && desc.Monitor == hMon)
+        {
+            return pOut;
+        }
+        _RELEASE(pOut);
+        ++oi;
+    }
+    return nullptr;
+}
+
 #if defined(USE_DX11)
 void CHW::SelectAdapterAndOutput(HMONITOR hTargetMonitor)
 {

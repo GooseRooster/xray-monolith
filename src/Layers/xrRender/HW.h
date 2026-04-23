@@ -39,6 +39,10 @@ public:
 
 	void Reset(HWND hw);
 
+#if defined(USE_DX10) || defined(USE_DX11)
+	IDXGIOutput* FindOutputOnCurrentAdapter(HMONITOR hMon);
+#endif
+
 	void selectResolution(u32& dwWidth, u32& dwHeight, BOOL bWindowed);
 	D3DFORMAT selectDepthStencil(D3DFORMAT);
 	u32 selectPresentInterval();

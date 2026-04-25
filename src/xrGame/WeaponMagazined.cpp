@@ -1612,6 +1612,8 @@ void CWeaponMagazined::LoadScopeKoeffs()
 		&& (!m_modular_attachments || (m_flagsAddOnState & CSE_ALifeItemWeapon::eWeaponAddonScope)))
 	{
 		LPCSTR sect = GetScopeName().c_str();
+        if (!sect)
+            Msg("!CWeaponMagazined::LoadScopeKoeffs ERROR: GetScopeName for %s returns null, m_scopes.size() %d, m_cur_scope %d", cNameSect_str(), m_scopes.size(), m_cur_scope);
 		m_scope_koef.cam_dispersion = READ_IF_EXISTS(pSettings, r_float, sect, "cam_dispersion_k", 1.0f);
 		m_scope_koef.cam_disper_inc = READ_IF_EXISTS(pSettings, r_float, sect, "cam_dispersion_inc_k", 1.0f);
 		m_scope_koef.pdm_base = READ_IF_EXISTS(pSettings, r_float, sect, "PDM_disp_base_k", 1.0f);

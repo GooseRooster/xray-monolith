@@ -1779,6 +1779,10 @@ BOOL CWeapon::CheckForMisfire()
 {
 	if (OnClient()) return FALSE;
 
+	// Disable engine-side misfire for NPCs to control it strictly via scripts
+	if (!smart_cast<CActor*>(H_Parent()))
+		return FALSE;
+
 	float rnd = ::Random.randF(0.f, 1.f);
 	float mp = GetConditionMisfireProbability();
 	if (rnd < mp)

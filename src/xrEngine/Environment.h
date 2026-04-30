@@ -365,6 +365,7 @@ public:
 
 	void OnFrame();
 	void lerp(float& current_weight);
+    void set_lerp(float current_weight);
 
 	void RenderSky(bool only_MV = false);
 	void RenderClouds();

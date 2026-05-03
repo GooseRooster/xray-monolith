@@ -1004,7 +1004,7 @@ level_weathers.WeatherManager.get_next_weather_cycle = function(self, curr_weath
 	return level_weathers_WeatherManager_get_next_weather_cycle(self, curr_weather, ...)
 end
 
-function level_weathers.WeatherManager:select_custom_weather(now, custom_weather_file, force, custom_cycle, custom_next_weather, custom_preset)
+function level_weathers.WeatherManager:select_custom_weather(now, custom_weather_file, smooth, custom_cycle, custom_next_weather, custom_preset)
 	printf("select_custom_weather (%s) | current hour: %s", tostring(now), tostring(level.get_time_hours()) )
 	
 	-- get type ("atmosfear","indoor","[default]")
@@ -1125,8 +1125,8 @@ function level_weathers.WeatherManager:select_custom_weather(now, custom_weather
 			printf("~ level_weathers: weather didn't set because lerping is paused in engine")
 		else
 			printf("select_custom_weather (%s) | self.weather_file: %s", tostring(now), tostring(self.weather_file))
-			if force ~= nil then
-				level.set_weather(self.weather_file, force)
+			if smooth then
+				level.set_weather_smooth(self.weather_file)
 			else
 				level.set_weather(self.weather_file, now)
 			end
@@ -1147,8 +1147,8 @@ level_weathers.WeatherManager.reset = function(self, ...)
 	self.from_reset = false
 
 	if self.weather_file_saved and self.last_weather_file and self.weather_weight and self.weather_file_saved ~= self.last_weather_file and not (wfx) then
-		self:select_custom_weather(true, self.last_weather_file, nil, self.last_cycle, self.curr_weather_saved, self.preset_saved)
-	    self:select_custom_weather(false, self.weather_file_saved, false, nil, nil, self.preset_saved)
+		self:select_custom_weather(true, self.last_weather_file, false, self.last_cycle, self.curr_weather_saved, self.preset_saved)
+	    self:select_custom_weather(false, self.weather_file_saved, true, nil, nil, self.preset_saved)
 	    level.set_weather_weight(self.weather_weight)
 	end
 end

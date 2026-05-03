@@ -304,6 +304,7 @@
 
         float get_weather_weight()
         void set_weather_weight(float)
+        void set_weather_smooth(string)
 
         // Camera, position is x,y,z vector, direction is head,pitch,roll vector in RADIANS
         void set_cam_custom_position_direction(Fvector position, Fvector direction, int smoothing, bool hudDraw, bool hudAffect)

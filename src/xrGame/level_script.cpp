@@ -180,6 +180,23 @@ void set_weather(LPCSTR weather_name, bool forced)
 	g_pGamePersistent->Environment().SetWeather(weather_name, forced);
 }
 
+// demonized: Sets weather and force updates next environment so the interpolation will happen between current environment and next weather's environment
+void set_weather_smooth(LPCSTR weather_name)
+{
+#ifdef INGAME_EDITOR
+    if (!Device.editor())
+#endif // #ifdef INGAME_EDITOR
+    g_pGamePersistent->Environment().SetWeather(weather_name, false);
+    if (g_pGamePersistent->Environment().Current[1] && g_pGamePersistent->Environment().CurrentWeather)
+    {
+        g_pGamePersistent->Environment().SelectEnv(
+            g_pGamePersistent->Environment().CurrentWeather,
+            g_pGamePersistent->Environment().Current[1],
+            g_pGamePersistent->Environment().GetGameTime());
+    }
+    
+}
+
 bool set_weather_fx(LPCSTR weather_name)
 {
 #ifdef INGAME_EDITOR
@@ -2582,6 +2599,7 @@ void CLevel::script_register(lua_State* L)
 
             def("get_weather_weight", get_weather_weight),
             def("set_weather_weight", set_weather_weight),
+            def("set_weather_smooth", set_weather_smooth),
 
 			def("environment", environment),
 

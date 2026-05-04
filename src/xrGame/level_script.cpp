@@ -875,7 +875,7 @@ void set_cam_position_direction(Fvector& position, Fvector& direction, unsigned 
 	actor->initFPCam();
 	actor->m_FPCam->m_HPB.set(direction);
 	actor->m_FPCam->m_Position.set(position);
-	actor->m_FPCam->m_customSmoothing = smoothing;
+	actor->m_FPCam->m_customSmoothing = _max(1, smoothing);
 	actor->m_FPCam->hudEnabled = hudEnabled;
 	actor->m_FPCam->SetHudAffect(hudAffect);
 }

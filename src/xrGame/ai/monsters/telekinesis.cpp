@@ -103,6 +103,7 @@ void CTelekinesis::remove_object(CPhysicsShellHolder* obj)
 	TELE_OBJECTS_IT it = std::find_if(objects.begin(), objects.end(), SFindPred(obj));
 	if (it == objects.end()) return;
 	//remove from list, delete...
+    obj->set_collision_hit_callback(0);
 	remove_object(it);
 }
 

@@ -1013,16 +1013,40 @@ level_weathers.WeatherManager.get_next_weather_cycle = function(self, curr_weath
 	return level_weathers_WeatherManager_get_next_weather_cycle(self, curr_weather, ...)
 end
 
+level_weathers.WeatherManager.weather_file_to_weather = function(self, weather_file)
+	if not weather_file then return end
+
+	self.weather_file_to_weather_table = self.weather_file_to_weather_table or {
+		clear = "clear",
+		partly = "partly",
+		cloudy = "cloudy",
+		rain = "rain",
+		storm = "storm",
+		foggy = "foggy",
+		tuman = "foggy"
+	}
+	for k, v in pairs(self.weather_file_to_weather_table) do
+		if weather_file:find(k) then
+			return v
+		end
+	end
+end
+
 level_weathers_WeatherManager_get_curr_weather = level_weathers.WeatherManager.get_curr_weather
 level_weathers.WeatherManager.get_curr_weather = function(self, ...)
-	-- if self.last_cycle then
-	-- 	local weight = level.get_weather_weight()
-	-- 	if weight < 0.5 then
-	-- 		return self.last_cycle
-	-- 	else
-	-- 		return self.cycle
-	-- 	end
-	-- end
+	-- This change might affect other scripts, need more testing
+	local last_weather = self:weather_file_to_weather(self.last_weather_file)
+	local weather = self:weather_file_to_weather(self.weather_file)
+	if last_weather and weather then
+		local weight = level.get_weather_weight()
+		if weight < 0.5 then
+			return last_weather
+		else
+			return weather
+		end
+	elseif weather then
+		return weather
+	end
 	return level_weathers_WeatherManager_get_curr_weather(self, ...)
 end
 
@@ -1169,7 +1193,6 @@ level_weathers.WeatherManager.reset = function(self, ...)
 	self.from_reset = false
 
 	local enabled = ui_options.get("video/weather/persistent_weather")
-	-- printf([[ui_options.get("video/weather/persistent_weather") = %s]], enabled)
 	if enabled and not level_weathers.bLevelUnderground and self.weather_file_saved and self.last_weather_file and self.weather_weight and self.weather_file_saved ~= self.last_weather_file and not (wfx) then
 		self:select_custom_weather(true, self.last_weather_file, false, self.last_cycle, self.curr_weather_saved, self.preset_saved)
 	    self:select_custom_weather(false, self.weather_file_saved, true, nil, nil, self.preset_saved)

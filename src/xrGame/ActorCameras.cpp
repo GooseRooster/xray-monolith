@@ -480,6 +480,8 @@ float offsetX = 0;
 float offsetY = 0;
 float offsetZ = 0;
 float viewportNearOffset = 0;
+float firstPersonDeathHeadScale = 3.f;
+
 void CActor::cam_Update(float dt, float fFOV)
 {
 	if (m_holder) return;
@@ -802,8 +804,19 @@ void CActor::cam_Update(float dt, float fFOV)
 		m_fpBodyChestClearance = 0.f;
 	}
 
+    static bool firstPersonDeathDied = false;
 	if (cam_active == eacFirstEye) {
-		if (firstPersonDeath && !g_Alive() && m_FPCam) {
+        bool firstPersonDeathDiedNow = firstPersonDeath && !g_Alive() && m_FPCam;
+		if (firstPersonDeathDiedNow) {
+            if (firstPersonDeathDied != firstPersonDeathDiedNow)
+            {
+                if (m_pPhysicsShell)
+                {
+                    auto head = m_pPhysicsShell->get_Element("bip01_head");
+                    if (head)
+                        head->SetScale(firstPersonDeathHeadScale);
+                }
+            }
 			IKinematics* k = Visual()->dcast_PKinematics();
 
 			// Get eye bone position
@@ -847,6 +860,7 @@ void CActor::cam_Update(float dt, float fFOV)
 			_viewport_near = VIEWPORT_NEAR - 0.08 + viewportNearOffset;
 			//Cameras().ApplyDevice(_viewport_near);
 		}
+        firstPersonDeathDied = firstPersonDeathDiedNow;
 	}
 
 	//Alundaio -psp always

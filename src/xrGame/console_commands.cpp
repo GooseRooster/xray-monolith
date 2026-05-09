@@ -868,6 +868,7 @@ extern float offsetZ;
 extern float viewportNearOffset;
 extern int firstPersonDeathPositionSmoothing;
 extern int firstPersonDeathDirectionSmoothing;
+extern float firstPersonDeathHeadScale;
 
 class CCC_FPDDirectionOffset : public CCC_Vector3
 {
@@ -3061,6 +3062,7 @@ void CCC_RegisterCommands()
     CMD4(CCC_Integer, "first_person_death_position_smoothing", &firstPersonDeathPositionSmoothing, 1, 30);
     CMD4(CCC_Integer, "first_person_death_direction_smoothing", &firstPersonDeathDirectionSmoothing, 1, 60);
     CMD4(CCC_Float, "first_person_death_near_plane_offset", &viewportNearOffset, -.1f, .5f);
+    CMD4(CCC_Float, "first_person_death_head_scale", &firstPersonDeathHeadScale, 1.f, 10.f);
 
     // PDA commands
     CMD4(CCC_Integer, "pda_map_zoom_in_to_mouse", &pda_map_zoom_in_to_mouse, 0, 1);

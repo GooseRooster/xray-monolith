@@ -1,4 +1,4 @@
-﻿#include "pch_script.h"
+#include "pch_script.h"
 #include "entity_alive.h"
 #include "InventoryOwner.h"
 #include "Inventory.h"
@@ -726,8 +726,8 @@ CPHSoundPlayer* CEntityAlive::ph_sound_player()
 ICollisionHitCallback* CEntityAlive::get_collision_hit_callback()
 {
 	CCharacterPhysicsSupport* cs = character_physics_support();
-	if (cs)return cs->get_collision_hit_callback();
-	else return false;
+	if (cs) return cs->get_collision_hit_callback();
+	return nullptr;
 }
 
 void CEntityAlive::set_collision_hit_callback(ICollisionHitCallback* cc)

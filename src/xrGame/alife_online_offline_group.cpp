@@ -57,9 +57,12 @@ void CSE_ALifeOnlineOfflineGroup::update()
 	if (m_bOnline && !m_members.empty())
 	{
 		MEMBER* commander = (*m_members.begin()).second;
-		o_Position = commander->o_Position;
-		m_tNodeID = commander->m_tNodeID;
-		m_tGraphID = commander->m_tGraphID;
+        if (commander)
+        {
+            o_Position = commander->o_Position;
+            m_tNodeID = commander->m_tNodeID;
+            m_tGraphID = commander->m_tGraphID;
+        }
 	}
 	if (!bfActive())
 		return;
@@ -70,10 +73,15 @@ void CSE_ALifeOnlineOfflineGroup::update()
 	MEMBERS::iterator E = m_members.end();
 	for (; I != E; ++I)
 	{
-		((*I).second)->o_Position = o_Position;
-		((*I).second)->m_tNodeID = m_tNodeID;
-		((*I).second)->m_tGraphID = m_tGraphID;
-		((*I).second)->m_fDistance = m_fDistance;
+        MEMBER* ptr = ((*I).second);
+        if (ptr)
+        {
+            ptr->o_Position = o_Position;
+            ptr->m_tNodeID = m_tNodeID;
+            ptr->m_tGraphID = m_tGraphID;
+            ptr->m_fDistance = m_fDistance;
+        }
+		
 	}
 	return;
 }

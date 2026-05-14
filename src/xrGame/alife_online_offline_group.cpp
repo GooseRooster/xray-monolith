@@ -54,36 +54,42 @@ bool CSE_ALifeOnlineOfflineGroup::need_update(CSE_ALifeDynamicObject* object)
 
 void CSE_ALifeOnlineOfflineGroup::update()
 {
-	if (m_bOnline && !m_members.empty())
-	{
-		MEMBER* commander = (*m_members.begin()).second;
-        if (commander)
+    try
+    {
+        if (m_bOnline && !m_members.empty())
         {
-            o_Position = commander->o_Position;
-            m_tNodeID = commander->m_tNodeID;
-            m_tGraphID = commander->m_tGraphID;
+            MEMBER* commander = (*m_members.begin()).second;
+            if (commander)
+            {
+                o_Position = commander->o_Position;
+                m_tNodeID = commander->m_tNodeID;
+                m_tGraphID = commander->m_tGraphID;
+            }
         }
-	}
-	if (!bfActive())
-		return;
+        if (!bfActive())
+            return;
 
-	brain().update();
+        brain().update();
 
-	MEMBERS::iterator I = m_members.begin();
-	MEMBERS::iterator E = m_members.end();
-	for (; I != E; ++I)
-	{
-        MEMBER* ptr = ((*I).second);
-        if (ptr)
+        MEMBERS::iterator I = m_members.begin();
+        MEMBERS::iterator E = m_members.end();
+        for (; I != E; ++I)
         {
-            ptr->o_Position = o_Position;
-            ptr->m_tNodeID = m_tNodeID;
-            ptr->m_tGraphID = m_tGraphID;
-            ptr->m_fDistance = m_fDistance;
+            MEMBER* ptr = ((*I).second);
+            if (ptr)
+            {
+                ptr->o_Position = o_Position;
+                ptr->m_tNodeID = m_tNodeID;
+                ptr->m_tGraphID = m_tGraphID;
+                ptr->m_fDistance = m_fDistance;
+            }
+
         }
-		
-	}
-	return;
+    }
+    catch (...)
+    {
+
+    }
 }
 
 void CSE_ALifeOnlineOfflineGroup::on_location_change() const

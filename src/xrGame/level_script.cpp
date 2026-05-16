@@ -41,6 +41,9 @@
 #include "HUDManager.h"
 #include "ui\UIMainIngameWnd.h"
 #include "ui\UIHudStatesWnd.h"
+#include "ui\UIPdaWnd.h"
+#include "ui\UITaskWnd.h"
+#include "ui\UIMapWnd.h"
 #include "raypick.h"
 #include "../xrCDB/xr_collide_defs.h"
 #include "../xrEngine/Rain.h"
@@ -504,6 +507,30 @@ CUIStatic* map_get_minimap_spot_static(u16 id, LPCSTR spot_type)
 u16 map_has_object_spot(u16 id, LPCSTR spot_type)
 {
 	return Level().MapManager().HasMapLocation(spot_type, id);
+}
+
+void map_pan_to(LPCSTR level_name, float x, float z, bool zoom_in)
+{
+	CUIGameCustom* gameUI = CurrentGameUI();
+	if (!gameUI) return;
+	CUITaskWnd* taskWnd = gameUI->GetPdaMenu().pUITaskWnd;
+	if (!taskWnd) return;
+	CUIMapWnd* mapWnd = taskWnd->GetMapWnd();
+	if (!mapWnd) return;
+	mapWnd->SetTargetMap(shared_str(level_name),
+		Fvector2().set(x, z),
+		zoom_in);
+}
+
+void map_pan_to_level(LPCSTR level_name, bool zoom_in)
+{
+	CUIGameCustom* gameUI = CurrentGameUI();
+	if (!gameUI) return;
+	CUITaskWnd* taskWnd = gameUI->GetPdaMenu().pUITaskWnd;
+	if (!taskWnd) return;
+	CUIMapWnd* mapWnd = taskWnd->GetMapWnd();
+	if (!mapWnd) return;
+	mapWnd->SetTargetMap(shared_str(level_name), zoom_in);
 }
 
 bool patrol_path_exists(LPCSTR patrol_path)
@@ -2641,6 +2668,9 @@ void CLevel::script_register(lua_State* L)
 			def("map_get_object_spot_static", map_get_spot_static),
 			def("map_get_object_minimap_spot_static", map_get_minimap_spot_static),
 			def("map_get_object_spots_by_id", map_get_object_spots_by_id),
+
+			def("map_pan_to", &map_pan_to),
+			def("map_pan_to_level", &map_pan_to_level),
 
 			def("add_dialog_to_render", add_dialog_to_render),
 			def("remove_dialog_to_render", remove_dialog_to_render),

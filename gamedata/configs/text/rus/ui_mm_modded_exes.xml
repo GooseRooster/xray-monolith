@@ -152,6 +152,9 @@
 	<string id="ui_mm_modded_exes_visual_ui_hud_use_english_text_for_missing_translations">
 		<text>Использовать английский язык для отсуствующего перевода (use_english_text_for_missing_translations)</text>
 	</string>
+	<string id="ui_mm_modded_exes_visual_ui_hud_pda_show_map_labels">
+		<text>Show Level Names On Global Map (pda_show_map_labels)</text>
+	</string>
 
 	<!-- Crosshair -->
 	<string id="ui_mm_crosshair_modded_exes">

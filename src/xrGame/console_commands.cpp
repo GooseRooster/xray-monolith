@@ -150,6 +150,7 @@ namespace crash_saving {
 }
 extern BOOL pda_map_zoom_in_to_mouse;
 extern BOOL pda_map_zoom_out_to_mouse;
+extern BOOL pda_show_map_labels;
 extern BOOL mouseWheelChangeWeapon;
 extern BOOL mouseWheelInvertZoom;
 extern BOOL mouseWheelInvertChangeWeapons;
@@ -3067,6 +3068,7 @@ void CCC_RegisterCommands()
     // PDA commands
     CMD4(CCC_Integer, "pda_map_zoom_in_to_mouse", &pda_map_zoom_in_to_mouse, 0, 1);
     CMD4(CCC_Integer, "pda_map_zoom_out_to_mouse", &pda_map_zoom_out_to_mouse, 0, 1);
+    CMD4(CCC_Integer, "pda_show_map_labels", &pda_show_map_labels, 0, 1);
 
     // Mouse Wheel
     CMD4(CCC_Integer, "mouse_wheel_change_weapon", &mouseWheelChangeWeapon, 0, 1);

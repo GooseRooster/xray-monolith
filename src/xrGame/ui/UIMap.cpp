@@ -13,6 +13,8 @@ const u32 activeLocalMapColor = 0xffffffff; //0xffc80000;
 const u32 inactiveLocalMapColor = 0xffffffff; //0xff438cd1;
 const u32 ourLevelMapColor = 0xffffffff;
 
+BOOL pda_show_map_labels = TRUE;
+
 
 CUICustomMap::CUICustomMap()
 {
@@ -411,7 +413,7 @@ void CUILevelMap::Draw()
 	{
 		float gmz = MapWnd()->GlobalMap()->GetCurrentZoom().x;
 		if (m_label && m_label_scale_max > 0.0f)
-			m_label->SetVisible(gmz < m_label_scale_max);
+			m_label->SetVisible(!!pda_show_map_labels && (gmz < m_label_scale_max));
 
 		for (WINDOW_LIST_it it = m_ChildWndList.begin(); m_ChildWndList.end() != it; ++it)
 		{

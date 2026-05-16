@@ -152,6 +152,9 @@
 	<string id="ui_mm_modded_exes_visual_ui_hud_use_english_text_for_missing_translations">
 		<text>Use English Text For Missing Translations (use_english_text_for_missing_translations)</text>
 	</string>
+	<string id="ui_mm_modded_exes_visual_ui_hud_pda_show_map_labels">
+		<text>Show Level Names On Global Map (pda_show_map_labels)</text>
+	</string>
 
 	<!-- Crosshair -->
 	<string id="ui_mm_crosshair_modded_exes">
@@ -680,7 +683,7 @@
 	<string id="ui_mm_modded_exes_control_pda_pda_map_zoom_out_to_mouse">
 		<text>Map Zoom Out Relative To Mouse (pda_map_zoom_out_to_mouse)</text>
 	</string>
-	
+
 	<!-- Gameplay -->
 	<string id="ui_mm_menu_gameplay">
 		<text>Gameplay</text>

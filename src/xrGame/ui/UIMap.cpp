@@ -464,6 +464,9 @@ void CUILevelMap::Init_internal(const shared_str& name, CInifile& pLtx, const sh
 			? pGameIni->r_float(MapName(), "label_scale_max")
 			: 0.0f;
 
+		// label_color = R, G, B, A — ints 0-255. Alpha omitted defaults to 255
+		// (per r_color/sscanf), not the engine default of 180, so authors who
+		// want partial transparency must spell out the 4th component.
 		u32 label_color = color_argb(180, 230, 220, 200);
 		if (pGameIni->line_exist(MapName(), "label_color"))
 			label_color = pGameIni->r_color(MapName(), "label_color");

@@ -125,7 +125,7 @@ class CUILevelMap : public CUICustomMap
 
 	CUIMapWnd* m_mapWnd;
 	Frect m_GlobalRect; // virtual map size (meters)
-	CUITextWnd* m_label;
+	CUITextWnd* m_label; // owned and freed in dtor — do not enable autodelete
 	float m_label_scale_max; // hide label when global zoom >= this; 0 = always show
 	Fvector2 m_label_offset; // global_rect units from rect centre; +x right, +y up (scaled by zoom at apply)
 	CUILevelMap(const CUILevelMap& obj)

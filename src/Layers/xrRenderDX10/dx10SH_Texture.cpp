@@ -9,6 +9,7 @@
 
 #include "../../xrEngine/tntQAVI.h"
 #include "../../xrEngine/xrTheora_Surface.h"
+#include "../../xrEngine/GIFStream.h"
 
 #include "../xrRender/dxRenderDeviceRender.h"
 
@@ -29,6 +30,7 @@ void resptrcode_texture::create(LPCSTR _name)
 //////////////////////////////////////////////////////////////////////
 CTexture::CTexture()
 {
+    gifStream = nullptr;
 	pSurface = NULL;
 	m_pSRView = NULL;
 	pAVI = NULL;
@@ -130,6 +132,7 @@ void CTexture::PostLoad()
 	if (pTheora) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_theora);
 	else if (pAVI) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_avi);
 	else if (!seqDATA.empty()) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_seq);
+    else if (gifStream) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_gif);
 	else bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_normal);
 }
 
@@ -362,6 +365,32 @@ void CTexture::apply_seq(u32 dwStage)
 	Apply(dwStage);
 };
 
+void CTexture::apply_gif(u32 dwStage)
+{
+	if (gifStream->Update(Device.dwTimeContinual))
+	{
+		D3D_RESOURCE_DIMENSION type;
+		pSurface->GetType(&type);
+		R_ASSERT(D3D_RESOURCE_DIMENSION_TEXTURE2D == type);
+		ID3DTexture2D* T2D = (ID3DTexture2D*)pSurface;
+		D3D_MAPPED_TEXTURE2D mapData;
+
+#ifdef USE_DX11
+		R_CHK(HW.pContext->Map(T2D, 0, D3D_MAP_WRITE_DISCARD, 0, &mapData));
+#else
+		R_CHK(T2D->Map(0, D3D_MAP_WRITE_DISCARD, 0, &mapData));
+#endif
+        R_ASSERT(mapData.RowPitch == gifStream->Width() * 4);
+        CopyMemory(mapData.pData, gifStream->ImageData(), gifStream->ImageSize());
+#ifdef USE_DX11
+		HW.pContext->Unmap(T2D, 0);
+#else
+		T2D->Unmap(0);
+#endif
+	}
+	Apply(dwStage);
+}
+
 void CTexture::apply_normal(u32 dwStage)
 {
 	//CHK_DX(HW.pDevice->SetTexture(dwStage,pSurface));
@@ -537,6 +566,47 @@ void CTexture::Load()
 		pSurface = 0;
 		FS.r_close(_fs);
 	}
+    else if (FS.exist(fn, "$game_textures$", *cName, ".gif"))
+    {
+        gifStream = xr_new<CGIFStream>();
+        if (!gifStream->Load(fn, Device.dwTimeContinual))
+        {
+            xr_delete(gifStream);
+        }
+        else
+        {
+            flags.MemoryUsage = gifStream->MemUsage();
+
+			ID3DTexture2D* pTexture = nullptr;
+			D3D_TEXTURE2D_DESC desc;
+			desc.Width = gifStream->Width();
+			desc.Height = gifStream->Height();
+			desc.MipLevels = 1;
+			desc.ArraySize = 1;
+			desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			desc.SampleDesc.Count = 1;
+			desc.SampleDesc.Quality = 0;
+			desc.Usage = D3D_USAGE_DYNAMIC;
+			desc.BindFlags = D3D_BIND_SHADER_RESOURCE;
+			desc.CPUAccessFlags = D3D_CPU_ACCESS_WRITE;
+			desc.MiscFlags = 0;
+
+			HRESULT hrr = HW.pDevice->CreateTexture2D(&desc, nullptr, &pTexture);
+			pSurface = pTexture;
+			if (FAILED(hrr))
+			{
+				FATAL("Invalid gif stream");
+				R_CHK(hrr);
+                xr_delete(gifStream);
+				pSurface = nullptr;
+                m_pSRView = nullptr;
+			}
+			else
+			{
+				CHK_DX(HW.pDevice->CreateShaderResourceView(pSurface, nullptr, &m_pSRView));
+			}
+        }
+    }
 	else
 	{
 		// Normal texture
@@ -595,6 +665,7 @@ void CTexture::Unload()
 
 	xr_delete(pAVI);
 	xr_delete(pTheora);
+    xr_delete(gifStream);
 
 	bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_load);
 }

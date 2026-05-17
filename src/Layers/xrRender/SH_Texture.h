@@ -6,6 +6,7 @@
 
 class ENGINE_API CAviPlayerCustom;
 class CTheoraSurface;
+class CGIFStream;
 
 class ECORE_API CTexture : public xr_resource_named
 {
@@ -29,6 +30,7 @@ public:
 	void __stdcall apply_theora(u32 stage);
 	void __stdcall apply_avi(u32 stage);
 	void __stdcall apply_seq(u32 stage);
+    void __stdcall apply_gif(u32 stage);
 	void __stdcall apply_normal(u32 stage);
 
 	void Preload();
@@ -105,6 +107,8 @@ public: //	Public class members (must be encapsulated furthur)
 		u32 m_play_time; // sync theora time
 		u32 seqMSPF; // Sequence data milliseconds per frame
 	};
+
+    CGIFStream* gifStream;
 
 private:
 	ID3DBaseTexture* pSurface;

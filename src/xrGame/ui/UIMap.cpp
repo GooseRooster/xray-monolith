@@ -573,10 +573,12 @@ void CUILevelMap::Update()
 		float lw = m_label->GetWidth();
 		float lh = m_label->GetHeight();
 		// Offset is in global_rect units (scaled by zoom so it stays anchored);
+		// X also scaled by UI kx since global_rect X is kx-scaled at load.
 		// Y inverted because engine screen Y grows downward.
 		float gmz = MapWnd()->GlobalMap()->GetCurrentZoom().x;
+		float kx  = UI().get_current_kx();
 		m_label->SetWndPos(Fvector2().set(
-			(rect.width()  - lw) * 0.5f + m_label_offset.x * gmz,
+			(rect.width()  - lw) * 0.5f + m_label_offset.x * gmz * kx,
 			(rect.height() - lh) * 0.5f - m_label_offset.y * gmz));
 		if (!m_label->GetParent())
 			AttachChild(m_label);

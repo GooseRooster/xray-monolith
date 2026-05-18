@@ -9,7 +9,7 @@
 
 #include "../../xrEngine/tntQAVI.h"
 #include "../../xrEngine/xrTheora_Surface.h"
-#include "../../xrEngine/GIFStream.h"
+#include "gifPlayer.h"
 
 #include "dxRenderDeviceRender.h"
 
@@ -29,10 +29,10 @@ void resptrcode_texture::create(LPCSTR _name)
 //////////////////////////////////////////////////////////////////////
 CTexture::CTexture()
 {
-    gifStream = nullptr;
 	pSurface = NULL;
 	pAVI = NULL;
 	pTheora = NULL;
+    gifPlayer = nullptr;
 	desc_cache = 0;
 	seqMSPF = 0;
 	flags.MemoryUsage = 0;
@@ -71,7 +71,7 @@ void CTexture::PostLoad()
 	if (pTheora) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_theora);
 	else if (pAVI) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_avi);
 	else if (!seqDATA.empty()) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_seq);
-    else if (gifStream) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_gif);
+    else if (gifPlayer) bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_gif);
 	else bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_normal);
 }
 
@@ -150,16 +150,12 @@ void CTexture::apply_seq(u32 dwStage)
 
 void CTexture::apply_gif(u32 dwStage)
 {
-    if (gifStream->Update(RDEVICE.dwTimeContinual))
+    if (gifPlayer->UpdateFrame())
     {
-		R_ASSERT(D3DRTYPE_TEXTURE == pSurface->GetType());
-		ID3DTexture2D* T2D = (ID3DTexture2D*)pSurface;
+        const CGIFAnimationPlayer::Frame* const gifFrame = gifPlayer->GetActiveFrame();
+        R_ASSERT(gifFrame);
 
-		D3DLOCKED_RECT R;
-		R_CHK(T2D->LockRect(0, &R, NULL, 0));
-        R_ASSERT(R.Pitch == int(gifStream->Width() * 4));
-        CopyMemory(R.pBits, gifStream->ImageData(), gifStream->ImageSize());
-		R_CHK(T2D->UnlockRect(0));
+        pSurface = gifFrame->surface;
     }
     CHK_DX(HW.pDevice->SetTexture(dwStage, pSurface));
 }
@@ -301,28 +297,20 @@ void CTexture::Load()
 		}
         else if (FS.exist(fn, "$game_textures$", *cName, ".gif"))
         {
-            gifStream = xr_new<CGIFStream>();
-            if (!gifStream->Load(fn, RDEVICE.dwTimeContinual))
+            gifPlayer = xr_new<CGIFAnimationPlayer>();
+            if (!gifPlayer->Load(fn))
             {
-                xr_delete(gifStream);
+                xr_delete(gifPlayer);
+                pSurface = nullptr;
             }
             else
             {
-                flags.MemoryUsage = gifStream->MemUsage();
+                flags.MemoryUsage = gifPlayer->GetUsedMemory();
 
-				ID3DTexture2D* pTexture = nullptr;
-				HRESULT hrr = HW.pDevice->CreateTexture(
-					gifStream->Width(), gifStream->Height(), 1, 0, D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
-					&pTexture, NULL
-				);
-				pSurface = pTexture;
-				if (FAILED(hrr))
-				{
-					FATAL("Invalid gif stream");
-					R_CHK(hrr);
-                    xr_delete(gifStream);
-					pSurface = nullptr;
-				}
+                gifPlayer->Play();
+
+                const CGIFAnimationPlayer::Frame* const gifFrame = gifPlayer->GetActiveFrame();
+                pSurface = gifFrame->surface;
             }
         }
 		else
@@ -364,6 +352,12 @@ void CTexture::Unload()
 	}
 	flags.MemoryUsage = 0;
 
+    if (gifPlayer)
+    {
+        xr_delete(gifPlayer);
+        pSurface = nullptr;
+    }
+
 #ifdef DEBUG
 	_SHOW_REF		(msg_buff, pSurface);
 #endif // DEBUG
@@ -372,7 +366,6 @@ void CTexture::Unload()
 
 	xr_delete(pAVI);
 	xr_delete(pTheora);
-    xr_delete(gifStream);
 
 	bind = fastdelegate::FastDelegate1<u32>(this, &CTexture::apply_load);
 }

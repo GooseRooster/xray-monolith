@@ -797,7 +797,7 @@
     <ClInclude Include="dedicated_server_only.h" />
     <ClInclude Include="defines.h" />
     <ClInclude Include="device.h" />
-    <ClInclude Include="GIFStream.h" />
+    <ClInclude Include="GIFResource.h" />
     <ClInclude Include="MonitorList.h" />
     <ClInclude Include="edit_actions.h" />
     <ClInclude Include="Effector.h" />
@@ -904,7 +904,7 @@
     <ClCompile Include="CustomHUD.cpp" />
     <ClCompile Include="defines.cpp" />
     <ClCompile Include="device.cpp" />
-    <ClCompile Include="GIFStream.cpp" />
+    <ClCompile Include="GIFResource.cpp" />
     <ClCompile Include="MonitorList.cpp" />
     <ClCompile Include="Device_create.cpp" />
     <ClCompile Include="Device_destroy.cpp" />

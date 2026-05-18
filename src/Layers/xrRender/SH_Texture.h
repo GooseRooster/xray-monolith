@@ -6,7 +6,7 @@
 
 class ENGINE_API CAviPlayerCustom;
 class CTheoraSurface;
-class CGIFStream;
+class CGIFAnimationPlayer;
 
 class ECORE_API CTexture : public xr_resource_named
 {
@@ -108,8 +108,6 @@ public: //	Public class members (must be encapsulated furthur)
 		u32 seqMSPF; // Sequence data milliseconds per frame
 	};
 
-    CGIFStream* gifStream;
-
 private:
 	ID3DBaseTexture* pSurface;
 	// Sequence data
@@ -118,6 +116,8 @@ private:
 	// Description
 	ID3DBaseTexture* desc_cache;
 	D3D_TEXTURE2D_DESC desc;
+
+    CGIFAnimationPlayer* gifPlayer;
 
 #if defined(USE_DX10) || defined(USE_DX11)
 	ID3DShaderResourceView*			m_pSRView;

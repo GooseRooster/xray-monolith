@@ -492,7 +492,7 @@
     <ClInclude Include="imgui_helper.h">
       <Filter>Interfaces\ImGui</Filter>
     </ClInclude>
-    <ClInclude Include="GIFStream.h">
+    <ClInclude Include="GIFResource.h">
       <Filter>Render\Execution &amp; 3D\Shaders\Textures</Filter>
     </ClInclude>
   </ItemGroup>
@@ -806,7 +806,7 @@
     <ClCompile Include="imgui_helper.cpp">
       <Filter>Interfaces\ImGui</Filter>
     </ClCompile>
-    <ClCompile Include="GIFStream.cpp">
+    <ClCompile Include="GIFResource.cpp">
       <Filter>Render\Execution &amp; 3D\Shaders\Textures</Filter>
     </ClCompile>
   </ItemGroup>

@@ -23,8 +23,6 @@ private:
     u32 m_TimeAccum;
     u32 m_LastdwTimeContinual;
     u32 m_MemUsed;
-    bool m_IsLooped;
-    bool m_IsPaued;
 
 public:
     CGIFAnimationPlayer();
@@ -60,20 +58,8 @@ public:
         return static_cast<bool>(m_ActiveFrame);
     }
 
-    bool IsPaused() const
-    {
-        return m_IsPaued;
-    }
-
-    bool IsLooped() const
-    {
-        return m_IsLooped;
-    }
-
     void Play();
     void Stop();
-    void SetLooped(bool state);
-    void Pause(bool state);
 };
 
 #endif

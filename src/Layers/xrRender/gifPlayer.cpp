@@ -11,9 +11,7 @@ CGIFAnimationPlayer::CGIFAnimationPlayer()
       m_CurrFrameIdx(0),
       m_TimeAccum(0),
       m_LastdwTimeContinual(0),
-      m_MemUsed(0),
-      m_IsLooped(true),
-      m_IsPaued(false)
+      m_MemUsed(0)
 {
     //
 }
@@ -124,9 +122,6 @@ bool CGIFAnimationPlayer::UpdateFrame()
 {
     VERIFY(IsPlaying());
 
-    if (IsPaused())
-        return false;
-
     const u32 tc = Device.dwTimeContinual;
 
     m_TimeAccum += (tc - m_LastdwTimeContinual);
@@ -135,21 +130,24 @@ bool CGIFAnimationPlayer::UpdateFrame()
         return false;
 
     const u32 maxFrames = m_Frames.size();
+    constexpr u32 maxSkipFrames = 10;
+    u32 framesSkipped = 0;
     do
     {
         m_TimeAccum -= m_ActiveFrame->delay;
         ++m_CurrFrameIdx;
         if (m_CurrFrameIdx == maxFrames)
         {
-            if (!m_IsLooped)
-            {
-                Stop();
-                return false;
-            }
-
             m_CurrFrameIdx = 0;
         }
         m_ActiveFrame = &m_Frames[m_CurrFrameIdx];
+
+        if (framesSkipped == maxSkipFrames)
+        {
+            m_TimeAccum = 0;
+            break;
+        }
+        ++framesSkipped;
     } while (m_TimeAccum >= m_ActiveFrame->delay);
     return true;
 }
@@ -162,30 +160,10 @@ void CGIFAnimationPlayer::Play()
         m_LastdwTimeContinual = Device.dwTimeContinual;
         m_CurrFrameIdx = 0;
         m_ActiveFrame = &m_Frames[0];
-        m_IsPaued = false;
     }
 }
 
 void CGIFAnimationPlayer::Stop()
 {
     m_ActiveFrame = nullptr;
-    m_IsPaued = false;
-}
-
-void CGIFAnimationPlayer::SetLooped(bool state)
-{
-    m_IsLooped = state;
-}
-
-void CGIFAnimationPlayer::Pause(bool state)
-{
-    if (IsPlaying())
-    {
-        if (m_IsPaued != state && state)
-        {
-            m_LastdwTimeContinual = Device.dwTimeContinual;
-        }
-
-        m_IsPaued = state;
-    }
 }

@@ -1162,10 +1162,10 @@
 		<text>Lua Parallel GC Debug (lua_parallel_gc_debug)</text>
 	</string>
 
-	<string id="ui_mm_modded_exes_visual_graphics_r__clear_resources_on_unload">
+	<string id="ui_mm_modded_exes_optimizations_r__clear_resources_on_unload">
 		<text>Очистить ресурсы во время загрузки уровня (r__clear_resources_on_unload)</text>
 	</string>
-	<string id="ui_mm_modded_exes_visual_graphics_r__clear_resources_on_unload_desc">
+	<string id="ui_mm_modded_exes_optimizations_r__clear_resources_on_unload_desc">
 		<text>Уменьшает потребление RAM и VRAM но увеличивает время загрузки уровней</text>
 	</string>
 

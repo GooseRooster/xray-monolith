@@ -158,10 +158,6 @@
         CUIMessagesWindow get_messages_menu()
     }
 
-    namespace pda {
-        function map_spot_selected(u16 obj_id, string level_name, string spot_type) // fired on left-click of any PDA map spot
-    }
-
     // MT only
     class cse_alife_item_weapon {
         function clone_upgrades(cse_alife_item_weapon*)

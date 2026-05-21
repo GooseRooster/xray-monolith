@@ -1186,4 +1186,8 @@
 	<string id="ui_mm_modded_exes_optimizations_keyboard_buffer_size">
 		<text>Keyboard Input Buffer Size (keyboard_buffer_size)</text>
 	</string>
+
+	<string id="ui_mm_modded_exes_optimizations_unstable_text">
+		<text>Options below are unstable and will lead to bugs and crashes, enabling them is not recommended</text>
+	</string>
 </string_table>

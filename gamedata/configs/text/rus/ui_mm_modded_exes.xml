@@ -1182,4 +1182,8 @@
 	<string id="ui_mm_modded_exes_optimizations_keyboard_buffer_size">
 		<text>Буфер ввода для клавиатуры (keyboard_buffer_size)</text>
 	</string>
+
+	<string id="ui_mm_modded_exes_optimizations_unstable_text">
+		<text>пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ</text>
+	</string>
 </string_table>

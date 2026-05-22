@@ -119,6 +119,7 @@
     alife() {
         number object_count()
         void iterate_objects(function(se_obj))
+        void iterate_level_objects_of_clsid(number script_clsid, function(se_obj)) -- walks actor's current-level CSE registry filtered by m_script_clsid; functor returns true to stop early; must not release the currently iterated entity
         void force_update() -- forces an immediate alife scheduled update cycle
     }
 

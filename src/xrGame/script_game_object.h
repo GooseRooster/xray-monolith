@@ -995,6 +995,10 @@ public:
 	u8 GetRestrictionType();
 	void SetRestrictionType(u8 typ);
 
+	// demonized: SetRestrictionType with unregistering restrictor if type is 0
+	void ForceSetRestrictionType(u8 typ);
+	void InvalidateRestrictions();
+
 	// demonized: add getters and setters for pathfinding for npcs around anomalies and damage for npcs
 	bool get_enable_anomalies_pathfinding();
 	void set_enable_anomalies_pathfinding(bool v);

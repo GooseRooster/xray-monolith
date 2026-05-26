@@ -2059,20 +2059,23 @@ void CScriptGameObject::ForceSetRestrictionType(u8 typ)
 	RestrictionSpace::ERestrictorTypes new_type = RestrictionSpace::ERestrictorTypes(typ);
 	switch (new_type)
 	{
-	case RestrictionSpace::eDefaultRestrictorTypeNone:
-	case RestrictionSpace::eDefaultRestrictorTypeOut:
-	case RestrictionSpace::eDefaultRestrictorTypeIn:
-	case RestrictionSpace::eRestrictorTypeNone:
-	case RestrictionSpace::eRestrictorTypeIn:
-	case RestrictionSpace::eRestrictorTypeOut:
-		break;
-	default:
-		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
-			make_string("CGameObject [%s]: invalid restrictor type [%u]!", object().cNameSect().c_str(), typ).c_str());
-		return;
+	    case RestrictionSpace::eDefaultRestrictorTypeNone:
+	    case RestrictionSpace::eDefaultRestrictorTypeOut:
+	    case RestrictionSpace::eDefaultRestrictorTypeIn:
+	    case RestrictionSpace::eRestrictorTypeNone:
+	    case RestrictionSpace::eRestrictorTypeIn:
+	    case RestrictionSpace::eRestrictorTypeOut:
+		    break;
+	    default:
+		    ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+			    make_string("CGameObject [%s]: invalid restrictor type [%u]!", object().cNameSect().c_str(), typ).c_str());
+		    return;
 	}
 
 	RestrictionSpace::ERestrictorTypes old_type = RestrictionSpace::ERestrictorTypes(restr->m_space_restrictor_type);
+    if (old_type == new_type)
+        return;
+
 	if (old_type != RestrictionSpace::eRestrictorTypeNone)
 		Level().space_restriction_manager().unregister_restrictor(restr);
 

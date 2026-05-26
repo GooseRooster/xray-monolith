@@ -810,7 +810,7 @@ function anomaly_on_before_activate_pathfinding(zone, obj, flags)
 end
 
 -- Pathfinding to evade anomalies by dynamically registering anomalies' SR
--- Disabled for now, too laggy
+-- Enabled only for monsters, might be stuttery
 local anomaly_restrictor_db = {}
 local anomaly_restrictor_db_k
 local anomaly_restrictor_db_v
@@ -853,17 +853,37 @@ function anomaly_add_to_db(obj)
 end
 
 function anomaly_restrictor_iterate_func(entity)
-	if (IsStalker(entity) or IsMonster(entity)) then
-		local valid = entity:alive() and entity:id() ~= AC_ID
+	if (IsMonster(entity)) then
+		local pos = entity:position()
+
+		-- Dont try to enable evading for far away entities, it doesnt matter that much but is a good optimization
+		local valid = entity:alive() and entity:id() ~= AC_ID and pos:distance_to_sqr(device().cam_pos) < (200 + anomaly_restrictor_db_v.radius)^2 and get_object_by_id(anomaly_restrictor_db_k):position():distance_to_sqr(pos) < anomaly_restrictor_db_v.radius^2
 		if valid then
 			anomaly_restrictor_db_v.entities[entity:id()] = true
 		end
-		return
 	end
+end
+
+local function concat_by_func(t, f, sep)
+	local s = ""
+	sep = sep or ", "
+	for k, v in pairs(t) do
+		s = s .. f(k, v) .. sep
+	end
+	return s
+end
+local function concat_by_name(k, v)
+	local obj = level.object_by_id(k)
+	if obj then
+		return obj:name()
+	end
+	return [["destroyed"]]
 end
 function anomaly_restrictor_update()
 	local need_invalidate = {}
-	for i = 1, 4 do
+
+	-- Couple of anomalies per update
+	for i = 1, 2 do
 		anomaly_restrictor_db_k, anomaly_restrictor_db_v = next(anomaly_restrictor_db, anomaly_restrictor_db_k)
 		if anomaly_restrictor_db_k and anomaly_restrictor_db_v then
 			local obj = level.object_by_id(anomaly_restrictor_db_k)
@@ -874,12 +894,12 @@ function anomaly_restrictor_update()
 				local new_entities = anomaly_restrictor_db_v.entities
 				if is_empty(new_entities) then
 					if is_not_empty(prev_entities) then
-						-- print_tip("force_set_restrictor_type(3), obj %s", obj:name())
+						-- print_tip("force_set_restrictor_type(3), obj %s, exited %s", obj:name(), concat_by_func(prev_entities, concat_by_name))
 						obj:force_set_restrictor_type(3)
 					end
 				else
 					if is_empty(prev_entities) then
-						-- print_tip("force_set_restrictor_type(2), obj %s", obj:name())
+						-- print_tip("force_set_restrictor_type(2), obj %s, entered %s", obj:name(), concat_by_func(new_entities, concat_by_name))
 						obj:force_set_restrictor_type(2)
 					end
 					for k, v in pairs(new_entities) do
@@ -894,21 +914,21 @@ function anomaly_restrictor_update()
 		end
 	end
 	for k, v in pairs(need_invalidate) do
-		level.object_by_id(k):invalidate_restrictions()
+		get_object_by_id(k):invalidate_restrictions()
 	end
 end
 
+local anomaly_processor_queue = {}
 local entity_anomaly_last_gvid = {}
 function anomaly_entity_restrictor_update(entity)
-	local gvid = entity:game_vertex_id()
 	local id = entity:id()
+	local gvid = entity:alive() and entity:id() ~= AC_ID and entity:game_vertex_id() or -1
 	entity_anomaly_last_gvid[id] = entity_anomaly_last_gvid[id] or -1
 	local last_gvid = entity_anomaly_last_gvid[id]
 	if gvid == last_gvid then
 		return
 	end
 
-	local need_invalidate = false
 	if anomaly_restrictor_db_by_gvid[last_gvid] then
 		for k, v in pairs(anomaly_restrictor_db_by_gvid[last_gvid]) do
 			local obj = level.object_by_id(k)
@@ -916,8 +936,14 @@ function anomaly_entity_restrictor_update(entity)
 				local was_not_empty = is_not_empty(v.entities)
 				v.entities[id] = nil
 				if was_not_empty and is_empty(v.entities) then
-					-- print_tip("force_set_restrictor_type(3), obj %s", obj:name())
-					obj:force_set_restrictor_type(3)
+					local id = obj:id()
+					table.insert(anomaly_processor_queue, function()
+						local obj = level.object_by_id(id)
+						if obj then
+							print_tip("force_set_restrictor_type(3), obj %s", obj:name())
+							obj:force_set_restrictor_type(3)
+						end
+					end)
 				end
 			else
 				anomaly_restrictor_db_by_gvid[last_gvid][k] = nil
@@ -929,22 +955,37 @@ function anomaly_entity_restrictor_update(entity)
 		for k, v in pairs(anomaly_restrictor_db_by_gvid[gvid]) do
 			local obj = level.object_by_id(k)
 			if obj then
+				table.insert(anomaly_processor_queue, function()
+					local entity = level.object_by_id(id)
+					if entity then
+						entity:invalidate_restrictions()
+					end
+				end)
 				if is_empty(v.entities) then
-					-- print_tip("force_set_restrictor_type(2), obj %s", obj:name())
-					obj:force_set_restrictor_type(2)
+					local oid = obj:id()
+					table.insert(anomaly_processor_queue, function()
+						local obj = level.object_by_id(oid)
+						if obj then
+							print_tip("force_set_restrictor_type(2), obj %s", obj:name())
+							obj:force_set_restrictor_type(2)
+						end
+					end)
 				end
 				v.entities[id] = true
-				need_invalidate = true
 			else
 				anomaly_restrictor_db_by_gvid[gvid][k] = nil
 			end
 		end
 	end
 
-	if need_invalidate then
-		entity:invalidate_restrictions()
-	end
 	entity_anomaly_last_gvid[id] = gvid
+end
+
+function anomaly_processor_process()
+	if #anomaly_processor_queue > 0 then
+		local f = table.remove(anomaly_processor_queue)
+		f()
+	end
 end
 
 -- When object is added to alife after game load, remove stale data from tables
@@ -1371,11 +1412,22 @@ function on_game_start()
 	RegisterScriptCallback("npc_on_update", npc_on_update_force_trader_update)
 	RegisterScriptCallback("npc_on_hit_callback", transparent_gg_add_to_ignore_ids)
 
+	-- Reduce anomaly radius for entities, doesn't change pathfinding
 	RegisterScriptCallback("anomaly_on_before_activate", anomaly_on_before_activate_pathfinding)
-	-- RegisterScriptCallback("game_object_on_net_spawn", anomaly_add_to_db)
-	-- RegisterScriptCallback("actor_on_update", anomaly_restrictor_update)
-	-- RegisterScriptCallback("npc_on_update", anomaly_entity_restrictor_update)
-	-- RegisterScriptCallback("monster_on_update", anomaly_entity_restrictor_update)
+	
+	-- Toggle anomaly evading for entities, postpone to loading screen dismissed to ignore initial alife switch 
+	do
+		RegisterScriptCallback("game_object_on_net_spawn", anomaly_add_to_db)
+		RegisterScriptCallback("on_loading_screen_dismissed", function()
+			-- Per anomaly update via level.iterate_nearest, less stuttery, less reliable which is alright, we don't want perfect evasion
+			RegisterScriptCallback("actor_on_update", anomaly_restrictor_update)
+
+			-- Per entity update via gvid change, a lot more stuttery
+			-- RegisterScriptCallback("npc_on_update", anomaly_entity_restrictor_update)
+			-- RegisterScriptCallback("monster_on_update", anomaly_entity_restrictor_update)
+			-- RegisterScriptCallback("actor_on_update", anomaly_processor_process)
+		end)		
+	end
 
 	-- Force Lua GC and flush LuaJIT trace cache after "first update" calls which will be never executed again
 	RegisterScriptCallback("on_loading_screen_key_prompt", luagc_cleanup)

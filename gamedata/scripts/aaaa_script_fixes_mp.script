@@ -809,6 +809,144 @@ function anomaly_on_before_activate_pathfinding(zone, obj, flags)
 	end
 end
 
+-- Pathfinding to evade anomalies by dynamically registering anomalies' SR
+-- Disabled for now, too laggy
+local anomaly_restrictor_db = {}
+local anomaly_restrictor_db_k
+local anomaly_restrictor_db_v
+local anomaly_restrictor_db_by_gvid = {}
+function anomaly_add_to_db(obj)
+	local anomaly_classes = {
+		[clsid.zone_rusty_hair]		= true,
+		[clsid.zone_bfuzz]			= true,
+		[clsid.zone_bfuzz_s]		= true,
+		[clsid.zone_mosquito_bald]	= true,
+		[clsid.zone_mbald_s]		= true,
+		[clsid.zone_galantine]		= true,
+		[clsid.zone_galant_s]		= true,
+		[clsid.zone_mincer]			= true,
+		[clsid.zone_mincer_s]		= true,
+	}
+	if not anomaly_classes[obj:clsid()] then
+		return
+	end
+
+	local se_zone = alife_object(obj:id())
+	if not se_zone then
+		return
+	end
+
+	local data = utils_stpk.get_anom_zone_data(se_zone)
+	if not (data and data.shapes[1] and data.shapes[1].radius) then
+		return
+	end
+
+	local radius = data.shapes[1].radius
+	anomaly_restrictor_db[obj:id()] = {
+		radius = radius + 20,
+		entities = {}
+	}
+	anomaly_restrictor_db_by_gvid[obj:game_vertex_id()] = anomaly_restrictor_db_by_gvid[obj:game_vertex_id()] or {}
+	anomaly_restrictor_db_by_gvid[obj:game_vertex_id()][obj:id()] = {
+		entities = {}
+	}
+end
+
+function anomaly_restrictor_iterate_func(entity)
+	if (IsStalker(entity) or IsMonster(entity)) then
+		local valid = entity:alive() and entity:id() ~= AC_ID
+		if valid then
+			anomaly_restrictor_db_v.entities[entity:id()] = true
+		end
+		return
+	end
+end
+function anomaly_restrictor_update()
+	local need_invalidate = {}
+	for i = 1, 4 do
+		anomaly_restrictor_db_k, anomaly_restrictor_db_v = next(anomaly_restrictor_db, anomaly_restrictor_db_k)
+		if anomaly_restrictor_db_k and anomaly_restrictor_db_v then
+			local obj = level.object_by_id(anomaly_restrictor_db_k)
+			if obj then
+				local prev_entities = dup_table(anomaly_restrictor_db_v.entities)
+				empty_table(anomaly_restrictor_db_v.entities)
+				level.iterate_nearest(obj:position(), anomaly_restrictor_db_v.radius, anomaly_restrictor_iterate_func)
+				local new_entities = anomaly_restrictor_db_v.entities
+				if is_empty(new_entities) then
+					if is_not_empty(prev_entities) then
+						-- print_tip("force_set_restrictor_type(3), obj %s", obj:name())
+						obj:force_set_restrictor_type(3)
+					end
+				else
+					if is_empty(prev_entities) then
+						-- print_tip("force_set_restrictor_type(2), obj %s", obj:name())
+						obj:force_set_restrictor_type(2)
+					end
+					for k, v in pairs(new_entities) do
+						if not prev_entities[k] then
+							need_invalidate[k] = true
+						end
+					end
+				end
+			else
+				anomaly_restrictor_db[anomaly_restrictor_db_k] = nil
+			end
+		end
+	end
+	for k, v in pairs(need_invalidate) do
+		level.object_by_id(k):invalidate_restrictions()
+	end
+end
+
+local entity_anomaly_last_gvid = {}
+function anomaly_entity_restrictor_update(entity)
+	local gvid = entity:game_vertex_id()
+	local id = entity:id()
+	entity_anomaly_last_gvid[id] = entity_anomaly_last_gvid[id] or -1
+	local last_gvid = entity_anomaly_last_gvid[id]
+	if gvid == last_gvid then
+		return
+	end
+
+	local need_invalidate = false
+	if anomaly_restrictor_db_by_gvid[last_gvid] then
+		for k, v in pairs(anomaly_restrictor_db_by_gvid[last_gvid]) do
+			local obj = level.object_by_id(k)
+			if obj then
+				local was_not_empty = is_not_empty(v.entities)
+				v.entities[id] = nil
+				if was_not_empty and is_empty(v.entities) then
+					-- print_tip("force_set_restrictor_type(3), obj %s", obj:name())
+					obj:force_set_restrictor_type(3)
+				end
+			else
+				anomaly_restrictor_db_by_gvid[last_gvid][k] = nil
+			end
+		end
+	end
+
+	if anomaly_restrictor_db_by_gvid[gvid] then
+		for k, v in pairs(anomaly_restrictor_db_by_gvid[gvid]) do
+			local obj = level.object_by_id(k)
+			if obj then
+				if is_empty(v.entities) then
+					-- print_tip("force_set_restrictor_type(2), obj %s", obj:name())
+					obj:force_set_restrictor_type(2)
+				end
+				v.entities[id] = true
+				need_invalidate = true
+			else
+				anomaly_restrictor_db_by_gvid[gvid][k] = nil
+			end
+		end
+	end
+
+	if need_invalidate then
+		entity:invalidate_restrictions()
+	end
+	entity_anomaly_last_gvid[id] = gvid
+end
+
 -- When object is added to alife after game load, remove stale data from tables
 function server_object_on_register_remove_stale_data(se_obj)
 	local id = se_obj.id
@@ -1232,7 +1370,12 @@ function on_game_start()
 
 	RegisterScriptCallback("npc_on_update", npc_on_update_force_trader_update)
 	RegisterScriptCallback("npc_on_hit_callback", transparent_gg_add_to_ignore_ids)
+
 	RegisterScriptCallback("anomaly_on_before_activate", anomaly_on_before_activate_pathfinding)
+	-- RegisterScriptCallback("game_object_on_net_spawn", anomaly_add_to_db)
+	-- RegisterScriptCallback("actor_on_update", anomaly_restrictor_update)
+	-- RegisterScriptCallback("npc_on_update", anomaly_entity_restrictor_update)
+	-- RegisterScriptCallback("monster_on_update", anomaly_entity_restrictor_update)
 
 	-- Force Lua GC and flush LuaJIT trace cache after "first update" calls which will be never executed again
 	RegisterScriptCallback("on_loading_screen_key_prompt", luagc_cleanup)

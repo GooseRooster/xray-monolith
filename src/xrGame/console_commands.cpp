@@ -282,6 +282,8 @@ ENGINE_API extern float g_console_sensitive;
 extern BOOL g_auto_reload;
 u32 g_dead_body_collision = 1;
 
+extern int RESTRICTION_REBUILD_SMOOTH_FRAMES;
+
 xr_token dead_body_collision_tokens[] =
 {
 	{ "full", 2 },
@@ -2995,6 +2997,8 @@ void CCC_RegisterCommands()
     CMD4(CCC_Integer, "g_npcs_look_at_actor", &NPCsLookAtActor, 0, 1);
     CMD4(CCC_Float, "g_npcs_look_at_actor_min_distance", &NPCsLookAtActorMinDistance, 1.f, 8.f);
     CMD4(CCC_Integer, "g_interrupt_fire_on_aim_toggle", &interruptFireOnAimToggle, 0, 1);
+
+    CMD4(CCC_Integer, "g_restriction_rebuild_frames", &RESTRICTION_REBUILD_SMOOTH_FRAMES, 5, 60);
 
     // demonized: Restores fun physics bugs like lift
     CMD4(CCC_Integer, "fun_allowed", &fun_allowed, 0, 1);

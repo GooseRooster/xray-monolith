@@ -879,19 +879,32 @@ local function concat_by_name(k, v)
 	end
 	return [["destroyed"]]
 end
+
+local anomaly_amount_per_update = 2
+local anomaly_cycle_start_time
+local anomaly_restrictor_db_count = 0
 function anomaly_restrictor_update()
 	local need_invalidate = {}
 
-	-- Couple of anomalies per update
-	for i = 1, 2 do
+	if not anomaly_cycle_start_time then
+		anomaly_cycle_start_time = time_global()
+	end
+
+	-- Couple of anomalies per update, goal is to pass all anomalies in 1 second independent of frame time
+	for i = 1, anomaly_amount_per_update do
 		anomaly_restrictor_db_k, anomaly_restrictor_db_v = next(anomaly_restrictor_db, anomaly_restrictor_db_k)
 		if anomaly_restrictor_db_k and anomaly_restrictor_db_v then
+			anomaly_restrictor_db_count = anomaly_restrictor_db_count + 1
+
 			local obj = level.object_by_id(anomaly_restrictor_db_k)
 			if obj then
 				local prev_entities = dup_table(anomaly_restrictor_db_v.entities)
 				empty_table(anomaly_restrictor_db_v.entities)
+
 				level.iterate_nearest(obj:position(), anomaly_restrictor_db_v.radius, anomaly_restrictor_iterate_func)
+
 				local new_entities = anomaly_restrictor_db_v.entities
+
 				if is_empty(new_entities) then
 					if is_not_empty(prev_entities) then
 						-- print_tip("force_set_restrictor_type(3), obj %s, exited %s", obj:name(), concat_by_func(prev_entities, concat_by_name))
@@ -911,8 +924,24 @@ function anomaly_restrictor_update()
 			else
 				anomaly_restrictor_db[anomaly_restrictor_db_k] = nil
 			end
+		else
+			-- Recalculate anomaly_amount_per_update to desired goal
+			local anomaly_cycle_end_time = time_global()
+			local elapsed_ms = anomaly_cycle_end_time - anomaly_cycle_start_time
+
+			if anomaly_restrictor_db_count > 0 and elapsed_ms > 0 then
+				local dynamic_batch = round(2 * (elapsed_ms / 1000))
+				anomaly_amount_per_update = clamp(dynamic_batch, 2, 10)
+			else
+				anomaly_amount_per_update = 2
+			end
+
+			anomaly_restrictor_db_count = 0
+			anomaly_cycle_start_time = nil
+			break
 		end
 	end
+
 	for k, v in pairs(need_invalidate) do
 		get_object_by_id(k):invalidate_restrictions()
 	end

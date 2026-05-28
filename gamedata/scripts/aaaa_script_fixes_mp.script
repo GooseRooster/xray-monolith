@@ -1451,6 +1451,14 @@ function on_loading_screen_dismissed_scheduler_flush_stop()
 	end)
 end
 
+local old_axr_generate_available_tasks = axr_task_manager.generate_available_tasks
+function axr_task_manager.generate_available_tasks(npc, is_sim)
+	if is_sim and _G.WARFARE and warfare.is_warfare_trader(npc) then
+		is_sim = false
+	end
+	return old_axr_generate_available_tasks(npc, is_sim)
+end
+
 function on_game_start()
 	RegisterScriptCallback("actor_on_first_update", actor_on_first_update_calculate_rankings)
 	RegisterScriptCallback("actor_on_first_update", actor_on_first_update_register_callbacks)

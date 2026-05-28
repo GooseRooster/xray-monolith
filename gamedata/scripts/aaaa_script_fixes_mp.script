@@ -932,6 +932,7 @@ function anomaly_restrictor_update()
 			if anomaly_restrictor_db_count > 0 and elapsed_ms > 0 then
 				local dynamic_batch = round(2 * (elapsed_ms / 1000))
 				anomaly_amount_per_update = clamp(dynamic_batch, 2, 10)
+				-- printf("elapsed_ms %s, count %s, new anomaly_amount_per_update %s", elapsed_ms, anomaly_restrictor_db_count, anomaly_amount_per_update)
 			else
 				anomaly_amount_per_update = 2
 			end
@@ -1430,9 +1431,32 @@ function luagc_cleanup()
 	printf("~[luagc_cleanup] collectgarbage after=%sKb",collectgarbage("count")*1024)
 end
 
+-- Bump scheduler batch size on first update for flushing, then reduce it after some time
+function actor_on_first_update_scheduler_flush()
+	if not level.scheduler_flush then
+		return
+	end
+
+	level.scheduler_flush(true)
+end
+
+function on_loading_screen_dismissed_scheduler_flush_stop()
+	if not level.scheduler_flush then
+		return
+	end
+
+	CreateTimeEvent("reset_scheduler_batch_size", 0, 8, function()
+		level.scheduler_flush(false)
+		return true
+	end)
+end
+
 function on_game_start()
 	RegisterScriptCallback("actor_on_first_update", actor_on_first_update_calculate_rankings)
 	RegisterScriptCallback("actor_on_first_update", actor_on_first_update_register_callbacks)
+
+	RegisterScriptCallback("actor_on_first_update", actor_on_first_update_scheduler_flush)
+	RegisterScriptCallback("on_loading_screen_dismissed", on_loading_screen_dismissed_scheduler_flush_stop)
 
 	-- Prefetch callbacks. Disabled for now, conflict with SSS
 	-- RegisterScriptCallback("actor_item_to_slot", actor_item_to_slot_prefetch)

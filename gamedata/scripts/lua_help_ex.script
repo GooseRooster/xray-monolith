@@ -164,7 +164,6 @@
         function clone_upgrades(cse_alife_item_weapon*)
     }
 
-    // MT only
     class cse_alife_level_changer : cse_alife_space_restrictor {
         property dest_game_vertex_id    // u16
         property dest_level_vertex_id   // u32
@@ -392,6 +391,9 @@
         function remove_attachment(string)
         function remove_attachment(script_attachment)
         function iterate_attachments(function)
+
+        // MT only
+        function scheduler_flush(bool)
     }
 
     // obj:get_physics_shell()

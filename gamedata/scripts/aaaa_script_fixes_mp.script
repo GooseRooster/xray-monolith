@@ -844,7 +844,8 @@ function anomaly_add_to_db(obj)
 	local radius = data.shapes[1].radius
 	anomaly_restrictor_db[obj:id()] = {
 		radius = radius + 20,
-		entities = {}
+		entities = {},
+		last_pos = VEC_ZERO
 	}
 	anomaly_restrictor_db_by_gvid[obj:game_vertex_id()] = anomaly_restrictor_db_by_gvid[obj:game_vertex_id()] or {}
 	anomaly_restrictor_db_by_gvid[obj:game_vertex_id()][obj:id()] = {
@@ -855,9 +856,10 @@ end
 function anomaly_restrictor_iterate_func(entity)
 	if (IsMonster(entity)) then
 		local pos = entity:position()
+		local obj = get_object_by_id(anomaly_restrictor_db_k)
 
 		-- Dont try to enable evading for far away entities, it doesnt matter that much but is a good optimization
-		local valid = entity:alive() and entity:id() ~= AC_ID and pos:distance_to_sqr(device().cam_pos) < (200 + anomaly_restrictor_db_v.radius)^2 and get_object_by_id(anomaly_restrictor_db_k):position():distance_to_sqr(pos) < anomaly_restrictor_db_v.radius^2
+		local valid = obj:is_enabled_anomaly() and entity:alive() and entity:id() ~= AC_ID and pos:distance_to_sqr(device().cam_pos) < (200 + anomaly_restrictor_db_v.radius)^2 and obj:position():distance_to_sqr(pos) < anomaly_restrictor_db_v.radius^2
 		if valid then
 			anomaly_restrictor_db_v.entities[entity:id()] = true
 		end
@@ -901,7 +903,13 @@ function anomaly_restrictor_update()
 				local prev_entities = dup_table(anomaly_restrictor_db_v.entities)
 				empty_table(anomaly_restrictor_db_v.entities)
 
-				level.iterate_nearest(obj:position(), anomaly_restrictor_db_v.radius, anomaly_restrictor_iterate_func)
+				local last_pos = anomaly_restrictor_db_v.last_pos
+				local new_pos = obj:position()
+				local pos_dist_invalidate = last_pos:distance_to_sqr(new_pos) > 16
+				if pos_dist_invalidate then
+					anomaly_restrictor_db_v.last_pos = new_pos
+				end
+				level.iterate_nearest(new_pos, anomaly_restrictor_db_v.radius, anomaly_restrictor_iterate_func)
 
 				local new_entities = anomaly_restrictor_db_v.entities
 
@@ -916,7 +924,7 @@ function anomaly_restrictor_update()
 						obj:force_set_restrictor_type(2)
 					end
 					for k, v in pairs(new_entities) do
-						if not prev_entities[k] then
+						if not prev_entities[k] or pos_dist_invalidate then
 							need_invalidate[k] = true
 						end
 					end

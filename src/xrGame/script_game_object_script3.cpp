@@ -342,6 +342,7 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("get_restrictor_type", &CScriptGameObject::GetRestrictionType)
 		.def("enable_anomaly", SAFE_WRAP(&CScriptGameObject::EnableAnomaly))
 		.def("disable_anomaly", SAFE_WRAP(&CScriptGameObject::DisableAnomaly))
+		.def("is_enabled_anomaly", SAFE_WRAP(&CScriptGameObject::IsEnabledAnomaly))  // demonized
 		.def("set_idle_particles", SAFE_WRAP(&CScriptGameObject::ChangeAnomalyIdlePart))
 		.def("get_anomaly_power", SAFE_WRAP(&CScriptGameObject::GetAnomalyPower))
 		.def("set_anomaly_power", SAFE_WRAP(&CScriptGameObject::SetAnomalyPower))

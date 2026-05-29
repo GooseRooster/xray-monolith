@@ -562,6 +562,9 @@
         // Space Restrictors
         function force_set_restrictor_type(number)
 
+        // Anomalies
+        function is_enabled_anomaly()
+
         // Artefact
         function get_artefact_additional_inventory_weight()
         function set_artefact_additional_inventory_weight(float)

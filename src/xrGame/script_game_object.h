@@ -708,6 +708,7 @@ public:
 	// CustomZone
 	void EnableAnomaly();
 	void DisableAnomaly();
+    bool IsEnabledAnomaly();
 	void ChangeAnomalyIdlePart(LPCSTR name, bool bIdleLight);
 	float GetAnomalyPower();
 	void SetAnomalyPower(float p);

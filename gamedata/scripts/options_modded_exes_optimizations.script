@@ -20,8 +20,8 @@ PAGE = filter_false(page {
 	get_item_if_exists(list_bool { id = "mt_scheduler" }),
 	get_item_if_exists(track {
 		id = "scheduler_batch_size",
-		def = 128,
-		step = 4,
+		def = 256,
+		step = 64,
 	}),
 	get_item_if_exists(list_bool { id = "mt_calc_bones"}),
 	list_bool { id = "mt_update_weapon_sounds" },

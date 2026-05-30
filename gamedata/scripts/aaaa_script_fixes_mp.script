@@ -859,7 +859,7 @@ function anomaly_restrictor_iterate_func(entity)
 		local obj = get_object_by_id(anomaly_restrictor_db_k)
 
 		-- Dont try to enable evading for far away entities, it doesnt matter that much but is a good optimization
-		local valid = obj:is_enabled_anomaly() and entity:alive() and entity:id() ~= AC_ID and pos:distance_to_sqr(device().cam_pos) < (200 + anomaly_restrictor_db_v.radius)^2 and obj:position():distance_to_sqr(pos) < anomaly_restrictor_db_v.radius^2
+		local valid = entity:alive() and entity:id() ~= AC_ID and pos:distance_to_sqr(device().cam_pos) < (200 + anomaly_restrictor_db_v.radius)^2 and obj:position():distance_to_sqr(pos) < anomaly_restrictor_db_v.radius^2
 		if valid then
 			anomaly_restrictor_db_v.entities[entity:id()] = true
 		end

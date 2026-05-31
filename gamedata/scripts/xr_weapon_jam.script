@@ -15,17 +15,22 @@ function print_dbg(frmt, ...)
 	end
 end
 
-function npc_on_update(npc)
-
-	if not (SETTINGS.enabled and db.actor and npc and npc:alive() and npc:best_enemy()) then
-		return
+AddScriptCallback("npc_get_misfire_probability")
+function GetConditionMisfireProbability(weapon, npc, base_value)
+	if not SETTINGS.enabled then
+		return base_value
 	end
-	
-	
-	local itm = npc:active_item()
-	if not itm then return end -- skip if npc has no gun in hand
-	if not IsWeapon(itm) then return end -- skip if npc isn't holding a weapon 
-	
+
+	local t = {
+		ret_value = base_value
+	}
+	SendScriptCallback("npc_get_misfire_probability", weapon, npc, base_value, t)
+	return t.ret_value or 0
+end
+
+-- Vanilla misfire code
+function npc_misfire(weapon, npc, base_value, t)
+	local itm = weapon	
 	local gun_id = itm:id()
 	if (not GUN_TRACKING[gun_id]) then
 		GUN_TRACKING[gun_id] = {}
@@ -50,7 +55,7 @@ function npc_on_update(npc)
 		end
 		
 		if math.random(0, 100) <= chance then 
-			itm:unload_magazine()
+			t.ret_value = 1
 			print_dbg('jamming gun %s (%s) on npc %s (%s)', gun_id, itm:section(), npc_id, npc_rank)
 		end
 	end
@@ -65,5 +70,5 @@ function on_game_start()
 		end
 	end
 		
-	RegisterScriptCallback('npc_on_update', npc_on_update)
+	RegisterScriptCallback('npc_get_misfire_probability', npc_misfire)
 end

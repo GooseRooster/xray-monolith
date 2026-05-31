@@ -551,6 +551,18 @@ do
 	end
 end
 
+-- Don't update member-less squads pending release: avoids sim:object(commander_id()==0xffff) spam
+do
+	local sq = sim_squad_scripted.sim_squad_scripted
+	local orig_generic_update = sq.generic_update
+	function sq.generic_update(self, ...)
+		if self:npc_count() == 0 then
+			return
+		end
+		return orig_generic_update(self, ...)
+	end
+end
+
 -- Fix for returning wrong scope section on detaching
 function item_weapon.detach_scope(weapon)
 	-- Return if the weapon is not valid.

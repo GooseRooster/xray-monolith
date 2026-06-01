@@ -133,4 +133,7 @@ PAGE = page {
 	list_bool {
 		id = "ai_move_to_cover_run",
 	},
+	list_bool {
+		id = "ai_enhanced_vision",
+	},
 }

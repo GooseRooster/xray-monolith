@@ -954,6 +954,12 @@
 	<string id="ui_mm_modded_exes_gameplay_stalkers_ai_move_to_cover_run_desc">
 		<text>If enabled, NPCs will run instead of walk when taking cover during combat. This makes firefights more dynamic and prevents NPCs from slowly walking while under fire.</text>
 	</string>
+	<string id="ui_mm_modded_exes_gameplay_stalkers_ai_enhanced_vision">
+		<text>Stalkers Enhanced Vision (ai_enhanced_vision)</text>
+	</string>
+	<string id="ui_mm_modded_exes_gameplay_stalkers_ai_enhanced_vision_desc">
+		<text>If enabled, NPCs will have less restrictions to consider an enemy visible, possibly resulting in seeing through walls.</text>
+	</string>
 
 	<!-- Monsters -->
 	<string id="ui_mm_menu_monsters">

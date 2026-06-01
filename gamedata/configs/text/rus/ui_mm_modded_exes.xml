@@ -953,6 +953,12 @@
 	<string id="ui_mm_modded_exes_gameplay_stalkers_ai_move_to_cover_run_desc">
 		<text>≈сли включено, NPC будут бежать, а не идти шагом при поиске укрыти€ во врем€ бо€. Ёто делает перестрелки более динамичными и не дает NPC медленно прогуливатьс€ под огнем.</text>
 	</string>
+	<string id="ui_mm_modded_exes_gameplay_stalkers_ai_enhanced_vision">
+		<text>”силенное зрение (ai_enhanced_vision)</text>
+	</string>
+	<string id="ui_mm_modded_exes_gameplay_stalkers_ai_enhanced_vision_desc">
+		<text>≈сли включено, NPC будут считать врагов видимыми более агрессивно, возможно вид€ сквозь стены.</text>
+	</string>
 
 	<!-- Monsters -->
 	<string id="ui_mm_menu_monsters">

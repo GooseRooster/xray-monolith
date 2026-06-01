@@ -1074,6 +1074,9 @@
 	<string id="ui_mm_modded_exes_optimizations_mt_scheduler">
 		<text>Multithreaded scheduler (mt_scheduler)</text>
 	</string>
+	<string id="ui_mm_modded_exes_optimizations_mt_schedulerRT">
+		<text>Multithreaded scheduler for real time objects (mt_schedulerRT)</text>
+	</string>
 	<string id="ui_mm_modded_exes_optimizations_scheduler_batch_size">
 		<text>Scheduler batch size (scheduler_batch_size)</text>
 	</string>
@@ -1100,6 +1103,12 @@
 	</string>
 	<string id="ui_mm_modded_exes_optimizations_r2_shadow_omnipart_vischeck_desc">
 		<text>Increases performance by checking visibility for lights that are created from point lights and skipping invisible of those ones</text>
+	</string>
+	<string id="ui_mm_modded_exes_optimizations_r2_shadow_omnipart_vischeck">
+		<text>HOM visibility test for dynamic objects (r__hom_dynamic)</text>
+	</string>
+	<string id="ui_mm_modded_exes_optimizations_r2_shadow_omnipart_vischeck_desc">
+		<text>Might increase performance by checking visibility via HOM for dynamic objects</text>
 	</string>
 
 	<string id="ui_mm_modded_exes_optimizations_spawn_antifreeze">

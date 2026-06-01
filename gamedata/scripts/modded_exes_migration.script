@@ -1,6 +1,6 @@
 function on_game_start()
 	local modded_exes_operations_per_version = {
-		[20260531] = function()
+		[20260601] = function()
 			if get_modded_exes_name():find("MT") then
 				exec_console_cmd("scheduler_batch_size 256")
 			end

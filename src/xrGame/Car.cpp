@@ -2243,15 +2243,17 @@ float CCar::RefWheelMaxSpeed()
 
 float CCar::DriveRefSpeed()
 {
-	float max_w = RefWheelMaxSpeed();
-	if (!m_speed_governed) return max_w;
+	if (!m_speed_governed) return RefWheelMaxSpeed();
+	float max_w = _abs(RefWheelMaxSpeed());
 	float w = m_target_speed / m_ref_radius;
-	return (w < max_w) ? w : max_w;
+	if (w > max_w) return max_w;
+	if (w < -max_w) return -max_w;
+	return w;
 }
 
 void CCar::SetTargetSpeed(float mps)
 {
-	m_target_speed = (mps < 0.f) ? 0.f : mps;
+	m_target_speed = mps;
 	m_speed_governed = true;
 }
 

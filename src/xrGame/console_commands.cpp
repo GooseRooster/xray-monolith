@@ -2782,6 +2782,13 @@ void CCC_RegisterCommands()
     CMD4(CCC_Float,   "ai_cover_unknown_radius",     &g_ai_cover_unknown_radius,           0.f, 50.f);
     CMD4(CCC_Integer, "ai_cover_unknown_time",       (int*)&g_ai_cover_unknown_time,       0, 600000);
 
+    extern float g_ai_close_move_distance;
+    extern u32   g_ai_crouch_look_out_delta;
+    extern u32   g_ai_wait_in_smart_cover_time;
+    CMD4(CCC_Float,   "ai_close_move_distance",      &g_ai_close_move_distance,            0.f,  20.f);
+    CMD4(CCC_Integer, "ai_crouch_look_out_delta",    (int*)&g_ai_crouch_look_out_delta,    0,    30000);
+    CMD4(CCC_Integer, "ai_wait_in_smart_cover_time", (int*)&g_ai_wait_in_smart_cover_time, 0,    120000);
+
     CMD4(CCC_Integer, "g_auto_reload", &g_auto_reload, 0, 1);
     CMD3(CCC_Mask, "g_crosshair_show_always", &psCrosshair_Flags, CROSSHAIR_SHOW_ALWAYS);
     CMD3(CCC_Mask, "g_crosshair_independent", &psCrosshair_Flags, CROSSHAIR_INDEPENDENT);

@@ -2747,6 +2747,27 @@ void CCC_RegisterCommands()
     CMD4(CCC_Integer, "g_nearwall", &g_nearwall, 0, 2);
     CMD4(CCC_Integer, "g_nearwall_trace", &g_nearwall_trace, 0, 1);
 
+    extern u32   g_ai_fire_make_sense_interval;
+    extern float g_ai_fire_precise_dist;
+    extern float g_ai_fire_floor_dist;
+    extern float g_ai_fire_near_dist;
+    extern float g_ai_cover_danger_radius;
+    extern u32   g_ai_cover_danger_ttl;
+    extern float g_ai_cover_detour_radius;
+    extern u32   g_ai_cover_detour_ttl;
+    extern float g_ai_cover_unknown_radius;
+    extern u32   g_ai_cover_unknown_ttl;
+    CMD4(CCC_Integer, "ai_fire_make_sense_interval", (int*)&g_ai_fire_make_sense_interval, 0, 60000);
+    CMD4(CCC_Float,   "ai_fire_precise_dist",        &g_ai_fire_precise_dist,              0.f, 50.f);
+    CMD4(CCC_Float,   "ai_fire_floor_dist",          &g_ai_fire_floor_dist,                0.f, 20.f);
+    CMD4(CCC_Float,   "ai_fire_near_dist",           &g_ai_fire_near_dist,                 0.f, 20.f);
+    CMD4(CCC_Float,   "ai_cover_danger_radius",      &g_ai_cover_danger_radius,            0.f, 50.f);
+    CMD4(CCC_Integer, "ai_cover_danger_ttl",         (int*)&g_ai_cover_danger_ttl,         0, 600000);
+    CMD4(CCC_Float,   "ai_cover_detour_radius",      &g_ai_cover_detour_radius,            0.f, 50.f);
+    CMD4(CCC_Integer, "ai_cover_detour_ttl",         (int*)&g_ai_cover_detour_ttl,         0, 600000);
+    CMD4(CCC_Float,   "ai_cover_unknown_radius",     &g_ai_cover_unknown_radius,           0.f, 50.f);
+    CMD4(CCC_Integer, "ai_cover_unknown_ttl",        (int*)&g_ai_cover_unknown_ttl,        0, 600000);
+
     CMD4(CCC_Integer, "g_auto_reload", &g_auto_reload, 0, 1);
     CMD3(CCC_Mask, "g_crosshair_show_always", &psCrosshair_Flags, CROSSHAIR_SHOW_ALWAYS);
     CMD3(CCC_Mask, "g_crosshair_independent", &psCrosshair_Flags, CROSSHAIR_INDEPENDENT);

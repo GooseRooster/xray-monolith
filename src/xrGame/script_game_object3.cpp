@@ -672,7 +672,8 @@ LPCSTR CScriptGameObject::GetRankName()
 	if (!stalker)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
-		                                "CAI_Stalker : cannot access class member GetRankName!");
+		                                "CGameObject: [%s] rank_name() called on non-stalker object",
+		                                object().cNameSect_str());
 		return ("");
 	}
 	return (*stalker->CharacterInfo().Rank().id());
@@ -684,7 +685,8 @@ void CScriptGameObject::best_cover_invalidate()
 	if (!stalker)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
-		                                "CAI_Stalker : cannot access class member best_cover_invalidate!");
+		                                "CGameObject: [%s] best_cover_invalidate() called on non-stalker object",
+		                                object().cNameSect_str());
 		return;
 	}
 	stalker->best_cover_invalidate();
@@ -696,7 +698,8 @@ LPCSTR CScriptGameObject::GetCurrentSmartCoverName()
 	if (!stalker)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
-		                                "CAI_Stalker : cannot access class member GetCurrentSmartCoverName!");
+		                                "CGameObject: [%s] get_current_smart_cover_name() called on non-stalker object",
+		                                object().cNameSect_str());
 		return ("");
 	}
 	smart_cover::cover const* cover = stalker->get_current_smart_cover();
@@ -711,7 +714,8 @@ LPCSTR CScriptGameObject::GetCurrentLoopholeId()
 	if (!stalker)
 	{
 		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
-		                                "CAI_Stalker : cannot access class member GetCurrentLoopholeId!");
+		                                "CGameObject: [%s] get_current_loophole_id() called on non-stalker object",
+		                                object().cNameSect_str());
 		return ("");
 	}
 	smart_cover::loophole const* loophole = stalker->get_current_loophole();

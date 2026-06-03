@@ -455,6 +455,13 @@ _G.CCar__OnHit = function(car, who, shit, boneId)
 	SendScriptCallback("car_on_hit", car, who, shit, boneId)
 end
 
+-- car weapon fired callback
+-- car - the car whose mounted weapon fired a shot
+AddScriptCallback("car_on_weapon_fired")
+_G.CCar__OnWeaponFired = function(car)
+	SendScriptCallback("car_on_weapon_fired", car)
+end
+
 -- nearest item to pickup callback
 -- obj can be nil
 AddScriptCallback("actor_on_update_pickup")

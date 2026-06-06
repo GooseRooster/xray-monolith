@@ -346,6 +346,7 @@ void execUserScript()
 	}
 
 	Console->ExecuteScript(Console->ConfigFile);
+	Console->Execute("dump_cvar");
 }
 
 void slowdownthread(void*)

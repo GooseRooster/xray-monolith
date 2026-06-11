@@ -440,6 +440,28 @@
 		void set_angular_vel(vector)
     }
 
+    // obj:get_car()
+    class CCar {
+        function GetSpeed() -> float // signed forward m/s, negative = reversing
+        function SetTargetSpeed(float mps) // speed governor, negative = reverse
+        function ClearTargetSpeed()
+        function SetThrottle(float k) // 0..1 drive torque scale
+        function SetSteer(float k) // -1..1, + = right
+        function GetWheelFriction() -> float // wheel-ground friction multiplier (mu_factor)
+        function SetWheelFriction(float k)
+        function Transmission(number gear) // 0 = reverse, 1..N = forward gears
+        function TransmissionUp()
+        function TransmissionDown()
+        function CurrentTransmission() -> number
+        function RefWheelMaxSpeed() -> float
+        function EnginePower() -> float
+        function EngineCurTorque() -> float
+        function DoorOpen(number bone_id) / DoorClose / DoorUse / DoorSwitch
+        function IsDoor(number bone_id) -> bool
+
+        callbacks (see callbacks_gameobject.script): car_on_hit, car_on_weapon_fired
+    }
+
     class Fvector {
         static functions:
             vector.generate_orthonormal_basis(Fvector dir, Fvector up, Fvector right)

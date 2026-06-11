@@ -653,6 +653,9 @@ public:
 	void ClearTargetSpeed();
 	void SetThrottle(float k);
 	void SetSteer(float k);
+	// wheel-ground friction multiplier (SWheelCollisionParams::mu_factor)
+	float GetWheelFriction();
+	void SetWheelFriction(float mu_factor);
 	bool IsSpeedGoverned() const { return m_speed_governed; }
 	float ThrottleFactor() const { return m_throttle; }
 	float DriveRefSpeed();

@@ -2262,6 +2262,19 @@ void CCar::ClearTargetSpeed()
 	m_speed_governed = false;
 }
 
+float CCar::GetWheelFriction()
+{
+	if (m_wheels_map.empty()) return 0.f;
+	return m_wheels_map.begin()->second.collision_params.mu_factor;
+}
+
+void CCar::SetWheelFriction(float mu_factor)
+{
+	xr_map<u16, SWheel>::iterator i = m_wheels_map.begin(), e = m_wheels_map.end();
+	for (; i != e; ++i)
+		i->second.collision_params.mu_factor = mu_factor;
+}
+
 void CCar::SetThrottle(float k)
 {
 	m_throttle = (k < 0.f) ? 0.f : (k > 1.f ? 1.f : k);

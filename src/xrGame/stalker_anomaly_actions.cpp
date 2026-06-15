@@ -166,17 +166,19 @@ void CStalkerActionDetectAnomaly::execute()
 	bool const window_expired =
 		object().m_anomaly_detect_start_time + m_inertia_time <= Device.dwTimeGlobal;
 
-	PIItem bolt = object().inventory().ItemFromSlot(BOLT_SLOT);
-
-	if (window_expired || !bolt || object().memory().enemy().selected())
+	if (window_expired || object().memory().enemy().selected())
 	{
-		// no bolt to throw ends the cycle immediately; on any end, arm a
-		// cooldown and reset the start so the next detect re-stamps cleanly
+		// on any end, arm a cooldown and reset the start so the next detect
+		// re-stamps cleanly
 		object().m_anomaly_detect_suppress_until = Device.dwTimeGlobal + 60000;
 		object().m_anomaly_detect_start_time = 0;
 		set_property(eWorldPropertyAnomaly, false);
 		return;
 	}
 
-	object().CObjectHandler::set_goal(eObjectActionFire1, bolt);
+	// NPC bolts doesn't persist through saves. Don't gate the cycle on ammo, 
+	// or loaded NPCs break. thus skip empty throws; cooldown handles the rest
+	PIItem bolt = object().inventory().ItemFromSlot(BOLT_SLOT);
+	if (bolt)
+		object().CObjectHandler::set_goal(eObjectActionFire1, bolt);
 }

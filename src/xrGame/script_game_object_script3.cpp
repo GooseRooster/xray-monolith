@@ -647,6 +647,7 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("set_enable_anomalies_pathfinding", SAFE_WRAP(&CScriptGameObject::set_enable_anomalies_pathfinding))
 		.def("get_enable_anomalies_damage", SAFE_WRAP(&CScriptGameObject::get_enable_anomalies_damage))
 		.def("set_enable_anomalies_damage", SAFE_WRAP(&CScriptGameObject::set_enable_anomalies_damage))
+		.def("inside_anomaly", SAFE_WRAP(&CScriptGameObject::inside_anomaly))
 
 		// demonized: get object currently talking to
 		.def("get_talking_npc", &CScriptGameObject::get_talking_npc)

@@ -620,6 +620,7 @@
         function set_enable_anomalies_pathfinding(bool)
         function get_enable_anomalies_damage()
         function set_enable_anomalies_damage(bool)
+        function inside_anomaly()
         function angle()
         function force_set_angle(Fvector angle, bool bActivate)
         function set_enable_movement_collision(bool)

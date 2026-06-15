@@ -1011,6 +1011,9 @@ public:
 	bool get_enable_anomalies_damage();
 	void set_enable_anomalies_damage(bool v);
 
+	// priler: returns true if a non-radioactive restrictor zone is currently touching this character
+	bool inside_anomaly();
+
 	//Weapon
 	void Weapon_AddonAttach(CScriptGameObject* item);
 	void Weapon_AddonDetach(LPCSTR item_section, bool b_spawn_item = true);

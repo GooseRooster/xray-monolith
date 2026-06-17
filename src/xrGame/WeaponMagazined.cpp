@@ -2136,6 +2136,126 @@ bool CWeaponMagazined::install_upgrade_impl(LPCSTR section, bool test)
 
 	UpdateUIScope();
 
+    result2 = process_if_exists_set(section, "fire_point", &CInifile::r_string, str, test);
+    if (result2 && !test)
+    {
+        int pointsCount = _GetItemCount(str);
+        if (pointsCount == 3)
+        {
+            for (int i = 0; i < pointsCount; ++i)
+            {
+                string16 sItem;
+                _GetItem(str, i, sItem);
+                vLoadedFirePoint[i] = std::atof(sItem);
+            }
+        }
+        else
+        {
+            Msg("! CWeaponMagazined::install_upgrade_impl ERROR: Invalid fire_point count in section [%s], expected 3, got %d", section, pointsCount);
+        }
+    }
+    result |= result2;
+
+    result2 = process_if_exists_set(section, "fire_point2", &CInifile::r_string, str, test);
+    if (result2 && !test)
+    {
+        int pointsCount = _GetItemCount(str);
+        if (pointsCount == 3)
+        {
+            for (int i = 0; i < pointsCount; ++i)
+            {
+                string16 sItem;
+                _GetItem(str, i, sItem);
+                vLoadedFirePoint2[i] = std::atof(sItem);
+            }
+        }
+        else
+        {
+            Msg("! CWeaponMagazined::install_upgrade_impl ERROR: Invalid fire_point2 count in section [%s], expected 3, got %d", section, pointsCount);
+        }
+    }
+    result |= result2;
+
+    result2 = process_if_exists_set(section, "fire_point_silencer", &CInifile::r_string, str, test);
+    if (result2 && !test)
+    {
+        int pointsCount = _GetItemCount(str);
+        if (pointsCount == 3)
+        {
+            for (int i = 0; i < pointsCount; ++i)
+            {
+                string16 sItem;
+                _GetItem(str, i, sItem);
+                vLoadedFirePointSilencer[i] = std::atof(sItem);
+            }
+        }
+        else
+        {
+            Msg("! CWeaponMagazined::install_upgrade_impl ERROR: Invalid fire_point_silencer count in section [%s], expected 3, got %d", section, pointsCount);
+        }
+    }
+    result |= result2;
+
+    result2 = process_if_exists_set(section, "hud_fire_point", &CInifile::r_string, str, test);
+    if (result2 && !test)
+    {
+        int pointsCount = _GetItemCount(str);
+        if (pointsCount == 3)
+        {
+            for (int i = 0; i < pointsCount; ++i)
+            {
+                string16 sItem;
+                _GetItem(str, i, sItem);
+                HudItemData()->m_measures.m_fire_point_offset[i] = std::atof(sItem);
+            }
+        }
+        else
+        {
+            Msg("! CWeaponMagazined::install_upgrade_impl ERROR: Invalid hud_fire_point count in section [%s], expected 3, got %d", section, pointsCount);
+        }
+    }
+    result |= result2;
+
+    result2 = process_if_exists_set(section, "hud_fire_point2", &CInifile::r_string, str, test);
+    if (result2 && !test)
+    {
+        int pointsCount = _GetItemCount(str);
+        if (pointsCount == 3)
+        {
+            for (int i = 0; i < pointsCount; ++i)
+            {
+                string16 sItem;
+                _GetItem(str, i, sItem);
+                HudItemData()->m_measures.m_fire_point2_offset[i] = std::atof(sItem);
+            }
+        }
+        else
+        {
+            Msg("! CWeaponMagazined::install_upgrade_impl ERROR: Invalid hud_fire_point2 count in section [%s], expected 3, got %d", section, pointsCount);
+        }
+    }
+    result |= result2;
+
+    result2 = process_if_exists_set(section, "hud_fire_point_silencer", &CInifile::r_string, str, test);
+    if (result2 && !test)
+    {
+        int pointsCount = _GetItemCount(str);
+        if (pointsCount == 3)
+        {
+            for (int i = 0; i < pointsCount; ++i)
+            {
+                string16 sItem;
+                _GetItem(str, i, sItem);
+                HudItemData()->m_measures.m_fire_point_silencer[i] = std::atof(sItem);
+            }
+        }
+        else
+        {
+            Msg("! CWeaponMagazined::install_upgrade_impl ERROR: Invalid hud_fire_point_silencer count in section [%s], expected 3, got %d", section, pointsCount);
+        }
+    }
+    result |= result2;
+
 	return result;
 }
 

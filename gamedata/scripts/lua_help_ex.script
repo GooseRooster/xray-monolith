@@ -688,6 +688,27 @@
 
         function list_bones(bool bHud = false)
 
+        // HUD item fire points/bones
+        Fvector hud_fire_point()
+        Fvector hud_fire_point2()
+        Fvector hud_fire_point_silencer()
+        void set_hud_fire_point(Fvector value)
+        void set_hud_fire_point2(Fvector value)
+        void set_hud_fire_point_silencer(Fvector value)
+
+        u16 hud_fire_bone_id()
+        u16 hud_fire_bone2_id()
+        u16 hud_fire_bone_silencer_id()
+        string hud_fire_bone_name()
+        string hud_fire_bone2_name()
+        string hud_fire_bone_silencer_name()
+        void set_hud_fire_bone(u16 id)
+        void set_hud_fire_bone(string bone_name)
+        void set_hud_fire_bone2(u16 id)
+        void set_hud_fire_bone2(string bone_name)
+        void set_hud_fire_bone_silencer(u16 id)
+        void set_hud_fire_bone_silencer(string bone_name)
+
         // Torch
         function update_torch()
         

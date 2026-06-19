@@ -1756,7 +1756,8 @@ void CWeaponMagazined::OnMotionMark(u32 state, const motion_marks& M)
 	inherited::OnMotionMark(state, M);
 
     // Edited by Verdatim 18.4.2026
-	if (state == eReload)
+    shared_str reloadMarkName = READ_IF_EXISTS(pSettings, r_string, cNameSect(), "motion_mark_reload", "");
+	if (state == eReload && (reloadMarkName.size() == 0 || reloadMarkName == M.name))
 	{
 		if (bClearJamOnly)
 		{

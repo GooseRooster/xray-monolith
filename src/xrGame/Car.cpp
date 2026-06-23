@@ -42,6 +42,9 @@ BONE_P_MAP CCar::bone_map = BONE_P_MAP();
 #endif
 
 CCar::CCar()
+#ifdef CAR_NEW
+:m_visual_camera(this)
+#endif
 {
 	m_memory = NULL;
 	m_driver_anim_type = 0;
@@ -336,6 +339,7 @@ BOOL CCar::net_Spawn(CSE_Abstract* DC)
 	{
 		Fly_net_Spawn(DC);
 	}
+    m_visual_camera.net_Spawn(DC);
 #endif
 
 	return (CScriptEntity::net_Spawn(DC));
@@ -624,7 +628,15 @@ void CCar::VisualUpdate(float fov)
 		K->CalculateBones();
 	}
 
+#ifdef CAR_NEW
+    m_visual_camera.VisualUpdate(fov);
+#endif
+
 	m_car_sound->Update();
+
+#ifdef CAR_NEW
+    if (Owner() && !m_remote_control)
+#endif
 	if (Owner())
 	{
 		if (m_pPhysicsShell->isEnabled())
@@ -818,6 +830,7 @@ void CCar::detach_Actor()
 #endif
 #ifdef CAR_NEW
 	Fly_detach_Actor();
+    m_visual_camera.detach_Actor();
 #endif
 }
 
@@ -864,6 +877,7 @@ bool CCar::attach_Actor(CGameObject* actor)
 
 #ifdef CAR_NEW
 	Fly_attach_Actor(actor);
+    m_visual_camera.attach_Actor(actor);
 #endif
 	return true;
 }

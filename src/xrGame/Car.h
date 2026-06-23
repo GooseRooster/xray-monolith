@@ -843,6 +843,7 @@ public:
 		eControlRol_LS,
 	};
 
+public:
 	u16 GetControlEle() { return m_control_ele; };
 	u16 GetControlYaw() { return m_control_yaw; };
 	u16 GetControlPit() { return m_control_pit; };
@@ -865,6 +866,59 @@ public:
 	bool IsRemoteControl() { return m_remote_control; };
 	float GetFlyWeightAdd() { return m_fly_weight_add; };
 	void SetFlyWeightAdd(float val);
+
+public:
+    struct SVisualCamera
+    {
+        /* 
+        A physical camera model on the vehicle.
+        If used, camera will lock fixed on this "turret".
+        Mouse movement will rotate this "turret" instead of camera.
+        */
+        CCar* m_car;
+        CCar* Car() { return m_car; }
+
+        bool m_enable;
+        bool IsEnable() { return m_enable; }
+
+        bool m_active;
+        bool IsActive() { return m_active; }
+        void Activate(bool val);
+        bool m_snap;
+        bool Snap() { return m_snap; }
+
+        u16 m_rotate_x_bone;
+        u16 m_rotate_y_bone;
+        float m_rotate_x_speed;
+        float m_rotate_y_speed;
+        float m_tgt_x_rot;
+        float m_tgt_y_rot;
+        float m_cur_x_rot;
+        float m_cur_y_rot;
+        Fvector2 m_lim_x_rot;
+        Fvector2 m_lim_y_rot;
+
+        Fvector m_desire_ang;
+        Fvector GetDesireAngle() { return m_desire_ang; }
+        void SetDesireAngle(Fvector vec);
+
+        SVisualCamera(CCar* obj);
+        ~SVisualCamera();
+        void VisualUpdate(float fov);
+        void UpdateDir();
+        void UpdateCam();
+
+        static void _BCL BoneCallbackX(CBoneInstance* B);
+        static void _BCL BoneCallbackY(CBoneInstance* B);
+        void SetBoneCallbacks(bool val);
+        bool attach_Actor(CGameObject* obj);
+        void detach_Actor();
+        void net_Spawn(CSE_Abstract* DC);
+        void OnMouseMove(int x, int y);
+    } m_visual_camera;
+    Fvector VisualCamera_GetDesireAngle() { return m_visual_camera.GetDesireAngle(); }
+    float VisualCamera_GetRotXCur() { return -m_visual_camera.m_cur_x_rot; }
+    float VisualCamera_GetRotYCur() { return -m_visual_camera.m_cur_y_rot; }
 #endif
 
 public:

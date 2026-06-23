@@ -272,6 +272,13 @@ _G.COnRightClickMap = function(property_ui, map_table)
 	SendScriptCallback("on_map_right_click", property_ui, map_table)
 end
 
+-- Engine sets the clicked menu item's owning spot before pda.property_box_clicked,
+-- so a merged multi-object context menu dispatches the correct object id per item.
+function pda.set_map_spot_context(id, level_name)
+	pda.map_spot_property.id = id
+	pda.map_spot_property.level_name = level_name
+end
+
 --[[
 
 On left click on PDA map spot callback

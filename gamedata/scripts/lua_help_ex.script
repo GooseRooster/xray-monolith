@@ -234,6 +234,10 @@
         // no extra exports yet
     }
 
+    class CUIPropertiesBox : CUIFrameWindow {
+        void AddHeader(string str) // Adds a non-selectable, colored title row (used to group items in a merged context menu)
+    }
+
     class CUIMainIngameWnd : CUIWindow {
         property m_QuickSlotText1
         property m_QuickSlotText2

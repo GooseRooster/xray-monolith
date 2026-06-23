@@ -123,6 +123,19 @@ bool CUIPropertiesBox::AddItem(LPCSTR str, void* pData, u32 tag_value)
 	return true;
 }
 
+CUIListBoxItem* CUIPropertiesBox::AddHeader(LPCSTR str)
+{
+	CUIListBoxItem* itm = m_UIListWnd.AddTextItem(str);
+	itm->SetTextColor(0xffffd27f);
+	itm->Enable(false);
+	return itm;
+}
+
+void CUIPropertiesBox::RemoveItem(CUIListBoxItem* itm)
+{
+	m_UIListWnd.RemoveWindow(itm);
+}
+
 void CUIPropertiesBox::RemoveItemByTAG(u32 tag)
 {
 	m_UIListWnd.RemoveWindow(m_UIListWnd.GetItemByTAG(tag));
@@ -135,6 +148,21 @@ void CUIPropertiesBox::RemoveAll()
 
 void CUIPropertiesBox::Show(const Frect& parent_rect, const Fvector2& point)
 {
+	float room_below = parent_rect.y2 - point.y;
+	float room_above = point.y - parent_rect.y1;
+	float max_h = _max(room_above, room_below) - OFFSET_Y * 2.0f;
+	if (GetHeight() > max_h)
+	{
+		Fvector2 sz = GetWndSize();
+		sz.y = max_h;
+		sz.x += m_UIListWnd.ScrollBar()->GetWidth();
+		SetWndSize(sz);
+		m_UIListWnd.SetWndSize(sz);
+		m_UIListWnd.InitScrollView();
+		m_UIListWnd.UpdateChildrenLenght();
+		m_UIListWnd.ForceUpdate();
+	}
+
 	Fvector2 prop_pos;
 	Fvector2 prop_size = GetWndSize();
 	m_last_show_rect = parent_rect;
@@ -163,6 +191,10 @@ void CUIPropertiesBox::Show(const Frect& parent_rect, const Fvector2& point)
 
 	GetParent()->SetCapture(this, true);
 	m_UIListWnd.Reset();
+
+	float pad_h = m_UIListWnd.GetPadSize().y;
+	if (pad_h > m_UIListWnd.GetHeight())
+		m_UIListWnd.ScrollBar()->SetRange(0, iFloor(pad_h));
 }
 
 void CUIPropertiesBox::Hide()
@@ -200,9 +232,18 @@ bool CUIPropertiesBox::OnMouseAction(float x, float y, EUIMessages mouse_action)
 		Hide();
 	}
 	if (mouse_action == WINDOW_MOUSE_WHEEL_DOWN || mouse_action == WINDOW_MOUSE_WHEEL_UP)
+	{
+		if (m_UIListWnd.GetPadSize().y > m_UIListWnd.GetHeight())
+			m_UIListWnd.OnMouseAction(x, y, mouse_action);
 		return true;
+	}
 
-	return inherited::OnMouseAction(x, y, mouse_action);
+	bool res = inherited::OnMouseAction(x, y, mouse_action);
+
+	if (IsShown() && GetParent() && GetParent()->GetMouseCapturer() != this)
+		GetParent()->SetCapture(this, true);
+
+	return res;
 }
 
 void CUIPropertiesBox::AutoUpdateSize()

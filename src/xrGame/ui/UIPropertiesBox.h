@@ -24,7 +24,11 @@ public:
 
 	bool AddItem(LPCSTR str, void* pData = NULL, u32 tag_value = 0);
 	bool AddItem_script(LPCSTR str) { return AddItem(str); };
+	void AddHeader_script(LPCSTR str) { AddHeader(str); };
 	u32 GetItemsCount() { return m_UIListWnd.GetSize(); };
+	CUIListBoxItem* GetItemByIDX(int idx) { return m_UIListWnd.GetItemByIDX(idx); }
+	CUIListBoxItem* AddHeader(LPCSTR str);
+	void RemoveItem(CUIListBoxItem* itm);
 	void RemoveItemByTAG(u32 tag_value);
 	void RemoveAll();
 

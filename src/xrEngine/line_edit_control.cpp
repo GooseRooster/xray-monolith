@@ -207,13 +207,13 @@ namespace text_editor
 			assign_callback(DIK_RIGHT, ks_Ctrl, Callback(this, &line_edit_control::move_pos_right_word));
 
             //Antglobes: Include support for numpad keys only when numlock is toggle on
-            //home=7, up=8, pgup=9, left=4, right=6, 1=end, 2=down, 3=pgdwn
-            //assign_callback(DIK_NUMPAD7, ks_NumLock, Callback(this, &line_edit_control::move_pos_home));
-            //assign_callback(DIK_NUMPAD1, ks_NumLock, Callback(this, &line_edit_control::move_pos_end));
-            //assign_callback(DIK_NUMPAD4, ks_NumLock, Callback(this, &line_edit_control::move_pos_left));
-            //assign_callback(DIK_NUMPAD6, ks_NumLock, Callback(this, &line_edit_control::move_pos_right));
-            //assign_callback(DIK_NUMPAD4, ks_NumLk_Ctrl, Callback(this, &line_edit_control::move_pos_left_word));
-            //assign_callback(DIK_NUMPAD6, ks_NumLk_Ctrl, Callback(this, &line_edit_control::move_pos_right_word));
+            //home=7, 1=end, 4=left, 6=right
+            assign_callback(DIK_NUMPAD7, ks_NumLock, Callback(this, &line_edit_control::move_pos_home));
+            assign_callback(DIK_NUMPAD1, ks_NumLock, Callback(this, &line_edit_control::move_pos_end));
+            assign_callback(DIK_NUMPAD4, ks_NumLock, Callback(this, &line_edit_control::move_pos_left));
+            assign_callback(DIK_NUMPAD6, ks_NumLock, Callback(this, &line_edit_control::move_pos_right));
+            assign_callback(DIK_NUMPAD4, ks_NumLk_Ctrl, Callback(this, &line_edit_control::move_pos_left_word));
+            assign_callback(DIK_NUMPAD6, ks_NumLk_Ctrl, Callback(this, &line_edit_control::move_pos_right_word));
 
 		}
 		else
@@ -247,8 +247,7 @@ namespace text_editor
 			assign_callback(DIK_LSHIFT, ks_Ctrl, Callback(this, &line_edit_control::SwitchKL));
 			assign_callback(DIK_LSHIFT, ks_Alt, Callback(this, &line_edit_control::SwitchKL));
 
-            //Antglobes: Include support for numpad keys only when numlock is toggle on
-            //home=7, 1=end, 4=left, 6=right
+            //Antglobes
             assign_callback(DIK_NUMPAD7, ks_NumLock, Callback(this, &line_edit_control::move_pos_home));
             assign_callback(DIK_NUMPAD1, ks_NumLock, Callback(this, &line_edit_control::move_pos_end));
             assign_callback(DIK_NUMPAD4, ks_NumLock, Callback(this, &line_edit_control::move_pos_left));

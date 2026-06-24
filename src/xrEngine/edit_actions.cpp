@@ -114,7 +114,6 @@ namespace text_editor
 		const bool ctrl = control->get_key_state(ks_Ctrl);
 		const bool alt = control->get_key_state(ks_Alt);
 		const bool altgr = control->get_key_state(ks_RAlt);
-        const bool numlock = control->get_key_state(ks_NumLock);
 		if (m_translate) {
 			if (pInput->dik_to_text((int)m_dik, shift, caps, ctrl, alt, altgr, out, sizeof(out)))
 			{

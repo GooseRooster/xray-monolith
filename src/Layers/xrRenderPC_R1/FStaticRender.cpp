@@ -1,4 +1,4 @@
-﻿// CRender.cpp: implementation of the CRender class.
+// CRender.cpp: implementation of the CRender class.
 //
 //////////////////////////////////////////////////////////////////////
 
@@ -1094,8 +1094,8 @@ HRESULT CRender::shader_compile(
 				}
 				else
 				{
-					Msg("! Shader cache source CRC mismatch for '%s' (%s): cached=0x%08x current=0x%08x, recompiling",
-						name, file_name, saved_source_crc, source_crc);
+                    Msg("~Shader cache source CRC mismatch for '%s': cached=0x%08x current=0x%08x, recompiling",
+                        name, saved_source_crc, source_crc);
 				}
 			}
 		}

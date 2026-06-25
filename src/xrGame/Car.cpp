@@ -109,7 +109,6 @@ CCar::CCar()
 #endif
 
 #ifdef CAR_NEW
-	m_type = eCarTypeDef;
 	m_remote_control = false;
 
 	m_camera_bone_def = BI_NONE;
@@ -118,41 +117,9 @@ CCar::CCar()
 	m_zoom_factor_aim = 1.0F;
 	m_zoom_status = false;
 
-	m_control_press_ele_up = false;
-	m_control_press_ele_dw = false;
-	m_control_press_yaw_rs = false;
-	m_control_press_yaw_ls = false;
-	m_control_press_pit_fs = false;
-	m_control_press_pit_bs = false;
-	m_control_press_rol_rs = false;
-	m_control_press_rol_ls = false;
-
-	m_control_ele = eControlEle_NA;
-	m_control_yaw = eControlYaw_NA;
-	m_control_pit = eControlPit_NA;
-	m_control_rol = eControlRol_NA;
-
-	m_control_neutral = 0.0F;
-	m_control_ele_max = 0.0F;
-	m_control_yaw_max = 0.0F;
-	m_control_pit_max = 0.0F;
-	m_control_rol_max = 0.0F;
-
-	m_control_ele_inc = 0.0F;
-	m_control_yaw_inc = 0.0F;
-	m_control_pit_inc = 0.0F;
-	m_control_rol_inc = 0.0F;
-
-	m_body_bid = BI_NONE;
-	m_rotor_force_max = 0.0F;
-	m_rotor_speed_max = 0.0F;
-	m_fly_weight_min = 1.0F;
-	m_fly_weight_add = 0.0F;
-
 	m_on_before_hit_callback = NULL;
 	m_on_before_use_callback = NULL;
 	m_on_before_engine_callback = NULL;
-	m_on_key_board_callback = NULL;
 #endif
 }
 
@@ -169,8 +136,7 @@ CCar::~CCar(void)
 	//	xr_delete			(l_tpEntityAction);
 
 #ifdef CAR_NEW
-	m_rotor_bones.clear();
-	m_drive_bones.clear();
+	xr_delete(m_car_drone);
 #endif
 }
 
@@ -219,33 +185,14 @@ void CCar::Load(LPCSTR section)
 	if (self) self->spatial.type |= STYPE_VISIBLEFORAI;
 
 #ifdef CAR_NEW
-	{
-		LPCSTR str = READ_IF_EXISTS(pSettings, r_string, section, "type", nullptr);
-		m_type = eCarTypeDef;
-		if (str && strlen(str))
-		{
-			if (strcmp(str, "def") == 0)
-			{
-				m_type = eCarTypeDef;
-			}
-			if (strcmp(str, "fly") == 0)
-			{
-				m_type = eCarTypeFly;
-			}
-		}
-	}
-
 	m_on_before_hit_callback = READ_IF_EXISTS(pSettings, r_string, section, "on_before_hit", nullptr);
 	m_on_before_use_callback = READ_IF_EXISTS(pSettings, r_string, section, "on_before_use", nullptr);
 	m_on_before_engine_callback = READ_IF_EXISTS(pSettings, r_string, section, "on_before_engine", nullptr);
-	m_on_key_board_callback = READ_IF_EXISTS(pSettings, r_string, section, "on_key_board", nullptr);
 
 	if (pSettings->line_exist(section, "use_action_hint"))
 	{
 		SetUseAction(pSettings->r_string(section, "use_action_hint"));
 	}
-
-	Fly_Load(section);
 #endif
 }
 
@@ -335,10 +282,11 @@ BOOL CCar::net_Spawn(CSE_Abstract* DC)
 
 	m_remote_control = !!READ_IF_EXISTS(ini, r_bool, cfg, "remote_control", FALSE);
 
-	if (m_type == eCarTypeFly)
-	{
-		Fly_net_Spawn(DC);
-	}
+    if (ini->section_exist("drone_definition"))
+    {
+        m_car_drone = xr_new<CCarDrone>(this);
+    }
+
     m_visual_camera.net_Spawn(DC);
 #endif
 
@@ -583,12 +531,10 @@ void CCar::UpdateEx(float fov)
 BOOL CCar::AlwaysTheCrow()
 {
 #ifdef CAR_NEW
-	if (m_type == eCarTypeFly)
-	{
-		return TRUE;
-	}
-#endif
+    return TRUE;
+#else
 	return (m_car_weapon && m_car_weapon->IsActive());
+#endif
 }
 
 void CCar::UpdateCL()
@@ -613,14 +559,6 @@ void CCar::UpdateCL()
 
 void CCar::VisualUpdate(float fov)
 {
-#ifdef CAR_NEW
-	if (m_type == eCarTypeFly)
-	{
-		Fly_VisualUpdate(fov);
-		return;
-	}
-#endif
-
 	if (m_pPhysicsShell)
 	{
 		m_pPhysicsShell->InterpolateGlobalTransform(&XFORM());
@@ -829,7 +767,10 @@ void CCar::detach_Actor()
 	DBgClearPlots();
 #endif
 #ifdef CAR_NEW
-	Fly_detach_Actor();
+    if (m_car_drone)
+    {
+        m_car_drone->detach_Actor();
+    }
     m_visual_camera.detach_Actor();
 #endif
 }
@@ -839,10 +780,6 @@ bool CCar::attach_Actor(CGameObject* actor)
 	if (Owner() || CPHDestroyable::Destroyed()) return false;
 	CHolderCustom::attach_Actor(actor);
 
-#ifdef CAR_NEW
-	if (m_type == eCarTypeDef)
-	{
-#endif
 	IKinematics* K = smart_cast<IKinematics*>(Visual());
 	CInifile* ini = K->LL_UserData();
 	int id;
@@ -855,9 +792,6 @@ bool CCar::attach_Actor(CGameObject* actor)
 	}
 	CBoneInstance& instance = K->LL_GetBoneInstance(u16(id));
 	m_sits_transforms.push_back(instance.mTransform);
-#ifdef CAR_NEW
-	}
-#endif
 
 	OnCameraChange(ectFirst);
 	PPhysicsShell()->Enable();
@@ -876,7 +810,10 @@ bool CCar::attach_Actor(CGameObject* actor)
 	//H_SetParent(actor);
 
 #ifdef CAR_NEW
-	Fly_attach_Actor(actor);
+    if (m_car_drone)
+    {
+        m_car_drone->attach_Actor(actor);
+    }
     m_visual_camera.attach_Actor(actor);
 #endif
 	return true;
@@ -1631,10 +1568,10 @@ void CCar::PhTune(float step)
 float CCar::EffectiveGravity()
 {
 #ifdef CAR_NEW
-	if (m_type == eCarTypeFly)
-	{
-		return physics_world()->Gravity();
-	}
+    if (m_car_drone)
+    {
+        return physics_world()->Gravity();
+    }
 #endif
 
 	float g = physics_world()->Gravity();
@@ -1735,8 +1672,10 @@ bool CCar::Use(const Fvector& pos, const Fvector& dir, const Fvector& foot_pos)
 		}
 	}
 
-	if (m_type == eCarTypeFly)
-		return true;
+    if (m_remote_control)
+    {
+        return true;
+    }
 #endif
 
 	xr_map<u16, SDoor>::iterator i;
@@ -2012,11 +1951,11 @@ void CCar::ResetScriptData(void* P)
 void CCar::PhDataUpdate(float step)
 {
 #ifdef CAR_NEW
-	if (m_type == eCarTypeFly)
-	{
-		Fly_PhDataUpdate(step);
-		return;
-	}
+    if (m_car_drone)
+    {
+        m_car_drone->PhDataUpdate(step);
+        return;
+    }
 #endif
 
 	if (m_repairing)Revert();

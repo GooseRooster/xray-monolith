@@ -35,6 +35,10 @@ struct dSurfaceParameters;
 	#include "PHDebug.h"
 #endif
 
+#ifdef CAR_NEW
+#include "CarDrone.h"
+#endif
+
 class CScriptEntityAction;
 class car_memory;
 
@@ -726,19 +730,6 @@ private:
 
 #ifdef CAR_NEW
 private:
-	struct SCarFlyBone
-	{
-		u16 bid;
-		CPhysicsElement *E;
-		CPhysicsJoint *J;
-		bool clockwise;
-		u8 axis;
-		bool spinning;
-		SCarFlyBone();
-	};
-
-private:
-	u16 m_type;
 	bool m_remote_control;
 
 	u16 m_camera_bone_def;
@@ -750,123 +741,31 @@ private:
 	LPCSTR m_on_before_hit_callback;
 	LPCSTR m_on_before_use_callback;
 	LPCSTR m_on_before_engine_callback;
-	LPCSTR m_on_key_board_callback;
-
-	u16 m_body_bid;
-	xr_vector<SCarFlyBone> m_drive_bones;
-	xr_vector<SCarFlyBone> m_rotor_bones;
-	float m_rotor_force_max;
-	float m_rotor_speed_max;
-
-	bool m_control_press_ele_up; /* Up */
-	bool m_control_press_ele_dw; /* Down */
-	bool m_control_press_yaw_rs; /* Strafe right */
-	bool m_control_press_yaw_ls; /* Strafe left */
-	bool m_control_press_pit_fs; /* Move forward */
-	bool m_control_press_pit_bs; /* Move backward */
-	bool m_control_press_rol_rs; /* Rotate right */
-	bool m_control_press_rol_ls; /* Rotate left */
-	void ControlPressEleUp(bool status);
-	void ControlPressEleDw(bool status);
-	void ControlPressYawRs(bool status);
-	void ControlPressYawLs(bool status);
-	void ControlPressPitFs(bool status);
-	void ControlPressPitBs(bool status);
-	void ControlPressRolRs(bool status);
-	void ControlPressRolLs(bool status);
-
-	u16 m_control_ele; /* Elevating */
-	u16 m_control_pit; /* Pitch */
-	u16 m_control_rol; /* Roll */
-	u16 m_control_yaw; /* Yaw */
-
-	float m_control_neutral;
-	float m_control_ele_max;
-	float m_control_pit_max;
-	float m_control_rol_max;
-	float m_control_yaw_max;
-
-	float m_control_ele_inc;
-	float m_control_pit_inc;
-	float m_control_rol_inc;
-	float m_control_yaw_inc;
-
-	float m_fly_weight_min;
-	float m_fly_weight_add;
-	float FlyWeightScale();
-
-	void Fly_Load(LPCSTR section);
-	BOOL Fly_net_Spawn(CSE_Abstract *DC);
-	bool Fly_attach_Actor(CGameObject *actor);
-	void Fly_detach_Actor();
-	void Fly_VisualUpdate(float fov);
-	void Fly_PhDataUpdate(float step);
-	void Fly_OnMouseMove(int dx, int dy);
-	void Fly_OnKeyboardPress(int dik);
-	void Fly_OnKeyboardRelease(int dik);
-	void Fly_OnKeyboardHold(int dik);
-	void Fly_RotorUpdate();
 
 public:
-	virtual bool is_ai_obstacle() const;
-	u16 GetType() { return m_type; }
-	void SetUseAction(LPCSTR txt);
+    virtual bool is_ai_obstacle() const;
+    void SetUseAction(LPCSTR txt);
+    bool IsCameraZoom() { return m_zoom_status; };
+    bool IsRemoteControl() { return m_remote_control; };
 
-	enum eCarType
-	{
-		eCarTypeDef = 0,
-		eCarTypeFly,
-	};
-
-	enum eControlEle
-	{
-		eControlEle_NA = 0,
-		eControlEle_UP,
-		eControlEle_DW,
-	};
-	enum eControlYaw
-	{
-		eControlYaw_NA = 0,
-		eControlYaw_RS,
-		eControlYaw_LS,
-	};
-	enum eControlPit
-	{
-		eControlPit_NA = 0,
-		eControlPit_FS,
-		eControlPit_BS,
-	};
-	enum eControlRol
-	{
-		eControlRol_NA = 0,
-		eControlRol_RS,
-		eControlRol_LS,
-	};
+/*----------------------------------------------------------------------------------------------------
+    CCarDrone
+----------------------------------------------------------------------------------------------------*/
+private:
+    CCarDrone* m_car_drone;
+    void CCarDrone_OnKeyboardPress(int dik);
+    void CCarDrone_OnKeyboardRelease(int dik);
+    void CCarDrone_OnKeyboardHold(int dik);
 
 public:
-	u16 GetControlEle() { return m_control_ele; };
-	u16 GetControlYaw() { return m_control_yaw; };
-	u16 GetControlPit() { return m_control_pit; };
-	u16 GetControlRol() { return m_control_rol; };
-	void SetControlEle(u16 val) { m_control_ele = val; };
-	void SetControlYaw(u16 val) { m_control_yaw = val; };
-	void SetControlPit(u16 val) { m_control_pit = val; };
-	void SetControlRol(u16 val) { m_control_rol = val; };
-	float GetControlEleScale() { return m_control_ele_max; };
-	float GetControlYawScale() { return m_control_yaw_max; };
-	float GetControlPitScale() { return m_control_pit_max; };
-	float GetControlRolScale() { return m_control_rol_max; };
-	void SetControlEleScale(float val) { m_control_ele_max = val; };
-	void SetControlYawScale(float val) { m_control_yaw_max = val; };
-	void SetControlPitScale(float val) { m_control_pit_max = val; };
-	void SetControlRolScale(float val) { m_control_rol_max = val; };
+    CCarDrone* CarDrone() { return m_car_drone; };
+    /* Find a way to export CCarDrone to LUA then obj:get_car():CarDrone():CCarDrone_function() instead of doing these. */
+    float CCarDrone_GetPowerEfficiency();
+    void CCarDrone_SetPowerEfficiency(int val);
 
-	void ControlReset();
-	bool IsCameraZoom();
-	bool IsRemoteControl() { return m_remote_control; };
-	float GetFlyWeightAdd() { return m_fly_weight_add; };
-	void SetFlyWeightAdd(float val);
-
+/*----------------------------------------------------------------------------------------------------
+    SVisualCamera
+----------------------------------------------------------------------------------------------------*/
 public:
     struct SVisualCamera
     {

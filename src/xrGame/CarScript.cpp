@@ -79,13 +79,9 @@ void CCar::script_register(lua_State* L)
 
 #ifdef CAR_NEW
 		.def("SetUseAction", &CCar::SetUseAction)
-		.def("GetFlyWeightAdd", &CCar::GetFlyWeightAdd)
-		.def("SetFlyWeightAdd", &CCar::SetFlyWeightAdd)
 
-		.def("GetControlEle", &CCar::GetControlEle)
-		.def("GetControlYaw", &CCar::GetControlYaw)
-		.def("GetControlPit", &CCar::GetControlPit)
-		.def("GetControlRol", &CCar::GetControlRol)
+		.def("CCarDrone_GetPowerEfficiency", &CCar::CCarDrone_GetPowerEfficiency)
+		.def("CCarDrone_SetPowerEfficiency", &CCar::CCarDrone_SetPowerEfficiency)
 #endif
 		.def(constructor<>())
 	];

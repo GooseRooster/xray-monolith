@@ -113,6 +113,7 @@ private:
 
 	struct SPropertyOwner { CUIListBoxItem* item; u16 id; shared_str level; };
 	xr_vector<SPropertyOwner> m_property_owners;
+	void TagSubmenuOwners(CUIPropertiesBox* box, CUIListBoxItem* owner_item, u16 id, const shared_str& level);
 
 public:
 	CUICustomMap* m_tgtMap;

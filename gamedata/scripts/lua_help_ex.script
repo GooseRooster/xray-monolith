@@ -236,6 +236,7 @@
 
     class CUIPropertiesBox : CUIFrameWindow {
         void AddHeader(string str) // Adds a non-selectable, colored title row (used to group items in a merged context menu)
+        CUIPropertiesBox AddSubmenu(string label) // Adds a "label >" row whose submenu expands on hover; returns the child box to populate (AddItem/AddHeader/nested AddSubmenu)
     }
 
     class CUIMainIngameWnd : CUIWindow {

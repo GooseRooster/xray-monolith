@@ -664,6 +664,21 @@ void CUIMapWnd::AddSpotProperties(CMapSpot* sp)
 		      (LPCSTR)sp->MapLocation()->GetHint());
 }
 
+void CUIMapWnd::TagSubmenuOwners(CUIPropertiesBox* box, CUIListBoxItem* owner_item, u16 id, const shared_str& level)
+{
+	auto& subs = box->GetItemSubmenus();
+	auto it = subs.find(owner_item);
+	if (it == subs.end())
+		return;
+	CUIPropertiesBox* sub = it->second;
+	for (u32 i = 0, n = sub->GetItemsCount(); i < n; ++i)
+	{
+		CUIListBoxItem* leaf = sub->GetItemByIDX(i);
+		m_property_owners.push_back({leaf, id, level});
+		TagSubmenuOwners(sub, leaf, id, level);
+	}
+}
+
 void CUIMapWnd::ActivatePropertiesBox(CUIWindow* w)
 {
 	xr_vector<CMapSpot*> spots;
@@ -699,7 +714,11 @@ void CUIMapWnd::ActivatePropertiesBox(const xr_vector<CMapSpot*>& spots)
 			continue;
 		}
 		for (u32 i = before + 1; i < after; ++i)
-			m_property_owners.push_back({m_UIPropertiesBox->GetItemByIDX(i), id, level});
+		{
+			CUIListBoxItem* root_item = m_UIPropertiesBox->GetItemByIDX(i);
+			m_property_owners.push_back({root_item, id, level});
+			TagSubmenuOwners(m_UIPropertiesBox, root_item, id, level);
+		}
 	}
 
 	{
@@ -708,7 +727,11 @@ void CUIMapWnd::ActivatePropertiesBox(const xr_vector<CMapSpot*>& spots)
 		u16 pos_id = AddRightClickMapProperties(spots.empty() ? NULL : spots.front(), pos_level);
 		u32 after = m_UIPropertiesBox->GetItemsCount();
 		for (u32 i = before; i < after; ++i)
-			m_property_owners.push_back({m_UIPropertiesBox->GetItemByIDX(i), pos_id, pos_level});
+		{
+			CUIListBoxItem* root_item = m_UIPropertiesBox->GetItemByIDX(i);
+			m_property_owners.push_back({root_item, pos_id, pos_level});
+			TagSubmenuOwners(m_UIPropertiesBox, root_item, pos_id, pos_level);
+		}
 	}
 
 	if (m_UIPropertiesBox->GetItemsCount() > 0)

@@ -3,6 +3,7 @@
 #include "../Level.h"
 #include "UIListBoxItem.h"
 #include "UIXmlInit.h"
+#include "uicursor.h"
 
 #define OFFSET_X (5.0f)
 #define OFFSET_Y (5.0f)
@@ -18,12 +19,18 @@ CUIPropertiesBox::CUIPropertiesBox(CUIPropertiesBox* sub_property_box)
 	m_item_sub_menu_initiator = NULL;
 	if (m_sub_property_box)
 		m_sub_property_box->SetParentSubMenu(this);
+
+	m_active_submenu = NULL;
+	m_active_sub_item = NULL;
+	m_parent_menu = NULL;
+	m_submenu_close_at = 0;
 }
 
 CUIPropertiesBox::~CUIPropertiesBox()
 {
 	R_ASSERT2(!m_sub_property_box || (!m_sub_property_box->IsShown()),
 	          "child sub menu is in shown mode - he'll tries to hide this menu");
+	m_item_submenus.clear();
 }
 
 
@@ -53,12 +60,31 @@ void CUIPropertiesBox::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 	{
 		if (msg == LIST_ITEM_CLICKED)
 		{
+			CUIListBoxItem* sel = m_UIListWnd.GetSelectedItem();
+			if (sel && m_item_submenus.count(sel))
+				return;
 			GetMessageTarget()->SendMessage(this, PROPERTY_CLICKED);
-			if (!m_sub_property_box) //i'm the last sub menu 
+			if (m_parent_menu)
 			{
 				Hide();
-				if (m_parent_sub_menu) //if i have a parent sub menu, close it 
+			}
+			else if (!m_sub_property_box)
+			{
+				Hide();
+				if (m_parent_sub_menu)
 					m_parent_sub_menu->Hide();
+			}
+		}
+	}
+	else if (msg == PROPERTY_CLICKED)
+	{
+		for (auto& kv : m_item_submenus)
+		{
+			if (kv.second == pWnd)
+			{
+				GetMessageTarget()->SendMessage(this, PROPERTY_CLICKED);
+				Hide();
+				break;
 			}
 		}
 	}
@@ -106,6 +132,96 @@ void CUIPropertiesBox::OnItemReceivedFocus(CUIWindow* w, void* d)
 	}
 }
 
+CUIPropertiesBox* CUIPropertiesBox::AddSubmenu(LPCSTR label)
+{
+	R_ASSERT2(GetParent(), "AddSubmenu: menu must be attached before adding submenus");
+
+	string512 buff;
+	xr_sprintf(buff, "%s  >", label);
+	CUIListBoxItem* itm = m_UIListWnd.AddTextItem(buff);
+
+	CUIPropertiesBox* sub = xr_new<CUIPropertiesBox>();
+	sub->SetAutoDelete(true);
+	sub->InitPropertiesBox(Fvector2().set(0, 0), Fvector2().set(GetWidth(), 300.0f));
+	sub->m_parent_menu = this;
+	sub->SetMessageTarget(this);
+	GetParent()->AttachChild(sub);
+	sub->Hide();
+
+	m_item_submenus[itm] = sub;
+
+	return sub;
+}
+
+void CUIPropertiesBox::ShowSubMenuForItem(CUIListBoxItem* item)
+{
+	auto it = m_item_submenus.find(item);
+	if (it == m_item_submenus.end())
+		return;
+	CUIPropertiesBox* sub = it->second;
+
+	Frect item_rect, parent_rect;
+	item->GetAbsoluteRect(item_rect);
+	GetParent()->GetAbsoluteRect(parent_rect);
+
+	float my_left = GetWndPos().x;
+	float my_right = my_left + GetWidth();
+	float top = item_rect.y1 - parent_rect.y1;
+
+	float anchor_x = (my_right + sub->GetWidth() <= m_last_show_rect.x2)
+		                 ? my_right
+		                 : my_left - sub->GetWidth();
+
+	Fvector2 point;
+	point.set(anchor_x, top);
+
+	Frect clip = m_last_show_rect;
+	clip.x1 = anchor_x;
+	clip.y1 = top;
+
+	sub->Show(clip, point);
+
+	m_active_submenu = sub;
+	m_active_sub_item = item;
+	m_submenu_close_at = 0;
+}
+
+void CUIPropertiesBox::HideActiveSubmenu()
+{
+	if (m_active_submenu)
+	{
+		if (m_active_submenu->IsShown())
+			m_active_submenu->Hide();
+		m_active_submenu = NULL;
+		m_active_sub_item = NULL;
+	}
+	m_submenu_close_at = 0;
+}
+
+bool CUIPropertiesBox::CursorOverTree()
+{
+	Frect r;
+	GetAbsoluteRect(r);
+	if (r.in(GetUICursor().GetCursorPosition()))
+		return true;
+	if (m_active_submenu && m_active_submenu->IsShown())
+		return m_active_submenu->CursorOverTree();
+	return false;
+}
+
+void CUIPropertiesBox::ClearSubmenus()
+{
+	HideActiveSubmenu();
+	for (auto& kv : m_item_submenus)
+	{
+		CUIPropertiesBox* sub = kv.second;
+		sub->ClearSubmenus();
+		if (sub->GetParent())
+			sub->GetParent()->DetachChild(sub);
+	}
+	m_item_submenus.clear();
+}
+
 bool CUIPropertiesBox::AddItem(LPCSTR str, void* pData, u32 tag_value)
 {
 	CUIListBoxItem* itm = m_UIListWnd.AddTextItem(str);
@@ -133,6 +249,17 @@ CUIListBoxItem* CUIPropertiesBox::AddHeader(LPCSTR str)
 
 void CUIPropertiesBox::RemoveItem(CUIListBoxItem* itm)
 {
+	auto it = m_item_submenus.find(itm);
+	if (it != m_item_submenus.end())
+	{
+		CUIPropertiesBox* sub = it->second;
+		if (m_active_submenu == sub)
+			HideActiveSubmenu();
+		sub->ClearSubmenus();
+		if (sub->GetParent())
+			sub->GetParent()->DetachChild(sub);
+		m_item_submenus.erase(it);
+	}
 	m_UIListWnd.RemoveWindow(itm);
 }
 
@@ -143,6 +270,7 @@ void CUIPropertiesBox::RemoveItemByTAG(u32 tag)
 
 void CUIPropertiesBox::RemoveAll()
 {
+	ClearSubmenus();
 	m_UIListWnd.Clear();
 }
 
@@ -205,10 +333,17 @@ void CUIPropertiesBox::Hide()
 	m_pMouseCapturer = NULL;
 
 	if (GetParent()->GetMouseCapturer() == this)
-		GetParent()->SetCapture(this, false);
+	{
+		if (m_parent_menu && m_parent_menu->IsShown())
+			GetParent()->SetCapture(m_parent_menu, true);
+		else
+			GetParent()->SetCapture(this, false);
+	}
 
 	if (m_sub_property_box)
 		m_sub_property_box->Hide();
+
+	HideActiveSubmenu();
 }
 
 bool CUIPropertiesBox::OnMouseAction(float x, float y, EUIMessages mouse_action)
@@ -222,19 +357,33 @@ bool CUIPropertiesBox::OnMouseAction(float x, float y, EUIMessages mouse_action)
 		cursor_on_box = false;
 
 
+	CUIPropertiesBox* root = this;
+	while (root->m_parent_menu)
+		root = root->m_parent_menu;
+
 	if (mouse_action == WINDOW_LBUTTON_DOWN && !cursor_on_box)
 	{
-		Hide();
+		root->Hide();
 		return true;
 	}
 	if (mouse_action == WINDOW_RBUTTON_DOWN && !cursor_on_box)
 	{
-		Hide();
+		root->Hide();
 	}
 	if (mouse_action == WINDOW_MOUSE_WHEEL_DOWN || mouse_action == WINDOW_MOUSE_WHEEL_UP)
 	{
-		if (m_UIListWnd.GetPadSize().y > m_UIListWnd.GetHeight())
-			m_UIListWnd.OnMouseAction(x, y, mouse_action);
+		Fvector2 cur = GetUICursor().GetCursorPosition();
+		CUIPropertiesBox* target = this;
+		for (CUIPropertiesBox* b = root; b;
+		     b = (b->m_active_submenu && b->m_active_submenu->IsShown()) ? b->m_active_submenu : NULL)
+		{
+			Frect r;
+			b->GetAbsoluteRect(r);
+			if (r.in(cur))
+				target = b;
+		}
+		if (target->m_UIListWnd.GetPadSize().y > target->m_UIListWnd.GetHeight())
+			target->m_UIListWnd.OnMouseAction(x, y, mouse_action);
 		return true;
 	}
 
@@ -258,12 +407,52 @@ void CUIPropertiesBox::AutoUpdateSize()
 
 CUIListBoxItem* CUIPropertiesBox::GetClickedItem()
 {
+	if (m_active_submenu && m_active_submenu->IsShown())
+		return m_active_submenu->GetClickedItem();
 	return m_UIListWnd.GetSelectedItem();
 }
 
 void CUIPropertiesBox::Update()
 {
 	inherited::Update();
+
+	if (!m_item_submenus.empty())
+	{
+		Fvector2 cur = GetUICursor().GetCursorPosition();
+		for (auto& kv : m_item_submenus)
+		{
+			Frect r;
+			kv.first->GetAbsoluteRect(r);
+			if (r.in(cur))
+			{
+				if (m_active_submenu != kv.second)
+				{
+					HideActiveSubmenu();
+					ShowSubMenuForItem(kv.first);
+				}
+				break;
+			}
+		}
+	}
+
+	if (m_active_submenu && m_active_submenu->IsShown() && m_active_sub_item)
+	{
+		Frect ir;
+		m_active_sub_item->GetAbsoluteRect(ir);
+		bool inside = ir.in(GetUICursor().GetCursorPosition()) || m_active_submenu->CursorOverTree();
+		if (inside)
+		{
+			m_submenu_close_at = 0;
+		}
+		else if (m_submenu_close_at == 0)
+		{
+			m_submenu_close_at = Device.dwTimeGlobal + 300;
+		}
+		else if (Device.dwTimeGlobal >= m_submenu_close_at)
+		{
+			HideActiveSubmenu();
+		}
+	}
 }
 
 void CUIPropertiesBox::Draw()

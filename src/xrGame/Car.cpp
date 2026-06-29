@@ -119,7 +119,6 @@ CCar::CCar()
     m_viewport_near = -1.0F;
 
     m_scope_active = 0;
-    m_scope_enable = false;
 
 	m_on_before_hit_callback = NULL;
 	m_on_before_use_callback = NULL;
@@ -307,7 +306,6 @@ BOOL CCar::net_Spawn(CSE_Abstract* DC)
             }
             break;
         }
-        m_scope_enable = (m_scopes.size() > 0) ? true : false;
     }
 
     if (ini->section_exist("drone_definition"))
@@ -1584,6 +1582,13 @@ void CCar::TransmissionDown()
 
 void CCar::PhTune(float step)
 {
+#ifdef CAR_NEW
+    if (m_car_drone)
+    {
+        return;
+    }
+#endif
+
 	for (u16 i = PPhysicsShell()->get_ElementsNumber(); i != 0; i--)
 	{
 		CPhysicsElement* e = PPhysicsShell()->get_ElementByStoreOrder(i - 1);

@@ -218,7 +218,6 @@ void CCarDrone::PhDataUpdate(float step)
             }
         }
 
-        /* Control. */
         switch (m_control_ele)
         {
         case eControlEle_UP:

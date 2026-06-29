@@ -22,7 +22,7 @@ void CCar::SetUseAction(LPCSTR txt)
 
 u16 CCar::GetCameraBone()
 {
-    if (m_scope_enable)
+    if (IsScopeEnable())
     {
         return m_scopes.at(m_scope_active).camera_bone;
     }
@@ -31,7 +31,7 @@ u16 CCar::GetCameraBone()
 
 float CCar::GetZoomFactor()
 {
-    if (m_scope_enable)
+    if (IsScopeEnable())
     {
         return m_scopes.at(m_scope_active).zoom_factor;
     }

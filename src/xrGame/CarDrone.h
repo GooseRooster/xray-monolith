@@ -25,12 +25,12 @@ private:
 
     bool m_control_press_ele_up; /* Up */
     bool m_control_press_ele_dw; /* Down */
-    bool m_control_press_yaw_rs; /* Strafe right */
-    bool m_control_press_yaw_ls; /* Strafe left */
     bool m_control_press_pit_fs; /* Move forward */
     bool m_control_press_pit_bs; /* Move backward */
-    bool m_control_press_rol_rs; /* Rotate right */
-    bool m_control_press_rol_ls; /* Rotate left */
+    bool m_control_press_rol_rs; /* Strafe right */
+    bool m_control_press_rol_ls; /* Strafe left */
+    bool m_control_press_yaw_rs; /* Turn right */
+    bool m_control_press_yaw_ls; /* Turn left */
 
     u16 m_control_ele; /* Elevating */
     u16 m_control_pit; /* Pitch */

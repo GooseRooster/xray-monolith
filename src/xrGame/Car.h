@@ -746,7 +746,6 @@ private:
     };
     xr_vector<SScope> m_scopes;
     u16 m_scope_active;
-    bool m_scope_enable;
 
 	LPCSTR m_on_before_hit_callback;
 	LPCSTR m_on_before_use_callback;
@@ -762,7 +761,7 @@ public:
     float GetViewportNear() { return m_viewport_near; };
     void SetViewportNear(float val) { m_viewport_near = val; };
 
-    bool IsScopeEnable() { return m_scope_enable; };
+    bool IsScopeEnable() { return m_scopes.size() > 0; };
     u16 GetScopeSize() { return m_scopes.size(); };
     u16 GetScopeActive() { return m_scope_active; };
     void SetScopeActive(u16 val);

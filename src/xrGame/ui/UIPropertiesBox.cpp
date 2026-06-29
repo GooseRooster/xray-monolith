@@ -9,16 +9,10 @@
 #define OFFSET_Y (5.0f)
 #define ITEM_HEIGHT (GetFont()->CurrentHeight()+2.0f)
 
-CUIPropertiesBox::CUIPropertiesBox(CUIPropertiesBox* sub_property_box)
+CUIPropertiesBox::CUIPropertiesBox()
 {
 	m_UIListWnd.SetFont(UI().Font().pFontArial14);
 	m_UIListWnd.SetImmediateSelection(true);
-
-	m_sub_property_box = sub_property_box;
-	m_parent_sub_menu = NULL;
-	m_item_sub_menu_initiator = NULL;
-	if (m_sub_property_box)
-		m_sub_property_box->SetParentSubMenu(this);
 
 	m_active_submenu = NULL;
 	m_active_sub_item = NULL;
@@ -28,8 +22,6 @@ CUIPropertiesBox::CUIPropertiesBox(CUIPropertiesBox* sub_property_box)
 
 CUIPropertiesBox::~CUIPropertiesBox()
 {
-	R_ASSERT2(!m_sub_property_box || (!m_sub_property_box->IsShown()),
-	          "child sub menu is in shown mode - he'll tries to hide this menu");
 	m_item_submenus.clear();
 }
 
@@ -64,16 +56,7 @@ void CUIPropertiesBox::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 			if (sel && m_item_submenus.count(sel))
 				return;
 			GetMessageTarget()->SendMessage(this, PROPERTY_CLICKED);
-			if (m_parent_menu)
-			{
-				Hide();
-			}
-			else if (!m_sub_property_box)
-			{
-				Hide();
-				if (m_parent_sub_menu)
-					m_parent_sub_menu->Hide();
-			}
+			Hide();
 		}
 	}
 	else if (msg == PROPERTY_CLICKED)
@@ -90,46 +73,6 @@ void CUIPropertiesBox::SendMessage(CUIWindow* pWnd, s16 msg, void* pData)
 	}
 	CUIWndCallback::OnEvent(pWnd, msg, pData);
 	inherited::SendMessage(pWnd, msg, pData);
-}
-
-void CUIPropertiesBox::ShowSubMenu()
-{
-	R_ASSERT(m_sub_property_box);
-	R_ASSERT(!m_sub_property_box->IsShown());
-	m_item_sub_menu_initiator = GetClickedItem();
-
-	Frect tmp_pbox_rect = m_last_show_rect;
-
-	Fvector2 tmp_pbox_pos = GetWndPos();
-	tmp_pbox_pos.y +=
-		m_item_sub_menu_initiator->GetWndPos().y +
-		(m_item_sub_menu_initiator->GetHeight() / 2);
-
-	float right_limit = tmp_pbox_pos.x +
-		GetWidth() +
-		m_sub_property_box->GetWidth();
-	//show sub menu on left or right site 
-	if (right_limit < tmp_pbox_rect.x2)
-	{
-		//on right
-		tmp_pbox_rect.x1 = tmp_pbox_pos.x;
-		tmp_pbox_pos.x += GetWidth();
-	}
-	else
-	{
-		//on left
-		tmp_pbox_rect.x2 = tmp_pbox_pos.x;
-	}
-	m_sub_property_box->Show(tmp_pbox_rect, tmp_pbox_pos);
-}
-
-void CUIPropertiesBox::OnItemReceivedFocus(CUIWindow* w, void* d)
-{
-	VERIFY(m_sub_property_box);
-	if (m_sub_property_box->IsShown() && (w != m_item_sub_menu_initiator))
-	{
-		m_sub_property_box->Hide();
-	}
 }
 
 CUIPropertiesBox* CUIPropertiesBox::AddSubmenu(LPCSTR label)
@@ -227,15 +170,6 @@ bool CUIPropertiesBox::AddItem(LPCSTR str, void* pData, u32 tag_value)
 	CUIListBoxItem* itm = m_UIListWnd.AddTextItem(str);
 	itm->SetTAG(tag_value);
 	itm->SetData(pData);
-	if (m_sub_property_box)
-	{
-		AddCallback(
-			itm,
-			WINDOW_FOCUS_RECEIVED,
-			CUIWndCallback::void_function(this, &CUIPropertiesBox::OnItemReceivedFocus)
-		);
-		Register(itm);
-	}
 	return true;
 }
 
@@ -339,9 +273,6 @@ void CUIPropertiesBox::Hide()
 		else
 			GetParent()->SetCapture(this, false);
 	}
-
-	if (m_sub_property_box)
-		m_sub_property_box->Hide();
 
 	HideActiveSubmenu();
 }

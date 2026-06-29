@@ -13,7 +13,7 @@ class CUIPropertiesBox :
 private:
 	typedef CUIFrameWindow inherited;
 public:
-	CUIPropertiesBox(CUIPropertiesBox* sub_property_box = NULL);
+	CUIPropertiesBox();
 	virtual ~CUIPropertiesBox();
 
 	void InitPropertiesBox(Fvector2 pos, Fvector2 size);
@@ -43,21 +43,13 @@ public:
 
 	void AutoUpdateSize();
 
-	void ShowSubMenu();
-	void xr_stdcall OnItemReceivedFocus(CUIWindow* w, void* d);
-
 	// Hover-expanding submenus, Lua-fed. Creates and owns a child box under `label`,
 	// returns a borrowed pointer for Lua to populate (see AddSubmenu in the .cpp).
 	CUIPropertiesBox* AddSubmenu(LPCSTR label);
 protected:
 	CUIListBox m_UIListWnd;
 private:
-	//I must not hide this menu, and my child sub menu must hide me...
-	CUIPropertiesBox* m_sub_property_box;
-	void SetParentSubMenu(CUIPropertiesBox* parent_menu) { m_parent_sub_menu = parent_menu; };
 	Frect m_last_show_rect;
-	CUIPropertiesBox* m_parent_sub_menu; //warning !!! dubling pointers to the same object !!!
-	CUIWindow* m_item_sub_menu_initiator; //fills in ShowSubMenu
 
 	// per-item hover submenus
 	xr_map<CUIListBoxItem*, CUIPropertiesBox*> m_item_submenus;

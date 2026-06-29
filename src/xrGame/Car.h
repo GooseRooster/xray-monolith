@@ -737,6 +737,16 @@ private:
 	float m_zoom_factor_def;
 	float m_zoom_factor_aim;
 	bool m_zoom_status;
+    float m_viewport_near;
+
+    struct SScope
+    {
+        u16 camera_bone;
+        float zoom_factor;
+    };
+    xr_vector<SScope> m_scopes;
+    u16 m_scope_active;
+    bool m_scope_enable;
 
 	LPCSTR m_on_before_hit_callback;
 	LPCSTR m_on_before_use_callback;
@@ -745,8 +755,18 @@ private:
 public:
     virtual bool is_ai_obstacle() const;
     void SetUseAction(LPCSTR txt);
-    bool IsCameraZoom() { return m_zoom_status; };
     bool IsRemoteControl() { return m_remote_control; };
+    bool IsCameraZoom() { return m_zoom_status; };
+    u16 GetCameraBone();
+    float GetZoomFactor();
+    float GetViewportNear() { return m_viewport_near; };
+    void SetViewportNear(float val) { m_viewport_near = val; };
+
+    bool IsScopeEnable() { return m_scope_enable; };
+    u16 GetScopeSize() { return m_scopes.size(); };
+    u16 GetScopeActive() { return m_scope_active; };
+    void SetScopeActive(u16 val);
+    void ScopeOnMouseWheel(int direction);
 
 /*----------------------------------------------------------------------------------------------------
     CCarDrone

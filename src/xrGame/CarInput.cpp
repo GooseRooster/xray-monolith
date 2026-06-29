@@ -156,11 +156,25 @@ void CCar::OnKeyboardPress(int cmd)
 	if (Remote()) return;
 
 #ifdef CAR_NEW
-	if (m_car_drone)
-	{
-		CCarDrone_OnKeyboardPress(cmd);
-		return;
-	}
+    switch (cmd)
+    {
+    case kWPN_ZOOM:
+        if (!psActorFlags.test(AF_AIM_TOGGLE))
+        {
+            m_zoom_status = true;
+        }
+        else
+        {
+            m_zoom_status = (m_zoom_status) ? false : true;
+        }
+        break;
+    }
+
+    if (m_car_drone)
+    {
+        CCarDrone_OnKeyboardPress(cmd);
+        return;
+    }
 #endif
 
 	switch (cmd)
@@ -205,6 +219,16 @@ void CCar::OnKeyboardRelease(int cmd)
 	if (Remote()) return;
 
 #ifdef CAR_NEW
+    switch (cmd)
+    {
+    case kWPN_ZOOM:
+        if (!psActorFlags.test(AF_AIM_TOGGLE))
+        {
+            m_zoom_status = false;
+        }
+        break;
+    }
+
 	if (m_car_drone)
 	{
 		CCarDrone_OnKeyboardRelease(cmd);

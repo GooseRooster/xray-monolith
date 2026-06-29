@@ -12,6 +12,9 @@
 #include "cameralook.h"
 #include "xr_level_controller.h"
 
+float DAMPING_ESP_VEL = 0.01;
+float DAMPING_ESP_ANG = deg2rad(1.0);
+
 CCarDrone::SCarDroneBone::SCarDroneBone()
 {
     bid = BI_NONE;
@@ -42,13 +45,13 @@ CCarDrone::CCarDrone(CCar* obj)
     m_control_pit = eControlPit_NA;
     m_control_rol = eControlRol_NA;
 
-    m_control_ele_max = 0.0F;
-    m_control_yaw_max = 0.0F;
-    m_control_pit_max = 0.0F;
-    m_control_rol_max = 0.0F;
+    m_control_ele_force = 0.0F;
+    m_control_yaw_force = 0.0F;
+    m_control_pit_force = 0.0F;
+    m_control_rol_force = 0.0F;
 
     m_damping_velocity = 0.0F;
-    m_damping_rotation = 0.0F;
+    m_damping_rotation.set(0.0F, 0.0F, 0.0F);
 
     m_power_efficiency = 1.0F;
 
@@ -63,13 +66,16 @@ CCarDrone::~CCarDrone()
 
 void CCarDrone::Load(LPCSTR section)
 {
-    m_control_ele_max = READ_IF_EXISTS(pSettings, r_float, section, "control_ele_max", 0.0F);
-    m_control_pit_max = READ_IF_EXISTS(pSettings, r_float, section, "control_pit_max", 0.0F);
-    m_control_rol_max = READ_IF_EXISTS(pSettings, r_float, section, "control_rol_max", 0.0F);
-    m_control_yaw_max = deg2rad(READ_IF_EXISTS(pSettings, r_float, section, "control_yaw_max", 0.0F));
+    m_control_ele_force = READ_IF_EXISTS(pSettings, r_float, section, "control_ele_force", 0.0F);
+    m_control_pit_force = READ_IF_EXISTS(pSettings, r_float, section, "control_pit_force", 0.0F);
+    m_control_rol_force = READ_IF_EXISTS(pSettings, r_float, section, "control_rol_force", 0.0F);
+    m_control_yaw_force = deg2rad(READ_IF_EXISTS(pSettings, r_float, section, "control_yaw_force", 0.0F));
 
     m_damping_velocity = READ_IF_EXISTS(pSettings, r_float, section, "damping_velocity", 0.0F);
-    m_damping_rotation = READ_IF_EXISTS(pSettings, r_float, section, "damping_rotation", 0.0F);
+    m_damping_rotation.set(READ_IF_EXISTS(pSettings, r_fvector3, section, "damping_rotation", m_damping_rotation));
+    m_damping_rotation.x = deg2rad(m_damping_rotation.x);
+    m_damping_rotation.y = deg2rad(m_damping_rotation.y);
+    m_damping_rotation.z = deg2rad(m_damping_rotation.z);
 
     IKinematics* K = car->Visual()->dcast_PKinematics();
     CInifile* ini = K->LL_UserData();
@@ -157,47 +163,53 @@ void CCarDrone::PhDataUpdate(float step)
         return;
 
     RotorUpdate();
-    if (car->b_engine_on && m_rotor_bones.size() && m_drive_bones.size())
+    if (car->b_engine_on && m_drive_bones.size())
     {
-        /* F = m * a */
         float mass = car->m_pPhysicsShell->getMass();
 
-        /* Make it float in mid air. Must be m_rotor_bones, not m_drive_bones. */
+        /* Hovering in mid air. */
         {
-            float force = mass * physics_world()->Gravity() / m_rotor_bones.size();
-            Fvector vec = Fvector().set(0.0F, 1.0F, 0.0F).mul(force);
-            for (auto& I : m_rotor_bones)
+            float force = mass * physics_world()->Gravity() / m_drive_bones.size();
+            vec.set(0.0F, 1.0F, 0.0F).mul(force);
+            for (auto& I : m_drive_bones)
             {
                 I.E->applyForce(vec.x, vec.y, vec.z);
             }
         }
 
+        /* Movement damping. */
+        if (m_damping_velocity > EPS_L)
         {
-            car->m_pPhysicsShell->get_LinearVel(cur_velocity);
-            if (cur_velocity.magnitude() > EPS_L)
+            if (m_control_ele == eControlEle_NA && m_control_pit == eControlPit_NA && m_control_rol == eControlRol_NA)
             {
-                float force = mass * __min(cur_velocity.magnitude(), m_damping_velocity);
-                new_velocity.invert(cur_velocity).normalize_safe().mul(force);
-                car->m_pPhysicsShell->applyForce(new_velocity.x, new_velocity.y, new_velocity.z);
+                car->m_pPhysicsShell->get_LinearVel(cur_velocity);
+                if (cur_velocity.magnitude() > DAMPING_ESP_VEL)
+                {
+                    float force = mass * __min(cur_velocity.magnitude(), m_damping_velocity);
+                    new_velocity.invert(cur_velocity).normalize_safe().mul(force);
+                    car->m_pPhysicsShell->applyForce(new_velocity.x, new_velocity.y, new_velocity.z);
+                }
             }
         }
+
+        /* Rotation damping. */
         {
             car->m_pPhysicsShell->get_AngularVel(cur_angular);
             new_angular.set(0.0F, 0.0F, 0.0F);
             bool apply = false;
-            if (_abs(cur_angular.x) > EPS_L)
+            if (m_damping_rotation.x > EPS_L && _abs(cur_angular.x) > DAMPING_ESP_ANG)
             {
-                new_angular.x = mass * __min(_abs(cur_angular.x), m_damping_rotation) * (cur_angular.x < 0 ? 1 : -1);
+                new_angular.x = mass * __min(_abs(cur_angular.x), m_damping_rotation.x) * (cur_angular.x < 0 ? 1 : -1);
                 apply = true;
             }
-            if (_abs(cur_angular.y) > EPS_L)
+            if (m_damping_rotation.y > EPS_L && _abs(cur_angular.y) > DAMPING_ESP_ANG && m_control_yaw == eControlYaw_NA)
             {
-                new_angular.y = mass * __min(_abs(cur_angular.y), m_damping_rotation) * (cur_angular.y < 0 ? 1 : -1);
+                new_angular.y = mass * __min(_abs(cur_angular.y), m_damping_rotation.y) * (cur_angular.y < 0 ? 1 : -1);
                 apply = true;
             }
-            if (_abs(cur_angular.z) > EPS_L)
+            if (m_damping_rotation.z > EPS_L && _abs(cur_angular.z) > DAMPING_ESP_ANG)
             {
-                new_angular.z = mass * __min(_abs(cur_angular.z), m_damping_rotation) * (cur_angular.z < 0 ? 1 : -1);
+                new_angular.z = mass * __min(_abs(cur_angular.z), m_damping_rotation.z) * (cur_angular.z < 0 ? 1 : -1);
                 apply = true;
             }
             if (apply)
@@ -212,8 +224,8 @@ void CCarDrone::PhDataUpdate(float step)
         case eControlEle_UP:
         case eControlEle_DW:
         {
-            float force = mass * GetPowerEfficiency() * m_control_ele_max / m_drive_bones.size();
-            Fvector vec = Fvector().set(0.0F, 1.0F, 0.0F).mul((m_control_ele == eControlEle_UP) ? force : -force);
+            float force = mass * GetPowerEfficiency() * m_control_ele_force / m_drive_bones.size();
+            vec.set(0.0F, 1.0F, 0.0F).mul((m_control_ele == eControlEle_UP) ? force : -force);
             for (auto& I : m_drive_bones)
             {
                 I.E->applyRelForce(vec.x, vec.y, vec.z);
@@ -227,8 +239,8 @@ void CCarDrone::PhDataUpdate(float step)
         case eControlPit_FS:
         case eControlPit_BS:
         {
-            float force = mass * GetPowerEfficiency() * m_control_pit_max / m_drive_bones.size();
-            Fvector vec = Fvector().set(0.0F, 0.0F, 1.0F).mul((m_control_pit == eControlPit_FS) ? force : -force);
+            float force = mass * GetPowerEfficiency() * m_control_pit_force / m_drive_bones.size();
+            vec.set(0.0F, 0.0F, 1.0F).mul((m_control_pit == eControlPit_FS) ? force : -force);
             for (auto& I : m_drive_bones)
             {
                 I.E->applyRelForce(vec.x, vec.y, vec.z);
@@ -242,8 +254,8 @@ void CCarDrone::PhDataUpdate(float step)
         case eControlRol_RS:
         case eControlRol_LS:
         {
-            float force = mass * GetPowerEfficiency() * m_control_rol_max / m_drive_bones.size();
-            Fvector vec = Fvector().set(1.0F, 0.0F, 0.0F).mul((m_control_rol == eControlRol_RS) ? force : -force);
+            float force = mass * GetPowerEfficiency() * m_control_rol_force / m_drive_bones.size();
+            vec.set(1.0F, 0.0F, 0.0F).mul((m_control_rol == eControlRol_RS) ? force : -force);
             for (auto& I : m_drive_bones)
             {
                 I.E->applyRelForce(vec.x, vec.y, vec.z);
@@ -257,8 +269,8 @@ void CCarDrone::PhDataUpdate(float step)
         case eControlYaw_RS:
         case eControlYaw_LS:
         {
-            float force = mass * GetPowerEfficiency() * m_control_yaw_max;
-            Fvector vec = Fvector().set(0.0F, 1.0F, 0.0F).mul((m_control_yaw == eControlYaw_RS) ? force : -force);
+            float force = mass * GetPowerEfficiency() * m_control_yaw_force;
+            vec.set(0.0F, 1.0F, 0.0F).mul((m_control_yaw == eControlYaw_RS) ? force : -force);
             car->m_pPhysicsShell->applyRelTorque(vec.x, vec.y, vec.z);
             break;
         }
@@ -445,17 +457,6 @@ void CCar::CCarDrone_OnKeyboardPress(int dik)
     case kR_STRAFE:
         m_car_drone->ControlPressRolRs(true);
         break;
-        /* Action. */
-    case kWPN_ZOOM:
-        if (!psActorFlags.test(AF_AIM_TOGGLE))
-        {
-            m_zoom_status = true;
-        }
-        else
-        {
-            m_zoom_status = (m_zoom_status) ? false : true;
-        }
-        break;
     };
 }
 
@@ -490,12 +491,6 @@ void CCar::CCarDrone_OnKeyboardRelease(int dik)
         m_car_drone->ControlPressRolRs(false);
         break;
         /* Action. */
-    case kWPN_ZOOM:
-        if (!psActorFlags.test(AF_AIM_TOGGLE))
-        {
-            m_zoom_status = false;
-        }
-        break;
     case kDETECTOR:
         SwitchEngine();
         break;

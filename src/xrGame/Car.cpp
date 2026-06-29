@@ -116,6 +116,10 @@ CCar::CCar()
 	m_zoom_factor_def = 1.0F;
 	m_zoom_factor_aim = 1.0F;
 	m_zoom_status = false;
+    m_viewport_near = -1.0F;
+
+    m_scope_active = 0;
+    m_scope_enable = false;
 
 	m_on_before_hit_callback = NULL;
 	m_on_before_use_callback = NULL;
@@ -136,6 +140,7 @@ CCar::~CCar(void)
 	//	xr_delete			(l_tpEntityAction);
 
 #ifdef CAR_NEW
+    m_scopes.clear();
 	xr_delete(m_car_drone);
 #endif
 }
@@ -262,10 +267,13 @@ BOOL CCar::net_Spawn(CSE_Abstract* DC)
 	CInifile *ini = Visual()->dcast_PKinematics()->LL_UserData();
 	const LPCSTR cfg = "car_definition";
 
-	m_camera_bone_def = ini->line_exist(cfg, "camera_bone_def") ? K->LL_BoneID(ini->r_string(cfg, "camera_bone_def")) : BI_NONE;
-	m_camera_bone_aim = ini->line_exist(cfg, "camera_bone_aim") ? K->LL_BoneID(ini->r_string(cfg, "camera_bone_aim")) : BI_NONE;
-	m_zoom_factor_def = READ_IF_EXISTS(ini, r_float, cfg, "zoom_factor_def", 1.0F);
-	m_zoom_factor_aim = READ_IF_EXISTS(ini, r_float, cfg, "zoom_factor_aim", 1.0F);
+    m_remote_control = !!READ_IF_EXISTS(ini, r_bool, cfg, "remote_control", FALSE);
+
+    m_camera_bone_def = ini->line_exist(cfg, "camera_bone_def") ? K->LL_BoneID(ini->r_string(cfg, "camera_bone_def")) : BI_NONE;
+    m_camera_bone_aim = ini->line_exist(cfg, "camera_bone_aim") ? K->LL_BoneID(ini->r_string(cfg, "camera_bone_aim")) : BI_NONE;
+    m_zoom_factor_def = READ_IF_EXISTS(ini, r_float, cfg, "zoom_factor_def", 1.0F);
+    m_zoom_factor_aim = READ_IF_EXISTS(ini, r_float, cfg, "zoom_factor_aim", 1.0F);
+    m_viewport_near = READ_IF_EXISTS(ini, r_float, cfg, "viewport_near", -1.0F);
 
 	if (ini->line_exist(cfg, "camera_first"))
 	{
@@ -280,7 +288,27 @@ BOOL CCar::net_Spawn(CSE_Abstract* DC)
 		camera[ectFree]->Load(ini->r_string(cfg, "camera_free"));
 	}
 
-	m_remote_control = !!READ_IF_EXISTS(ini, r_bool, cfg, "remote_control", FALSE);
+    m_scopes.clear();
+    if (ini->section_exist("scopes"))
+    {
+        string64 key;
+        string64 tmp;
+        for (int i = 0; true; ++i)
+        {
+            xr_sprintf(key, "S%d", i);
+            LPCSTR str = READ_IF_EXISTS(ini, r_string, "scopes", key, nullptr);
+            if (str && _GetItemCount(str, ':') == 2)
+            {
+                m_scopes.emplace_back();
+                SScope& I = m_scopes.back();
+                I.camera_bone = K->LL_BoneID(_GetItem(str, 0, tmp, ':'));
+                I.zoom_factor = (float)atof(_GetItem(str, 1, tmp, ':'));
+                continue;
+            }
+            break;
+        }
+        m_scope_enable = (m_scopes.size() > 0) ? true : false;
+    }
 
     if (ini->section_exist("drone_definition"))
     {
@@ -520,7 +548,7 @@ void CCar::UpdateEx(float fov)
 		cam_Update(Device.fTimeDelta, fov);
 		OwnerActor()->Cameras().UpdateFromCamera(Camera());
 #ifdef CAR_NEW
-		OwnerActor()->Cameras().ApplyDevice(R_VIEWPORT_NEAR);
+        OwnerActor()->Cameras().ApplyDevice((m_viewport_near < 0) ? VIEWPORT_NEAR : m_viewport_near);
 #else
 		if (eacFirstEye == active_camera->tag && !Level().Cameras().GetCamEffector(cefDemo))
 			OwnerActor()->Cameras().ApplyDevice(VIEWPORT_NEAR);

@@ -18,7 +18,6 @@ private:
 
     CCar* car;
 
-    SCarDroneBone m_body_bone;
     xr_vector<SCarDroneBone> m_drive_bones;
     xr_vector<SCarDroneBone> m_rotor_bones;
     float m_rotor_force;
@@ -38,16 +37,20 @@ private:
     u16 m_control_rol; /* Roll */
     u16 m_control_yaw; /* Yaw */
 
-    float m_control_ele_max;
-    float m_control_pit_max;
-    float m_control_rol_max;
-    float m_control_yaw_max;
+    float m_control_ele_force;
+    float m_control_pit_force;
+    float m_control_rol_force;
+    float m_control_yaw_force;
 
+    /* Make the drone comes to a stop faster. */
     float m_damping_velocity;
-    float m_damping_rotation;
-
+    /* Reduce wobbling when start/stop moving (x,z). Also yaw rotation comes to a stop faster (y). */
+    Fvector m_damping_rotation;
+    /* Simulate additional payload reducing control responsiveness.*/
     float m_power_efficiency;
 
+    /* Variables for PhDataUpdate() */
+    Fvector vec;
     Fvector cur_velocity;
     Fvector new_velocity;
     Fvector cur_angular;
@@ -106,14 +109,14 @@ public:
     void SetControlYaw(u16 val) { m_control_yaw = val; };
     void SetControlPit(u16 val) { m_control_pit = val; };
     void SetControlRol(u16 val) { m_control_rol = val; };
-    float GetControlEleScale() { return m_control_ele_max; };
-    float GetControlYawScale() { return m_control_yaw_max; };
-    float GetControlPitScale() { return m_control_pit_max; };
-    float GetControlRolScale() { return m_control_rol_max; };
-    void SetControlEleScale(float val) { m_control_ele_max = val; };
-    void SetControlYawScale(float val) { m_control_yaw_max = val; };
-    void SetControlPitScale(float val) { m_control_pit_max = val; };
-    void SetControlRolScale(float val) { m_control_rol_max = val; };
+    float GetControlEleScale() { return m_control_ele_force; };
+    float GetControlYawScale() { return m_control_yaw_force; };
+    float GetControlPitScale() { return m_control_pit_force; };
+    float GetControlRolScale() { return m_control_rol_force; };
+    void SetControlEleScale(float val) { m_control_ele_force = val; };
+    void SetControlYawScale(float val) { m_control_yaw_force = val; };
+    void SetControlPitScale(float val) { m_control_pit_force = val; };
+    void SetControlRolScale(float val) { m_control_rol_force = val; };
 
     float GetPowerEfficiency() { return m_power_efficiency; };
     void SetPowerEfficiency(float val) { m_power_efficiency = val; };

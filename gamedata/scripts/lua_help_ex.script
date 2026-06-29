@@ -237,6 +237,12 @@
     class CUIPropertiesBox : CUIFrameWindow {
         void AddHeader(string str) // Adds a non-selectable, colored title row (used to group items in a merged context menu)
         CUIPropertiesBox AddSubmenu(string label) // Adds a "label >" row whose submenu expands on hover; returns the child box to populate (AddItem/AddHeader/nested AddSubmenu)
+        bool AddItem(string str, u32 id) // Adds a selectable item row carrying a u32 id (read back via GetSelectedItem():GetTAG() / map_spot_menu_property_clicked prop_id); lets a menu carry duplicate labels
+    }
+
+    class CUIListBoxItem : CUIFrameLineWnd {
+        u32 GetTAG() // Per-item u32 id set via CUIPropertiesBox:AddItem(str, id)
+        void SetTAG(u32 value)
     }
 
     class CUIMainIngameWnd : CUIWindow {

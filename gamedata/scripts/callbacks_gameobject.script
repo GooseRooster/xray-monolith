@@ -265,6 +265,18 @@ map_table contains:
 
 --]]
 
+-- Replace base pda.property_box_clicked so the clicked item's u32 TAG is forwarded
+-- as a trailing prop_id arg, letting menus carry duplicate labels.
+function pda.property_box_clicked(property_ui)
+	local list_item = property_ui:GetSelectedItem()
+	if not (list_item) then
+		return
+	end
+	local prop = list_item:GetTextItem():GetText()
+	SendScriptCallback("map_spot_menu_property_clicked", property_ui,
+		pda.map_spot_property.id, pda.map_spot_property.level_name, prop, list_item:GetTAG())
+end
+
 AddScriptCallback("on_map_right_click")
 _G.COnRightClickMap = function(property_ui, map_table)
 	pda.map_spot_property.id = map_table.object_id

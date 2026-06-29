@@ -366,6 +366,9 @@ void CUIMapWnd::MapLocationRelcase(CMapLocation* ml)
 
 void CUIMapWnd::DrawHint()
 {
+	if (m_UIPropertiesBox && m_UIPropertiesBox->IsShown())
+		return;
+
 	CUIWindow* owner = m_map_location_hint->GetOwner();
 	if (owner)
 	{

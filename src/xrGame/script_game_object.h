@@ -846,6 +846,10 @@ public:
 	void sniper_fire_mode(bool value);
 	bool sniper_fire_mode() const;
 
+	bool can_kill_enemy();
+	bool can_kill_member();
+	bool fire_make_sense();
+
 	void aim_bone_id(LPCSTR value);
 	LPCSTR aim_bone_id() const;
 

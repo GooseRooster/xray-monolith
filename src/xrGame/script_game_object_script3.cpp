@@ -457,6 +457,10 @@ class_<CScriptGameObject> script_register_game_object2(class_<CScriptGameObject>
 		.def("sniper_fire_mode", SAFE_WRAP((void (CScriptGameObject::*)(bool))&CScriptGameObject::sniper_fire_mode))
 		.def("sniper_fire_mode", SAFE_WRAP((bool (CScriptGameObject::*)() const)&CScriptGameObject::sniper_fire_mode))
 
+		.def("can_kill_enemy", SAFE_WRAP(&CScriptGameObject::can_kill_enemy))
+		.def("can_kill_member", SAFE_WRAP(&CScriptGameObject::can_kill_member))
+		.def("fire_make_sense", SAFE_WRAP(&CScriptGameObject::fire_make_sense))
+
 		.def("aim_bone_id", SAFE_WRAP((void (CScriptGameObject::*)(LPCSTR))&CScriptGameObject::aim_bone_id))
 		.def("aim_bone_id", SAFE_WRAP((LPCSTR (CScriptGameObject::*)() const)&CScriptGameObject::aim_bone_id))
 

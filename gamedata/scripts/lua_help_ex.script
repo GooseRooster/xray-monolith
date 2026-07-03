@@ -640,6 +640,9 @@
         function memory_remove_links(game_object)
         function get_object_visible_distance(game_object)
         function get_object_luminocity(game_object)
+        bool can_kill_enemy() // Engine posture-aware shot clearance: fire-point ray (with safety-angle probes) reaches the NPC's current selected enemy. False when no weapon is out. At most one recompute per frame (shared cache with the engine friendly-fire gate).
+        bool can_kill_member() // As can_kill_enemy but true when the ray would hit a squad member (friendly fire). False when no weapon is out.
+        bool fire_make_sense() // Engine fire-discipline gate for the current selected enemy: occlusion before target (pick_distance + ai_fire_range_extension), floor gap (ai_fire_max_height_diff), point-blank (ai_fire_min_dist), unseen enemy only within ai_fire_make_sense_interval and with an automatic weapon.
         bool affect_cover() // Returns true when the NPC considers itself in a tactically covered position (physically arrived at cover). Set by combat actions, reset on action transition. Use in BeforeHitCallback to detect hits in the open.
         void best_cover_invalidate() // Forces the NPC to re-evaluate its best cover point on the next tick. Call after affect_cover() returns false on a hit to make the NPC seek new cover.
         string rank_name() // Returns rank id string from CharacterInfo: "novice", "experienced", "veteran", "master", "expert". More reliable than rank() since raw integer thresholds vary per modpack.

@@ -1929,6 +1929,53 @@ bool CScriptGameObject::sniper_fire_mode() const
 	return (stalker->sniper_fire_mode());
 }
 
+bool CScriptGameObject::can_kill_enemy()
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member can_kill_enemy!");
+		return (false);
+	}
+
+	// Callable from script at any time; the engine's own readers (CObjectActionFire) only run
+	// with a weapon out. No active item = no fire point, so no shot clearance to compute.
+	if (!stalker->inventory().ActiveItem())
+		return (false);
+
+	return (stalker->can_kill_enemy());
+}
+
+bool CScriptGameObject::can_kill_member()
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member can_kill_member!");
+		return (false);
+	}
+
+	if (!stalker->inventory().ActiveItem())
+		return (false);
+
+	return (stalker->can_kill_member());
+}
+
+bool CScriptGameObject::fire_make_sense()
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member fire_make_sense!");
+		return (false);
+	}
+
+	return (stalker->fire_make_sense());
+}
+
 void CScriptGameObject::aim_bone_id(LPCSTR bone_id)
 {
 	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());

@@ -1929,6 +1929,19 @@ bool CScriptGameObject::sniper_fire_mode() const
 	return (stalker->sniper_fire_mode());
 }
 
+void CScriptGameObject::set_aim_params(float max_angle, float min_angle, float min_speed, float predict_time)
+{
+	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());
+	if (!stalker)
+	{
+		ai().script_engine().script_log(ScriptStorage::eLuaMessageTypeError,
+		                                "CAI_Stalker : cannot access class member set_aim_params!");
+		return;
+	}
+
+	stalker->set_aim_params(max_angle, min_angle, min_speed, predict_time);
+}
+
 bool CScriptGameObject::can_kill_enemy()
 {
 	CAI_Stalker* stalker = smart_cast<CAI_Stalker*>(&object());

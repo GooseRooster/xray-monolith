@@ -481,7 +481,27 @@
         function EngineCurTorque() -> float
         function DoorOpen(number bone_id) / DoorClose / DoorUse / DoorSwitch
         function IsDoor(number bone_id) -> bool
-
+		
+		function SetUseAction(string)
+		function GetZoomFactor() -> float
+		function GetViewportNear() float
+		function SetViewportNear(float)
+		
+		/* Camera scope with different zooming levels. */
+		function IsScopeEnable() -> bool
+		function GetScopeSize() number
+		function GetScopeActive() number
+		function SetScopeActive(number)
+		
+		/* Drone subclass */
+		function CCarDrone_GetPowerEfficiency() -> float
+		function CCarDrone_SetPowerEfficiency(float)
+		
+		/* Visual 3D camera on model */
+		function VisualCamera_GetDesireAngle() -> float
+		function VisualCamera_GetRotXCur() -> float
+		function VisualCamera_GetRotYCur() -> float
+		
         callbacks (see callbacks_gameobject.script): car_on_hit, car_on_weapon_fired
     }
 

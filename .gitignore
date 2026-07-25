@@ -3,6 +3,18 @@
 !.gitignore
 !.gitattributes
 
+# Track the upstream-merge skills + shared ledger; leave everything else
+# under .claude/ (settings.local.json, other local state, etc.) ignored.
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/README.md
+!.claude/skills/upstream-merge-triage/
+!.claude/skills/upstream-merge-apply/
+!.claude/upstream-merge/
+.claude/skills/*/scripts/__pycache__/
+
 # exclude binaries and temporary files
 _build/
 /compile_commands.json

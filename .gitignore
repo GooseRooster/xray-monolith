@@ -35,7 +35,6 @@ src/3rd party/luajit-2/src/host/*.exe
 # emacs temp file
 \#*\#
 *~
-CLAUDE.md
 config
 HEAD
 hooks

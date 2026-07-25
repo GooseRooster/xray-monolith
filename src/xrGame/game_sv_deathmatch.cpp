@@ -1,16 +1,16 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "game_sv_deathmatch.h"
 #include "xrserver_objects_alife_monsters.h"
-#include "level.h"
-#include "xrserver.h"
+#include "Level.h"
+#include "xrServer.h"
 #include "Inventory.h"
 #include "CustomZone.h"
-#include "../xrEngine/igame_persistent.h"
+#include "../xrEngine/IGame_Persistent.h"
 #include "Actor.h"
 #include "game_cl_base.h"
 #include "xr_level_controller.h"
-#include "hudItem.h"
-#include "weapon.h"
+#include "HudItem.h"
+#include "Weapon.h"
 #include "eatable_item_object.h"
 #include "Missile.h"
 #include "game_cl_base_weapon_usage_statistic.h"
@@ -18,7 +18,7 @@
 
 //#define DELAYED_ROUND_TIME	7000
 #include "ui\UIBuyWndShared.h"
-#include "../xrEngine/xr_ioconsole.h"
+#include "../xrEngine/XR_IOConsole.h"
 
 #define UNBUYABLESLOT		20
 

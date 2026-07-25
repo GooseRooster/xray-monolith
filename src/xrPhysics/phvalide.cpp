@@ -1,8 +1,8 @@
 #include "stdafx.h"
 
 #include "phvalide.h"
-#include "mathutils.h"
-#include "iphysicsshellholder.h"
+#include "MathUtils.h"
+#include "IPhysicsShellHolder.h"
 //#include "objectdump.h"
 
 

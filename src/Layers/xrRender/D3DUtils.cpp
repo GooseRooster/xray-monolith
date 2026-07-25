@@ -3,8 +3,8 @@
 #include "stdafx.h"
 #pragma hdrstop
 
-#include "../../xrEngine/gamefont.h"
-#include "d3dutils.h"
+#include "../../xrEngine/GameFont.h"
+#include "D3DUtils.h"
 #include "du_box.h"
 #include "du_sphere.h"
 #include "du_sphere_part.h"

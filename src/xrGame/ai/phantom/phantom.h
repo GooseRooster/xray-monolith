@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../entity.h"
+#include "../../Entity.h"
 #include "../../../Include/xrRender/KinematicsAnimated.h"
 
 class CParticlesObject;

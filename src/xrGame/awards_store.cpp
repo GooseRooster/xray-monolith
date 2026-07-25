@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "awards_store.h"
 
 namespace gamespy_profile

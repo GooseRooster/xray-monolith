@@ -17,13 +17,13 @@
 #include "patrol_path_manager.h"
 #include "xrmessages.h"
 #include "ai_object_location.h"
-#include "custommonster.h"
+#include "CustomMonster.h"
 #include "location_manager.h"
 #include "level_path_builder.h"
 #include "detail_path_builder.h"
 #include "profiler.h"
 #include "mt_config.h"
-//#include "custommonster.h"
+//#include "CustomMonster.h"
 
 // Lain: added 
 #include "steering_behaviour.h"

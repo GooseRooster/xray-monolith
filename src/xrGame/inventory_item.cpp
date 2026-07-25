@@ -9,13 +9,13 @@
 //	Last updated: 13/08/2015
 ////////////////////////////////////////////////////////////////////////////
 
-//#include "stdafx.h"
+//#include "StdAfx.h"
 #include "pch_script.h"
 #include "inventory_item.h"
 #include "inventory_item_impl.h"
-#include "inventory.h"
+#include "Inventory.h"
 //#include "Physics.h"
-#include "physicsshellholder.h"
+#include "PhysicsShellHolder.h"
 #include "entity_alive.h"
 #include "Level.h"
 #include "game_cl_base.h"
@@ -24,7 +24,7 @@
 #include "../Include/xrRender/Kinematics.h"
 #include "ai_object_location.h"
 #include "object_broker.h"
-#include "../xrEngine/igame_persistent.h"
+#include "../xrEngine/IGame_Persistent.h"
 
 
 #ifdef DEBUG

@@ -1,17 +1,17 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "CarLights.h"
 #ifdef DEBUG
 
 #include "PHDebug.h"
 #endif
 #include "alife_space.h"
-#include "hit.h"
+#include "Hit.h"
 #include "PHDestroyable.h"
 #include "Car.h"
 #include "../Include/xrRender/Kinematics.h"
 //#include "PHWorld.h"
 //extern CPHWorld*	ph_world;
-#include "../xrphysics/IPHWorld.h"
+#include "../xrPhysics/IPHWorld.h"
 
 SCarLight::SCarLight()
 {

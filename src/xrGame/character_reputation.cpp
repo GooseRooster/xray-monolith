@@ -3,7 +3,7 @@
 //								отношений между ними		
 //////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "character_reputation.h"
 
 

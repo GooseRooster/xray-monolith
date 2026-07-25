@@ -9,8 +9,8 @@
 #include <d3dx9.h>
 #pragma warning(default:4995)
 
-#include "../../xrEngine/fmesh.h"
-#include "fvisual.h"
+#include "../../xrEngine/Fmesh.h"
+#include "FVisual.h"
 
 #include "../xrRenderDX10/dx10BufferUtils.h"
 

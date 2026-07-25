@@ -12,12 +12,12 @@
 #ifndef AI_COMPILER
 
 #include "level_graph.h"
-#include "../xrEngine/customhud.h"
+#include "../xrEngine/CustomHUD.h"
 #include "ai_space.h"
 #include "ui_base.h"
 #include "game_graph.h"
 #include "game_sv_single.h"
-#include "custommonster.h"
+#include "CustomMonster.h"
 #include "ai/stalker/ai_stalker.h"
 #include "xrserver_objects_alife_monsters.h"
 #include "cover_point.h"
@@ -36,7 +36,7 @@
 #include "memory_manager.h"
 #include "enemy_manager.h"
 #include "memory_space.h"
-#include "level.h"
+#include "Level.h"
 #include "ai_object_location.h"
 #include "movement_manager.h"
 #include "graph_engine.h"

@@ -6,10 +6,10 @@
 //	Description : aimers base class
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "aimers_base.h"
-#include "gameobject.h"
-#include "../include/xrrender/kinematics.h"
+#include "GameObject.h"
+#include "../Include/xrRender/Kinematics.h"
 #include "animation_movement_controller.h"
 
 using aimers::base;

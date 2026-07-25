@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Physics.h"
-#include "phupdateobject.h"
+#include "PHUpdateObject.h"
 #include "IPHWorld.h"
 #include "../xrCore/_noncopyable.h"
 #include "physics_scripted.h"

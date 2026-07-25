@@ -220,7 +220,7 @@ void CUIMpTradeWnd::FillUpSubLevelItems()
 	}
 }
 
-#include "../actor.h"
+#include "../Actor.h"
 
 void CUIMpTradeWnd::Show(bool status)
 {

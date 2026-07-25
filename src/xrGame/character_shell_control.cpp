@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "character_shell_control.h"
 
@@ -6,10 +6,10 @@
 #include "../xrEngine/bone.h"
 
 //#include "Physics.h"
-#include "../xrphysics/ExtendedGeom.h"
-#include "../xrphysics/PhysicsShell.h"
-//#include "hit.h"
-#include "level.h"
+#include "../xrPhysics/ExtendedGeom.h"
+#include "../xrPhysics/PhysicsShell.h"
+//#include "Hit.h"
+#include "Level.h"
 #include "CustomZone.h"
 
 #ifdef DEBUG

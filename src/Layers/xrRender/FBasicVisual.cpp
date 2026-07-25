@@ -6,11 +6,11 @@
 #pragma hdrstop
 
 #ifndef _EDITOR
-#	include "../../xrEngine/render.h"
+#	include "../../xrEngine/Render.h"
 #endif // #ifndef _EDITOR
 
-#include "fbasicvisual.h"
-#include "../../xrEngine/fmesh.h"
+#include "FBasicVisual.h"
+#include "../../xrEngine/Fmesh.h"
 #include "dxRenderDeviceRender.h"
 
 //////////////////////////////////////////////////////////////////////

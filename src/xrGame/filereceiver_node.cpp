@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "filereceiver_node.h"
 
 namespace file_transfer

@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "../../xrEngine/igame_persistent.h"
-#include "../../xrEngine/irenderable.h"
+#include "../../xrEngine/IGame_Persistent.h"
+#include "../../xrEngine/IRenderable.h"
 #include "../xrRender/FBasicVisual.h"
 
 const float tweak_COP_initial_offs = 1200.f;

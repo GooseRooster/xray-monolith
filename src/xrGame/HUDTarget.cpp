@@ -1,9 +1,9 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "HUDTarget.h"
 
 #include "player_hud.h"
 #include "HUDManager.h"
-#include "HUDItem.h"
+#include "HudItem.h"
 #include "Actor.h"
 #include "Weapon.h"
 

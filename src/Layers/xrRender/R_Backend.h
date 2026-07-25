@@ -10,17 +10,17 @@
 #define PGO(a)
 #endif
 
-#include "r_DStreams.h"
+#include "R_DStreams.h"
 #include "r_constants_cache.h"
-#include "r_backend_xform.h"
-#include "r_backend_hemi.h"
-#include "r_backend_tree.h"
+#include "R_Backend_xform.h"
+#include "R_Backend_hemi.h"
+#include "R_Backend_tree.h"
 
 #ifdef USE_DX11
-#	include "..\xrRenderPC_R4\r_backend_lod.h"
+#	include "../xrRenderPC_R4/R_Backend_LOD.h"
 #endif
 
-#include "fvf.h"
+#include "FVF.h"
 
 #ifdef USE_DX11
 #	include <map>   // For FloraVbuffers

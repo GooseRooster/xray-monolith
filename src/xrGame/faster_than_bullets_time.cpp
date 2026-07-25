@@ -1,8 +1,8 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "faster_than_bullets_time.h"
 #include "hits_store.h"
 #include "game_state_accumulator.h"
-#include "level.h"
+#include "Level.h"
 
 namespace award_system
 {

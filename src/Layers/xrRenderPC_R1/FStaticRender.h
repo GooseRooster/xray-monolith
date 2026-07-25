@@ -4,18 +4,18 @@
 
 #include "../xrRender/PSLibrary.h"
 
-#include "../xrRender/hom.h"
-#include "../xrRender/detailmanager.h"
-#include "glowmanager.h"
-#include "../xrRender/wallmarksengine.h"
-#include "fstaticrender_rendertarget.h"
-#include "../xrRender/modelpool.h"
+#include "../xrRender/HOM.h"
+#include "../xrRender/DetailManager.h"
+#include "GlowManager.h"
+#include "../xrRender/WallmarksEngine.h"
+#include "FStaticRender_RenderTarget.h"
+#include "../xrRender/ModelPool.h"
 
-#include "lightShadows.h"
-#include "lightProjector.h"
-#include "lightPPA.h"
-#include "../xrRender/light_DB.h"
-#include "../../xrEngine/fmesh.h"
+#include "LightShadows.h"
+#include "LightProjector.h"
+#include "LightPPA.h"
+#include "../xrRender/Light_DB.h"
+#include "../../xrEngine/Fmesh.h"
 
 class dxRender_Visual;
 

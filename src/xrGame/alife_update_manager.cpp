@@ -6,7 +6,7 @@
 //	Description : ALife Simulator update manager
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "alife_update_manager.h"
 #include "alife_simulator_header.h"
 #include "alife_time_manager.h"
@@ -15,8 +15,8 @@
 #include "alife_spawn_registry.h"
 #include "alife_object_registry.h"
 #include "ef_storage.h"
-#include "xrserver.h"
-#include "level.h"
+#include "xrServer.h"
+#include "Level.h"
 #include "graph_engine.h"
 #include "../xrEngine/x_ray.h"
 #include "restriction_space.h"
@@ -242,7 +242,7 @@ bool CALifeUpdateManager::change_level(NET_Packet& net_packet)
 	return (true);
 }
 
-#include "../xrEngine/igame_persistent.h"
+#include "../xrEngine/IGame_Persistent.h"
 
 void CALifeUpdateManager::new_game(LPCSTR save_name)
 {

@@ -4,9 +4,9 @@
 // перекатывается с места на место
 ///////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "MercuryBall.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 
 
 CMercuryBall::CMercuryBall(void)

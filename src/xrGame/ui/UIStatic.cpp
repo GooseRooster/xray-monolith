@@ -1,9 +1,9 @@
 #include "stdafx.h"
-#include "uistatic.h"
+#include "UIStatic.h"
 #include "UIXmlInit.h"
 #include "UITextureMaster.h"
 #include "../../xrEngine/LightAnimLibrary.h"
-#include "uilines.h"
+#include "UILines.h"
 #include "../ui_base.h"
 
 #include "../Include/xrRender/UIRender.h"

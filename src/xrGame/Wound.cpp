@@ -2,8 +2,8 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
-#include "wound.h"
+#include "StdAfx.h"
+#include "Wound.h"
 #include "../xrEngine/bone.h"
 
 CWound::CWound(u16 bone_num)

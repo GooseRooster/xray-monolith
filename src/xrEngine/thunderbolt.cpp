@@ -2,17 +2,17 @@
 #pragma once
 
 #ifndef _EDITOR
-#include "render.h"
+#include "Render.h"
 #endif
-#include "Thunderbolt.h"
-#include "igame_persistent.h"
+#include "thunderbolt.h"
+#include "IGame_Persistent.h"
 #include "LightAnimLibrary.h"
 
 #ifdef _EDITOR
 #include "ui_toolscustom.h"
 #else
-#include "igame_level.h"
-#include "../xrcdb/xr_area.h"
+#include "IGame_Level.h"
+#include "../xrCDB/xr_area.h"
 #include "xr_object.h"
 #include "../xrGame/ai_space.h"
 #include "../xrServerEntities/script_engine.h"  // OWA: Fixed path - script_engine.h is in xrServerEntities

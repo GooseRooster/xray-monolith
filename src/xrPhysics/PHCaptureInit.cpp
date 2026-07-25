@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
-#include "StdAfx.h"
-#include "phcharacter.h"
+#include "stdafx.h"
+#include "PHCharacter.h"
 #include "Physics.h"
 #include "ExtendedGeom.h"
 #include "PHCapture.h"
@@ -10,9 +10,9 @@
 //#include "Actor.h"
 //#include "Inventory.h"
 //#include "CaptureBoneCallback.h"
-#include "iphysicsshellholder.h"
-#include "../xrengine/bone.h"
-#include "../xrengine/device.h"
+#include "IPhysicsShellHolder.h"
+#include "../xrEngine/bone.h"
+#include "../xrEngine/device.h"
 extern class CPHWorld* ph_world;
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -287,7 +287,7 @@ void CPHCapture::Release()
 	e_state = cstReleased;
 }
 
-#include "phelement.h"
+#include "PHElement.h"
 
 void CPHCapture::Deactivate()
 {

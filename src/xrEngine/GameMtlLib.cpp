@@ -3,7 +3,7 @@
 #pragma hdrstop
 
 #include "GameMtlLib.h"
-//#include "../include/xrapi/xrapi.h"
+//#include "../Include/xrAPI/xrAPI.h"
 
 #include "../xrCore/mezz_stringbuffer.h"
 

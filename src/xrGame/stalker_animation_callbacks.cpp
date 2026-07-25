@@ -6,13 +6,13 @@
 //	Description : Stalker animation manager : bone callbacks
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "stalker_animation_manager.h"
 #include "ai/stalker/ai_stalker.h"
 #include "sight_manager.h"
 #include "stalker_movement_manager_smart_cover.h"
 #include "game_object_space.h"
-#include "effectorshot.h"
+#include "EffectorShot.h"
 
 typedef CStalkerAnimationManager::callback_params callback_params;
 

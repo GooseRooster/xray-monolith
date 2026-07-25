@@ -1,5 +1,5 @@
-#include "stdafx.h"
-#include "xrserver.h"
+#include "StdAfx.h"
+#include "xrServer.h"
 #include "xrmessages.h"
 #include "xrserver_objects.h"
 #include "xrServer_Objects_Alife_Monsters.h"

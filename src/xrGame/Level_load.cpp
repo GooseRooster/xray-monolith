@@ -1,15 +1,15 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "LevelGameDef.h"
 #include "ai_space.h"
 #include "ParticlesObject.h"
 #include "script_process.h"
 #include "script_engine.h"
 #include "script_engine_space.h"
-#include "level.h"
+#include "Level.h"
 #include "game_cl_base.h"
 #include "../xrEngine/x_ray.h"
-#include "../xrEngine/gamemtllib.h"
-#include "../xrphysics/PhysicsCommon.h"
+#include "../xrEngine/GameMtlLib.h"
+#include "../xrPhysics/PhysicsCommon.h"
 #include "level_sounds.h"
 #include "GamePersistent.h"
 #include "../xrEngine/Rain.h"
@@ -17,7 +17,7 @@
 #include "character_rank.h"
 #include "character_reputation.h"
 #include "monster_community.h"
-#include "HudManager.h"
+#include "HUDManager.h"
 
 extern ENGINE_API bool g_dedicated_server;
 

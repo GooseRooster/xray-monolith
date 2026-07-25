@@ -1,12 +1,12 @@
 ﻿#include "stdafx.h"
 
-#include "fhierrarhyvisual.h"
+#include "FHierrarhyVisual.h"
 #include "SkeletonCustom.h"
-#include "../../xrEngine/fmesh.h"
-#include "../../xrEngine/irenderable.h"
+#include "../../xrEngine/Fmesh.h"
+#include "../../xrEngine/IRenderable.h"
 
-#include "flod.h"
-#include "particlegroup.h"
+#include "FLOD.h"
+#include "ParticleGroup.h"
 #include "FTreeVisual.h"
 
 using namespace R_dsgraph;

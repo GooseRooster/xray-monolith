@@ -3,9 +3,9 @@
 // Silencer - апгрейд оружия глушитель 
 ///////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 
-#include "silencer.h"
+#include "Silencer.h"
 //#include "PhysicsShell.h"
 
 CSilencer::CSilencer()

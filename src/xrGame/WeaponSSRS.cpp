@@ -1,17 +1,17 @@
-﻿#include "stdafx.h"
+﻿#include "StdAfx.h"
 #include "WeaponSSRS.h"
-#include "entity.h"
-#include "explosiveRocket.h"
-#include "level.h"
-#include "../xrphysics/MathUtils.h"
-#include "actor.h"
+#include "Entity.h"
+#include "ExplosiveRocket.h"
+#include "Level.h"
+#include "../xrPhysics/MathUtils.h"
+#include "Actor.h"
 #include "GrenadeLauncher.h"
 #include "WeaponMagazined.h"
 #include "pch_script.h"
 #include "ParticlesObject.h"
 #include "Scope.h"
 #include "Silencer.h"
-#include "inventory.h"
+#include "Inventory.h"
 #include "InventoryOwner.h"
 #include "xrserver_objects_alife_items.h"
 #include "ActorEffector.h"
@@ -33,7 +33,7 @@
 #include "ai/stalker/ai_stalker.h"
 
 #ifdef DEBUG
-#	include "phdebug.h"
+#	include "PHDebug.h"
 #endif
 
 CWeaponSSRS::~CWeaponSSRS()

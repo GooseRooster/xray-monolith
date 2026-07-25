@@ -2,7 +2,7 @@
 #define PHYSICS_COMMON_H
 
 #include "DisablingParams.h"
-#include "physicsexternalcommon.h"
+#include "PhysicsExternalCommon.h"
 //#include "ode_include.h"
 //#include "../3rd party/ode/include/ode/common.h"
 

@@ -1,27 +1,27 @@
 ﻿#include "pch_script.h"
 #include "Actor_Flags.h"
-#include "hudmanager.h"
+#include "HUDManager.h"
 #ifdef DEBUG
 
 #	include "PHDebug.h"
 #endif // DEBUG
 #include "alife_space.h"
-#include "hit.h"
+#include "Hit.h"
 #include "PHDestroyable.h"
 #include "Car.h"
 #include "xrserver_objects_alife_monsters.h"
-#include "CameraLook.h"
+#include "cameralook.h"
 #include "CameraFirstEye.h"
-#include "effectorfall.h"
+#include "EffectorFall.h"
 #include "EffectorBobbing.h"
 #include "ActorEffector.h"
 #include "EffectorZoomInertion.h"
 //#include "SleepEffector.h"
 #include "character_info.h"
 #include "CustomOutfit.h"
-#include "actorcondition.h"
+#include "ActorCondition.h"
 #include "UIGameCustom.h"
-#include "../xrphysics/matrix_utils.h"
+#include "../xrPhysics/matrix_utils.h"
 #include "clsid_game.h"
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "Grenade.h"
@@ -37,29 +37,29 @@
 #include "ai_sounds.h"
 #include "ai_space.h"
 #include "trade.h"
-#include "inventory.h"
+#include "Inventory.h"
 //#include "Physics.h"
-#include "level.h"
+#include "Level.h"
 #include "GamePersistent.h"
 #include "game_cl_base.h"
 #include "game_cl_single.h"
 #include "xrmessages.h"
 #include "string_table.h"
-#include "usablescriptobject.h"
+#include "UsableScriptObject.h"
 #include "../xrEngine/cl_intersect.h"
 //#include "ExtendedGeom.h"
 #include "alife_registry_wrappers.h"
 #include "../Include/xrRender/Kinematics.h"
-#include "artefact.h"
+#include "Artefact.h"
 #include "CharacterPhysicsSupport.h"
 #include "material_manager.h"
-#include "../xrphysics/IColisiondamageInfo.h"
+#include "../xrPhysics/IColisiondamageInfo.h"
 #include "ui/UIMainIngameWnd.h"
 #include "map_manager.h"
-#include "GameTaskManager.h"
+#include "GametaskManager.h"
 #include "actor_memory.h"
-#include "Script_Game_Object.h"
-#include "Game_Object_Space.h"
+#include "script_game_object.h"
+#include "game_object_space.h"
 #include "script_callback_ex.h"
 #include "InventoryBox.h"
 #include "location_manager.h"
@@ -69,10 +69,10 @@
 #include "../Include/xrRender/UIRender.h"
 
 #include "ai_object_location.h"
-#include "ui/uiMotionIcon.h"
+#include "ui/UIMotionIcon.h"
 #include "ui/UIActorMenu.h"
 #include "ActorHelmet.h"
-#include "UI/UIDragDropReferenceList.h"
+#include "ui/UIDragDropReferenceList.h"
 
 #include "build_config_defines.h"
 
@@ -1124,7 +1124,7 @@ float CActor::currentFOV()
 	}
 }
 
-#include "UI\UIInventoryUtilities.h"
+#include "ui/UIInventoryUtilities.h"
 
 void CActor::UpdateCL()
 {
@@ -1516,7 +1516,7 @@ void CActor::RPC_UpdateReputation()
 	}
 }
 
-#include "../xrphysics/actorcameracollision.h"
+#include "../xrPhysics/ActorCameraCollision.h"
 
 #ifdef HOLDERCUSTOM_NEW
 bool CActor::use_HolderEx(CHolderCustom *object, bool bForce)

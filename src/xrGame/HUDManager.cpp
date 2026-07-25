@@ -1,20 +1,20 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "HUDManager.h"
-#include "hudtarget.h"
-#include "actor.h"
-#include "../xrEngine/igame_level.h"
+#include "HUDTarget.h"
+#include "Actor.h"
+#include "../xrEngine/IGame_Level.h"
 #include "../xrEngine/xr_input.h"
-#include "../xrEngine/gamemtllib.h"
+#include "../xrEngine/GameMtlLib.h"
 #include "MainMenu.h"
-#include "grenade.h"
-#include "spectator.h"
+#include "Grenade.h"
+#include "Spectator.h"
 #include "Car.h"
 #include "UIGameCustom.h"
 #include "UICursor.h"
 #include "string_table.h"
 #include "game_cl_base.h"
 #ifdef	DEBUG
-#include "phdebug.h"
+#include "PHDebug.h"
 #endif
 
 #include "Flashlight.h"
@@ -455,7 +455,7 @@ void CHUDManager::SetGrenadeMarkType(LPCSTR tex_name)
 
 // ------------------------------------------------------------------------------------
 
-#include "ui\UIMainInGameWnd.h"
+#include "ui/UIMainIngameWnd.h"
 extern CUIXml* pWpnScopeXml;
 extern CUIXml* g_uiSpotXml;
 

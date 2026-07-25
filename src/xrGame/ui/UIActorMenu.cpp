@@ -1,13 +1,13 @@
 #include "stdafx.h"
 #include "UIActorMenu.h"
 #include "UIActorStateInfo.h"
-#include "../actor.h"
-#include "../uigamesp.h"
-#include "../inventory.h"
+#include "../Actor.h"
+#include "../UIGameSP.h"
+#include "../Inventory.h"
 #include "../inventory_item.h"
 #include "../InventoryBox.h"
 #include "object_broker.h"
-#include "../ai/monsters/BaseMonster/base_monster.h"
+#include "../ai/monsters/basemonster/base_monster.h"
 #include "UIInventoryUtilities.h"
 #include "game_cl_base.h"
 
@@ -39,7 +39,7 @@
 #include "UIMessageBoxEx.h"
 #include "UIPropertiesBox.h"
 #include "UIMainIngameWnd.h"
-#include "../Trade.h"
+#include "../trade.h"
 
 void CUIActorMenu::SetActor(CInventoryOwner* io)
 {

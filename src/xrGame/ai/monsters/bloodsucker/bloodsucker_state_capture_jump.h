@@ -2,7 +2,7 @@
 
 #include "../state.h"
 
-//#include "../../../entitycondition.h"
+//#include "../../../EntityCondition.h"
 
 template <typename _Object>
 class CStateCaptureJumpBloodsucker : public CState<_Object>

@@ -3,9 +3,9 @@
 
 #pragma once
 
-#include "iinputreceiver.h"
+#include "IInputReceiver.h"
 #include "xr_object_list.h"
-#include "../xrcdb/xr_area.h"
+#include "../xrCDB/xr_area.h"
 
 // refs
 class ENGINE_API CCameraManager;

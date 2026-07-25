@@ -7,14 +7,14 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "pch_script.h"
-#include "../../../xrphysics/physicsshell.h"
-#include "../../../xrphysics/phvalide.h"
+#include "../../../xrPhysics/PhysicsShell.h"
+#include "../../../xrPhysics/phvalide.h"
 #include "ai_crow.h"
-#include "../../level.h"
+#include "../../Level.h"
 #include "../../../Include/xrRender/RenderVisual.h"
 #include "../../../Include/xrRender/Kinematics.h"
 #include "../../../Include/xrRender/KinematicsAnimated.h"
-#include "../../actor.h"
+#include "../../Actor.h"
 #include "script_callback_ex.h"
 #include "game_object_space.h"
 #include "script_game_object.h"

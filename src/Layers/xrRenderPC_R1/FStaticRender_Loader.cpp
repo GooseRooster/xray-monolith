@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "../xrRender/fbasicvisual.h"
-#include "../../xrEngine/fmesh.h"
+#include "../xrRender/FBasicVisual.h"
+#include "../../xrEngine/Fmesh.h"
 #include "../../xrEngine/xrLevel.h"
 #include "../../xrEngine/x_ray.h"
 #include "../../xrEngine/IGame_Persistent.h"

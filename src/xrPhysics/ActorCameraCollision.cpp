@@ -1,16 +1,16 @@
 #include "stdafx.h"
 
 //#include "Actor.h"
-#include "actorcameracollision.h"
+#include "ActorCameraCollision.h"
 
 #include "../xrEngine/CameraBase.h"
-#include "../xrEngine/gamemtllib.h"
+#include "../xrEngine/GameMtlLib.h"
 
-#include "phworld.h"
-#include "phcollidevalidator.h"
+#include "PHWorld.h"
+#include "PHCollideValidator.h"
 #include "PHShell.h"
 #include "matrix_utils.h"
-#include "iphysicsshellholder.h"
+#include "IPhysicsShellHolder.h"
 
 //#include "ai/stalker/ai_stalker.h"
 #include "GeometryBits.h"

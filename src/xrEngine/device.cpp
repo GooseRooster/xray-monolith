@@ -1,6 +1,6 @@
 #include "stdafx.h"
-#include "../xrCDB/frustum.h"
-#include "xr_ioconsole.h"
+#include "../xrCDB/Frustum.h"
+#include "XR_IOConsole.h"
 #include "xr_input.h"
 #include "../xrCore/profiler.h"
 
@@ -18,7 +18,7 @@
 
 #include "x_ray.h"
 #include "discord\discord.h"
-#include "render.h"
+#include "Render.h"
 #include <chrono>
 
 // must be defined before include of FS_impl.h
@@ -30,8 +30,8 @@
 # include "engine_impl.hpp"
 #endif // #ifdef INGAME_EDITOR
 
-#include "xrSash.h"
-#include "igame_persistent.h"
+#include "xrSASH.h"
+#include "IGame_Persistent.h"
 
 #pragma comment( lib, "d3dx9.lib" )
 
@@ -235,7 +235,7 @@ void mt_Thread(void* ptr)
 	}
 }
 
-#include "igame_level.h"
+#include "IGame_Level.h"
 
 void CRenderDevice::PreCache(u32 amount, bool b_draw_loadscreen, bool b_wait_user_input)
 {

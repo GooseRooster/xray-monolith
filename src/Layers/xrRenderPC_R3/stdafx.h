@@ -37,14 +37,14 @@
 #include "../xrRender/R_Backend.h"
 #include "../xrRender/R_Backend_Runtime.h"
 
-#include "../xrRender/resourcemanager.h"
+#include "../xrRender/ResourceManager.h"
 
 #include "../../xrEngine/vis_common.h"
-#include "../../xrEngine/render.h"
+#include "../../xrEngine/Render.h"
 #include "../../xrEngine/_d3d_extensions.h"
-#include "../../xrEngine/igame_level.h"
-#include "../xrRender/blenders\blender.h"
-#include "../xrRender/blenders\blender_clsid.h"
+#include "../../xrEngine/IGame_Level.h"
+#include "../xrRender/blenders/Blender.h"
+#include "../xrRender/blenders/Blender_CLSID.h"
 #include "../xrRender/xrRender_console.h"
 #include "r3.h"
 

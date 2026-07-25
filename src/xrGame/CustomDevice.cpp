@@ -1,9 +1,9 @@
-﻿#include "stdafx.h"
-#include "customdevice.h"
-#include "inventory.h"
-#include "actor.h"
+﻿#include "StdAfx.h"
+#include "CustomDevice.h"
+#include "Inventory.h"
+#include "Actor.h"
 #include "player_hud.h"
-#include "weapon.h"
+#include "Weapon.h"
 #include "Missile.h"
 
 CCustomDevice::CCustomDevice()

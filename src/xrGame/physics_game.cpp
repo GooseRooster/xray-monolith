@@ -1,25 +1,25 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ParticlesObject.h"
-#include "../xrEngine/gamemtllib.h"
-#include "level.h"
-#include "gamepersistent.h"
-#include "../xrphysics/Extendedgeom.h"
+#include "../xrEngine/GameMtlLib.h"
+#include "Level.h"
+#include "GamePersistent.h"
+#include "../xrPhysics/ExtendedGeom.h"
 #include "PhysicsGamePars.h"
 //#include "PhysicsCommon.h"
-#include "../xrphysics/PhysicsExternalCommon.h"
-#include "PhSoundPlayer.h"
+#include "../xrPhysics/PhysicsExternalCommon.h"
+#include "PHSoundPlayer.h"
 #include "PhysicsShellHolder.h"
 #include "PHCommander.h"
-#include "../xrphysics/MathUtils.h"
-#include "../xrphysics/iPHWorld.h"
-//#include "../xrphysics/physicsshell.h"
+#include "../xrPhysics/MathUtils.h"
+#include "../xrPhysics/IPHWorld.h"
+//#include "../xrPhysics/PhysicsShell.h"
 
-#include "phreqcomparer.h"
+#include "PHReqComparer.h"
 
 #include "../Include/xrRender/FactoryPtr.h"
 #include "../Include/xrRender/WallMarkArray.h"
 //#ifdef	DEBUG
-//#include "phdebug.h"
+//#include "PHDebug.h"
 //#endif
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////////////////

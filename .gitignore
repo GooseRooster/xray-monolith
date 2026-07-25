@@ -5,6 +5,7 @@
 
 # exclude binaries and temporary files
 _build/
+/compile_commands.json
 /src/*.tss
 /**/x64/
 **/.vs/

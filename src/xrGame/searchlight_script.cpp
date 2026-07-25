@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #ifdef PROJECTOR_NEW
 #include "searchlight.h"

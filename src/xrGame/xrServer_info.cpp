@@ -1,7 +1,7 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "xrServer_info.h"
-#include "level.h"
-#include "xrserver.h"
+#include "Level.h"
+#include "xrServer.h"
 
 #define SERVER_LOGO_FN	"server_logo.jpg"
 #define SERVER_RULES_FN "server_rules.txt"

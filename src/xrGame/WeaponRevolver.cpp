@@ -1,7 +1,7 @@
-#include "stdafx.h"
-#include "weaponrevolver.h"
+#include "StdAfx.h"
+#include "WeaponRevolver.h"
 #include "ParticlesObject.h"
-#include "actor.h"
+#include "Actor.h"
 
 CWeaponRevolver::CWeaponRevolver()
 {

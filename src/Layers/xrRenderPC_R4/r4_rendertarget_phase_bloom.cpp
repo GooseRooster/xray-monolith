@@ -1,7 +1,7 @@
 #include "stdafx.h"
 
-#include "../../xrEngine/igame_persistent.h"
-#include "../../xrEngine/environment.h"
+#include "../../xrEngine/IGame_Persistent.h"
+#include "../../xrEngine/Environment.h"
 
 // OWA Multi-Scale Bloom using Kawase downsample and tent filter upsample
 // Replaces old Gaussian bloom with 4-level hierarchical blur pyramid

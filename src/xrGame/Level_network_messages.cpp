@@ -1,10 +1,10 @@
-#include "stdafx.h"
-#include "entity.h"
+#include "StdAfx.h"
+#include "Entity.h"
 #include "xrserver_objects.h"
-#include "level.h"
+#include "Level.h"
 #include "xrmessages.h"
 #include "game_cl_base.h"
-#include "net_queue.h"
+#include "NET_Queue.h"
 //#include "Physics.h"
 #include "xrServer.h"
 #include "Actor.h"
@@ -14,8 +14,8 @@
 #include "saved_game_wrapper.h"
 #include "level_graph.h"
 #include "file_transfer.h"
-#include "message_filter.h"
-#include "../xrphysics/iphworld.h"
+#include "Message_Filter.h"
+#include "../xrPhysics/IPHWorld.h"
 
 extern LPCSTR map_ver_string;
 

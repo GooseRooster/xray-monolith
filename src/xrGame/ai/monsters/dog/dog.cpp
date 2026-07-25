@@ -14,7 +14,7 @@
 #include "../../../level_graph.h"
 #include "../../../ai_space.h"
 #include "../../../ai_object_location.h"
-#include "../../../actor.h"
+#include "../../../Actor.h"
 
 #ifdef _DEBUG
 #	include <dinput.h>

@@ -1,12 +1,12 @@
 #pragma once
 
 #include "../../../../Include/xrRender/KinematicsAnimated.h"
-#include "../../../actor.h"
+#include "../../../Actor.h"
 #include "../../../../xrEngine/CameraBase.h"
 
 // #include "../../../../xrEngine/CameraBase.h"
 //#include "../../../ActorCondition.h"
-#include "../../../HudManager.h"
+#include "../../../HUDManager.h"
 
 #define TEMPLATE_SPECIALIZATION template <\
 	typename _Object\

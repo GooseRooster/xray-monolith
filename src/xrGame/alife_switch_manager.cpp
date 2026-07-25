@@ -6,19 +6,19 @@
 //	Description : ALife Simulator switch manager
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "alife_switch_manager.h"
 #include "xrServer_Objects_ALife.h"
 #include "alife_graph_registry.h"
 #include "alife_object_registry.h"
 #include "alife_schedule_registry.h"
 #include "game_level_cross_table.h"
-#include "xrserver.h"
+#include "xrServer.h"
 #include "ai_space.h"
 #include "level_graph.h"
 
 #ifdef DEBUG
-#	include "level.h"
+#	include "Level.h"
 #endif // DEBUG
 
 using namespace ALife;

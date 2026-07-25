@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "profile_data_types.h"
 
 using namespace luabind;

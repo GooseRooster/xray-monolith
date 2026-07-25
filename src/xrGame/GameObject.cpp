@@ -2,12 +2,12 @@
 #include "GameObject.h"
 //#include "../Include/xrRender/RenderVisual.h"
 #include "../Include/xrRender/RenderVisual.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 #include "ai_space.h"
 #include "CustomMonster.h"
-#include "physicobject.h"
+#include "PhysicObject.h"
 #include "HangingLamp.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 #include "game_sv_single.h"
 #include "level_graph.h"
 #include "ph_shell_interface.h"
@@ -20,10 +20,10 @@
 #include "ai_object_location_impl.h"
 #include "game_graph.h"
 #include "ai_debug.h"
-#include "../xrEngine/igame_level.h"
-#include "level.h"
+#include "../xrEngine/IGame_Level.h"
+#include "Level.h"
 #include "script_callback_ex.h"
-#include "../xrphysics/MathUtils.h"
+#include "../xrPhysics/MathUtils.h"
 #include "game_cl_base_weapon_usage_statistic.h"
 #include "game_cl_mp.h"
 #include "reward_event_generator.h"
@@ -31,7 +31,7 @@
 #include "ai_obstacle.h"
 #include "magic_box3.h"
 #include "animation_movement_controller.h"
-#include "../xrengine/xr_collide_form.h"
+#include "../xrEngine/xr_collide_form.h"
 #include "script_attachment_manager.h"
 #include "player_hud.h"
 extern MagicBox3 MagicMinBox(int iQuantity, const Fvector* akPoint);
@@ -966,7 +966,7 @@ void CGameObject::u_EventSend(NET_Packet& P, u32 dwFlags)
 	Level().Send(P, dwFlags);
 }
 
-#include "bolt.h"
+#include "Bolt.h"
 
 void CGameObject::OnH_B_Chield()
 {

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "gameobject.h"
-#include "physicsshellholder.h"
-#include "physicsskeletonobject.h"
+#include "GameObject.h"
+#include "PhysicsShellHolder.h"
+#include "PhysicsSkeletonObject.h"
 #include "PHSkeleton.h"
 #include "script_export_space.h"
 #include "animation_script_callback.h"
@@ -21,8 +21,8 @@
 #include "GameObject.h"
 #include "script_game_object.h"
 
-#include "../xrphysics/PhysicsShell.h"
-#include "../xrphysics/ExtendedGeom.h"
+#include "../xrPhysics/PhysicsShell.h"
+#include "../xrPhysics/ExtendedGeom.h"
 #endif
 
 class CSE_ALifeObjectPhysic;

@@ -1,10 +1,10 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "game_cl_mp.h"
 #include "xr_level_controller.h"
 #include "xrMessages.h"
 #include "Actor.h"
 #include "ExplosiveItem.h"
-#include "level.h"
+#include "Level.h"
 #include <dinput.h>
 #include "CustomZone.h"
 #include "game_base_kill_type.h"
@@ -27,7 +27,7 @@
 
 #include "string_table.h"
 #include "clsid_game.h"
-#include "mainmenu.h"
+#include "MainMenu.h"
 #include "WeaponKnife.h"
 #include "RegistryFuncs.h"
 #include "screenshot_server.h"

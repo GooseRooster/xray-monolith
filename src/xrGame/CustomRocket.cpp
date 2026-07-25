@@ -3,21 +3,21 @@
 //						(умеет лететь, светиться и отыгрывать партиклы)
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
-#include "customrocket.h"
+#include "StdAfx.h"
+#include "CustomRocket.h"
 #include "ParticlesObject.h"
-#include "../xrphysics/PhysicsShell.h"
-#include "../xrphysics/extendedgeom.h"
-#include "../xrphysics/calculatetriangle.h"
-#include "../xrphysics/tri-colliderknoopc/dctriangle.h"
+#include "../xrPhysics/PhysicsShell.h"
+#include "../xrPhysics/ExtendedGeom.h"
+#include "../xrPhysics/CalculateTriangle.h"
+#include "../xrPhysics/tri-colliderknoopc/dcTriangle.h"
 
-#include "level.h"
+#include "Level.h"
 #include "xrMessages.h"
-#include "../xrEngine/gamemtllib.h"
+#include "../xrEngine/GameMtlLib.h"
 //#include "tri-colliderknoopc/dTriList.h"
 #include "../Include/xrRender/RenderVisual.h"
 //#include "CalculateTriangle.h"
-#include "actor.h"
+#include "Actor.h"
 #ifdef DEBUG
 #include "PHDebug.h"
 #include "game_base_space.h"

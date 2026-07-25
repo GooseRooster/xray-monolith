@@ -3,7 +3,7 @@
 #include "pseudodog_state_manager.h"
 #include "../../../../Include/xrRender/KinematicsAnimated.h"
 #include "../../../sound_player.h"
-#include "../../../level.h"
+#include "../../../Level.h"
 #include "../../../ai_monster_space.h"
 #include "../monster_velocity_space.h"
 #include "../control_animation_base.h"
@@ -17,7 +17,7 @@
 #	include "../../../ai_space.h"
 #	include "../../../alife_simulator.h"
 #	include "../../../../xrServerEntities/xrServer_Object_Base.h"
-#	include "../../../xrserver.h"
+#	include "../../../xrServer.h"
 #endif
 
 CAI_PseudoDog::CAI_PseudoDog()

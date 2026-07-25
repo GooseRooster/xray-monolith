@@ -2,25 +2,25 @@
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 
-#include "explosive.h"
+#include "Explosive.h"
 
-#include "../xrphysics/PhysicsShell.h"
-#include "entity.h"
+#include "../xrPhysics/PhysicsShell.h"
+#include "Entity.h"
 //#include "PSObject.h"
 #include "ParticlesObject.h"
 
 //для вызова статических функций поражения осколками
 #include "Weapon.h"
 
-#include "actor.h"
-#include "actoreffector.h"
-#include "level.h"
-#include "level_bullet_manager.h"
+#include "Actor.h"
+#include "ActorEffector.h"
+#include "Level.h"
+#include "Level_Bullet_Manager.h"
 #include "xrmessages.h"
-#include "../xrEngine/gamemtllib.h"
-#include "hudsound.h"
+#include "../xrEngine/GameMtlLib.h"
+#include "HudSound.h"
 #include "script_game_object.h"
 
 #ifdef DEBUG
@@ -29,10 +29,10 @@
 #endif
 
 //#include "Physics.h"
-#include "../xrphysics/MathUtils.h"
-//#include "../xrphysics/phvalidevalues.h"
-#include "../xrphysics/iActivationShape.h"
-#include "../xrphysics/iphworld.h"
+#include "../xrPhysics/MathUtils.h"
+//#include "../xrPhysics/PHValideValues.h"
+#include "../xrPhysics/IActivationShape.h"
+#include "../xrPhysics/IPHWorld.h"
 #include "game_base_space.h"
 #include "profiler.h"
 

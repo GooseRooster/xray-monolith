@@ -2,7 +2,7 @@
 //
 
 #include "stdafx.h"
-#include "../../Include/xrApi/xrAPI.h"
+#include "../../Include/xrAPI/xrAPI.h"
 
 #include "../xrRender/dxRenderFactory.h"
 

@@ -7,7 +7,7 @@
 #include "UIXmlInit.h"
 #include "UI3tButton.h"
 #include "UIGameCustom.h"
-#include "../level.h"
+#include "../Level.h"
 #include "../game_cl_mp.h"
 #include <dinput.h>
 #include "ximage.h"

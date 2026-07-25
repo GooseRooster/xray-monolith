@@ -1,12 +1,12 @@
-#include "stdafx.h"
-#include "bolt.h"
+#include "StdAfx.h"
+#include "Bolt.h"
 #include "ParticlesObject.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 #include "xr_level_controller.h"
 #include "script_game_object.h"
 // Tronex
-#include "inventory.h"
-#include "actor.h"
+#include "Inventory.h"
+#include "Actor.h"
 
 CBolt::CBolt(void)
 {

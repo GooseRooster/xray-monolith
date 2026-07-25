@@ -11,7 +11,7 @@
 #include "../ai_monster_squad_manager.h"
 #include "group_state_attack_run.h"
 #include "../../../entity_alive.h"
-#include "../../../actor.h"
+#include "../../../Actor.h"
 
 #define TEMPLATE_SPECIALIZATION template <\
 	typename _Object\

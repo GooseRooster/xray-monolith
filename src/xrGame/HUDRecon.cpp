@@ -1,7 +1,7 @@
 // HUDRecon.cpp: Distance and identification readout
 // 
 //////////////////////////////////////////////////////////////////////
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "HUDRecon.h"
 
 #include "../xrEngine/Environment.h"
@@ -12,9 +12,9 @@
 #include "WeaponKnife.h"
 #include "player_hud.h"
 #include "Missile.h"
-#include "level.h"
+#include "Level.h"
 #include "game_cl_base.h"
-#include "../xrEngine/igame_persistent.h"
+#include "../xrEngine/IGame_Persistent.h"
 #include "script_render_device.h"
 #include "HUDManager.h"
 
@@ -27,7 +27,7 @@
 #include "entity_alive.h"
 
 #include "inventory_item.h"
-#include "inventory.h"
+#include "Inventory.h"
 
 #include <ai/monsters/poltergeist/poltergeist.h>
 

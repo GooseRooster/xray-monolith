@@ -6,7 +6,7 @@
 #include "LightShadows.h"
 #include "../xrRender/LightTrack.h"
 #include "../../xrEngine/xr_object.h"
-#include "../xrRender/fbasicvisual.h"
+#include "../xrRender/FBasicVisual.h"
 #include "../../xrEngine/CustomHUD.h"
 
 #ifndef _EDITOR

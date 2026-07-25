@@ -3,7 +3,7 @@
 // реестр новостей: новости симуляции + сюжетные
 ///////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "game_news.h"
 #include "object_broker.h"
 

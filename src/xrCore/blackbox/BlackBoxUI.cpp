@@ -1,6 +1,6 @@
 #include "stdafx_.h"
 #if 0
-#include "BugSlayerUtil.h"
+#include "BugslayerUtil.h"
 #include <stdio.h>
 
 #define MAX_STACK_TRACE	100

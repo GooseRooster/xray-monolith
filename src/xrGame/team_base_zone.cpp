@@ -6,18 +6,18 @@
 //	Description : Team base zone object
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "team_base_zone.h"
 #include "xrserver_objects_alife_monsters.h"
-#include "hit.h"
+#include "Hit.h"
 #include "Actor.h"
-#include "level.h"
-#include "xrserver.h"
+#include "Level.h"
+#include "xrServer.h"
 #include "game_cl_base.h"
 #include "map_manager.h"
 #include "map_location.h"
 #include "../xrEngine/IGame_Persistent.h"
-#include "../xrengine/xr_collide_form.h"
+#include "../xrEngine/xr_collide_form.h"
 #ifdef DEBUG
 #	include "debug_renderer.h"
 #endif

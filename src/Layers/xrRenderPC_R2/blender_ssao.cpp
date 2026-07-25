@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #pragma hdrstop
 
-#include "Blender_SSAO.h"
+#include "blender_ssao.h"
 
 CBlender_SSAO::CBlender_SSAO() { description.CLS = 0; }
 

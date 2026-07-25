@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "ai_monster_squad.h"
-#include "../../entity.h"
+#include "../../Entity.h"
 #include "../../entity_alive.h"
 #include "../../memory_manager.h"
 

@@ -1,8 +1,8 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "actor_mp_server.h"
 //#include "Physics.h"
 //#include "mathutils.h"
-#include "../xrphysics/phvalide.h"
+#include "../xrPhysics/phvalide.h"
 
 void CSE_ActorMP::UPDATE_Read(NET_Packet& packet)
 {

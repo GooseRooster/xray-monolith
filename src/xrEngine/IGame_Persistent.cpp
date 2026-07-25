@@ -4,12 +4,12 @@
 #include "IGame_Persistent.h"
 
 #ifndef _EDITOR
-#include "environment.h"
+#include "Environment.h"
 # include "x_ray.h"
 # include "IGame_Level.h"
 # include "XR_IOConsole.h"
 # include "Render.h"
-# include "ps_instance.h"
+# include "PS_instance.h"
 # include "CustomHUD.h"
 # include "perlin.h"
 #endif

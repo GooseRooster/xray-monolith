@@ -1,16 +1,16 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
-#include "ikfoot.h"
+#include "IKFoot.h"
 
 #include "ik_collide_data.h"
 #include "GameObject.h"
 
 
 //#include "ode_include.h"
-#include "../xrphysics/MathUtils.h"
-#include "../include/xrrender/Kinematics.h"
+#include "../xrPhysics/MathUtils.h"
+#include "../Include/xrRender/Kinematics.h"
 #include "../xrEngine/bone.h"
-#include "../xrEngine/ennumerateVertices.h"
+#include "../xrEngine/EnnumerateVertices.h"
 
 
 

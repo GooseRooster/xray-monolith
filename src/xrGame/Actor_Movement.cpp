@@ -1,24 +1,24 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
-#include "actor.h"
-#include "inventory.h"
-#include "weapon.h"
+#include "Actor.h"
+#include "Inventory.h"
+#include "Weapon.h"
 #include "../xrEngine/CameraBase.h"
 #include "xrMessages.h"
 
-#include "level.h"
+#include "Level.h"
 #include "UIGameCustom.h"
 #include "string_table.h"
-#include "actorcondition.h"
+#include "ActorCondition.h"
 #include "game_cl_base.h"
 #include "WeaponMagazined.h"
 #include "CharacterPhysicsSupport.h"
-#include "actoreffector.h"
+#include "ActorEffector.h"
 #include "static_cast_checked.hpp"
 #include "player_hud.h"
 
 #ifdef DEBUG
-#include "phdebug.h"
+#include "PHDebug.h"
 #endif
 // OWA: Movement inertia globals (defined in Actor.cpp, registered in console_commands.cpp)
 extern int   g_bMovementInertiaEnabled;
@@ -770,7 +770,7 @@ float CActor::MaxWalkWeight() const
 	return max_w;
 }
 
-#include "artefact.h"
+#include "Artefact.h"
 #include "ActorBackpack.h"
 
 float CActor::get_additional_weight() const

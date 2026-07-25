@@ -3,9 +3,9 @@
 // ZudaArtefact - артефакт "зуда"
 ///////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ZudaArtifact.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 
 
 CZudaArtefact::CZudaArtefact(void)

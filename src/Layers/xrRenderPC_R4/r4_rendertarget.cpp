@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../xrRender/resourcemanager.h"
+#include "../xrRender/ResourceManager.h"
 #include "blender_light_occq.h"
 #include "blender_light_mask.h"
 #include "blender_light_direct.h"
@@ -12,7 +12,7 @@
 #include "blender_ssao.h"
 #include "dx11MinMaxSMBlender.h"
 #include "dx11HDAOCSBlender.h"
-#include "../xrRenderDX10/msaa/dx10MSAABlender.h"
+#include "../xrRenderDX10/MSAA/dx10MSAABlender.h"
 #include "../xrRenderDX10/DX10 Rain/dx10RainBlender.h"
 ////////////////////////////lvutner
 #include "blender_ss_sunshafts.h"

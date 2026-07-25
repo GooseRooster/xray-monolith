@@ -11,8 +11,8 @@
 
 #include "pure.h"
 //#include "hw.h"
-#include "../xrcore/ftimer.h"
-#include "stats.h"
+#include "../xrCore/FTimer.h"
+#include "Stats.h"
 //#include "shader.h"
 //#include "R_Backend.h"
 

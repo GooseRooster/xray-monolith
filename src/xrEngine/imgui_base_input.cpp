@@ -9,7 +9,7 @@
 #include "../xrGame/xr_level_controller.h"
 #include "../xrCore/os_clipboard.h"
 
-#include "render.h"
+#include "Render.h"
 #include "../xrGame/UICursor.h"
 
 namespace xr_imgui

@@ -6,7 +6,7 @@
 #include "script_game_object.h"
 #include "string_table.h"
 #include "PHSkeleton.h"
-#include "../xrphysics/PHUpdateObject.h"
+#include "../xrPhysics/PHUpdateObject.h"
 #include "PhysicsSkeletonObject.h"
 
 #include "player_hud.h"
@@ -14,9 +14,9 @@
 #endif
 
 #include "holder_custom.h"
-#include "shootingobject.h"
-#include "physicsshellholder.h"
-#include "hudsound.h"
+#include "ShootingObject.h"
+#include "PhysicsShellHolder.h"
+#include "HudSound.h"
 class CCartridge;
 class CCameraBase;
 

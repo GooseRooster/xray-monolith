@@ -1,12 +1,12 @@
-#include "stdafx.h"
-#include "grenade.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "StdAfx.h"
+#include "Grenade.h"
+#include "../xrPhysics/PhysicsShell.h"
 //.#include "WeaponHUD.h"
-#include "entity.h"
+#include "Entity.h"
 #include "ParticlesObject.h"
-#include "actor.h"
-#include "inventory.h"
-#include "level.h"
+#include "Actor.h"
+#include "Inventory.h"
+#include "Level.h"
 #include "xrmessages.h"
 #include "xr_level_controller.h"
 #include "game_cl_base.h"
@@ -15,9 +15,9 @@
 
 #ifdef EXPLOSIVE_CHANGE
 #include "../xrEngine/GameMtlLib.h"
-#include "../xrphysics/ExtendedGeom.h"
-#include "../xrphysics/CalculateTriangle.h"
-#include "../xrphysics/tri-colliderknoopc/dctriangle.h"
+#include "../xrPhysics/ExtendedGeom.h"
+#include "../xrPhysics/CalculateTriangle.h"
+#include "../xrPhysics/tri-colliderknoopc/dcTriangle.h"
 #endif
 
 #define GRENADE_REMOVE_TIME		30000

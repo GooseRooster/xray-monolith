@@ -1,8 +1,8 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #ifdef STATIONARYMGUN_NEW
 #include "WeaponStatMgun.h"
 #include "../Include/xrRender/Kinematics.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 
 SStmBarrel::SStmBarrel(CWeaponStatMgun *stm, LPCSTR name)
 {

@@ -1,12 +1,12 @@
-﻿#include "stdafx.h"
+﻿#include "StdAfx.h"
 #include "HudItem.h"
 #include "physic_item.h"
-#include "actor.h"
-#include "actoreffector.h"
+#include "Actor.h"
+#include "ActorEffector.h"
 #include "Missile.h"
 #include "xrmessages.h"
-#include "level.h"
-#include "inventory.h"
+#include "Level.h"
+#include "Inventory.h"
 #include "../xrEngine/CameraBase.h"
 #include "player_hud.h"
 #include "../xrEngine/SkeletonMotions.h"
@@ -19,7 +19,7 @@
 #include "script_game_object.h"
 #include "Flashlight.h"
 #include "clsid_game.h"
-#include "weaponpistol.h"
+#include "WeaponPistol.h"
 #include "HUDManager.h"
 #include "Weapon.h"
 #include "Actor_Flags.h"
@@ -954,7 +954,7 @@ void CHudItem::PlayAnimIdleMoving()
 	PlayHUDMotion("anm_idle_moving", TRUE, NULL, GetState(), isActorAccelerated(Actor()->MovingState(), false) ? 1.f : .75f);
 }
 
-#include "weapon.h"
+#include "Weapon.h"
 #include "../xrEngine/SkeletonMotions.h"
 
 void CHudItem::PlayAnimIdleSprint()

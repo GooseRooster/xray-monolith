@@ -4,7 +4,7 @@
 #include "Blender.h"
 
 //////////////////////////////////////////////////////////////////////
-#include "blender_clsid.h"
+#include "Blender_CLSID.h"
 IC bool p_sort(IBlender* A, IBlender* B)
 {
 	return stricmp(A->getComment(), B->getComment()) < 0;
@@ -62,7 +62,7 @@ void IBlender::CreatePalette(xr_vector<IBlender*>& palette)
 
 #ifndef _EDITOR
 // Engine
-#include "../../../xrEngine/render.h"
+#include "../../../xrEngine/Render.h"
 
 IBlender* IBlender::Create(CLASS_ID cls)
 {

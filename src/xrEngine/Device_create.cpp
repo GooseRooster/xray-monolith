@@ -3,9 +3,9 @@
 //#include "resourcemanager.h"
 #include "../Include/xrRender/DrawUtils.h"
 //#include "xr_effgamma.h"
-#include "render.h"
+#include "Render.h"
 #include "dedicated_server_only.h"
-#include "../xrcdb/xrxrc.h"
+#include "../xrCDB/xrXRC.h"
 
 //#include "securom_api.h"
 

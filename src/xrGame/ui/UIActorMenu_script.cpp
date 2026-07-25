@@ -15,7 +15,7 @@
 #include "UIDragDropReferenceList.h"
 #include "UICellCustomItems.h"
 
-#include "../actor.h"
+#include "../Actor.h"
 #include "../inventory_item.h"
 #include "UICellItem.h"
 #include "../ai_space.h"
@@ -23,7 +23,7 @@
 #include "eatable_item.h"
 
 #include "UIPdaWnd.h"
-#include "../gamepersistent.h"
+#include "../GamePersistent.h"
 #include "../../Layers/xrRender/xrRender_console.h"
 #include "UITabControl.h"
 

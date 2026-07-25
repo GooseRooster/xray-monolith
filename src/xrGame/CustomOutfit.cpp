@@ -3,10 +3,10 @@
 //	Last updated: 13/08/2015
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 
-#include "customoutfit.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "CustomOutfit.h"
+#include "../xrPhysics/PhysicsShell.h"
 #include "inventory_space.h"
 #include "Inventory.h"
 #include "Actor.h"
@@ -270,7 +270,7 @@ BOOL CCustomOutfit::BonePassBullet(int boneID)
 	return m_boneProtection->getBonePassBullet(s16(boneID));
 }
 
-#include "torch.h"
+#include "Torch.h"
 
 void CCustomOutfit::OnMoveToSlot(const SInvItemPlace& prev)
 {

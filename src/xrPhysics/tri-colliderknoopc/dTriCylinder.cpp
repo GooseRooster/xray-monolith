@@ -1,11 +1,11 @@
 #include "stdafx.h"
 #include "dTriColliderCommon.h"
-#include "../dCylinder/dCylinder.h"
+#include "../dcylinder/dCylinder.h"
 #include "dTriCylinder.h"
 #include "../MathUtils.h"
-#include "dcTrilistCollider.h"
-#include "../phworld.h"
-#include "../../xrcdb/xr_area.h"
+#include "dcTriListCollider.h"
+#include "../PHWorld.h"
+#include "../../xrCDB/xr_area.h"
 
 //////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////

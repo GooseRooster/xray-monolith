@@ -1,8 +1,8 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "interactive_motion.h"
 
-#include "../xrphysics/physicsshell.h"
+#include "../xrPhysics/PhysicsShell.h"
 #include "PhysicsShellHolder.h"
 
 #include "../Include/xrRender/Kinematics.h"

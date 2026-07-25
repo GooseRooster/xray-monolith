@@ -1,16 +1,16 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "IKLimbsController.h"
 
-#include "IK/IKLimb.h"
-#include "physicsshellholder.h"
+#include "ik/IKLimb.h"
+#include "PhysicsShellHolder.h"
 
 #include "ik_anim_state.h"
-#include "../xrphysics/mathutils.h"
+#include "../xrPhysics/MathUtils.h"
 #include "../Include/xrRender/RenderVisual.h"
 #include "../Include/xrRender/Kinematics.h"
 //#include "ode_include.h"
-#include "characterphysicssupport.h"
+#include "CharacterPhysicsSupport.h"
 #include "../xrEngine/motion.h"
 #ifdef DEBUG
 #	include "PHDebug.h"

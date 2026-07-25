@@ -3,14 +3,14 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-#include "igame_level.h"
-#include "fdemoplay.h"
-#include "xr_ioconsole.h"
+#include "IGame_Level.h"
+#include "FDemoPlay.h"
+#include "XR_IOConsole.h"
 #include "motion.h"
 #include "Render.h"
 #include "CameraManager.h"
 
-#include "xrSash.h"
+#include "xrSASH.h"
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction

@@ -1,7 +1,7 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "../xrEngine/xrLevel.h"
 #include "Level.h"
-#include "xrserver.h"
+#include "xrServer.h"
 
 void CLevel::net_Save(LPCSTR name) // Game Save
 {

@@ -1,7 +1,7 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #pragma hdrstop
 
-#include "postprocessanimator.h"
+#include "PostprocessAnimator.h"
 #ifndef _PP_EDITOR_
 #include "ActorEffector.h"
 #endif

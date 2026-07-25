@@ -3,9 +3,9 @@
 // ElectricBall - артефакт электрический шар
 ///////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ElectricBall.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 
 
 CElectricBall::CElectricBall(void)

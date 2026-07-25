@@ -11,7 +11,7 @@
 #include <dxgi1_4.h>
 #endif
 
-#include "hwcaps.h"
+#include "HWCaps.h"
 
 #include "../../build_config_defines.h"
 

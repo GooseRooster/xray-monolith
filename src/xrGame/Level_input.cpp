@@ -1,13 +1,13 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include <dinput.h>
-#include "../xrEngine/xr_ioconsole.h"
+#include "../xrEngine/XR_IOConsole.h"
 #include "entity_alive.h"
 #include "game_sv_single.h"
 #include "alife_simulator.h"
 #include "alife_simulator_header.h"
 #include "level_graph.h"
-#include "../xrEngine/fdemorecord.h"
-#include "level.h"
+#include "../xrEngine/FDemoRecord.h"
+#include "Level.h"
 #include "xr_level_controller.h"
 #include "game_cl_base.h"
 #include "stalker_movement_manager_smart_cover.h"
@@ -15,10 +15,10 @@
 #include "xrServer.h"
 #include "autosave_manager.h"
 
-#include "actor.h"
-#include "huditem.h"
+#include "Actor.h"
+#include "HudItem.h"
 #include "UIGameCustom.h"
-#include "UI/UIDialogWnd.h"
+#include "ui/UIDialogWnd.h"
 #include "../xrEngine/xr_input.h"
 #include "saved_game_wrapper.h"
 #include "ui\UIPdaWnd.h"
@@ -34,7 +34,7 @@
 //-Alundaio
 
 #ifdef DEBUG
-#	include "ai/monsters/BaseMonster/base_monster.h"
+#	include "ai/monsters/basemonster/base_monster.h"
 
 // Lain: add
 #   include "level_debug.h"

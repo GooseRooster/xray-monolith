@@ -1,9 +1,9 @@
-#include "stdafx.h"
-#include "xrserver.h"
+#include "StdAfx.h"
+#include "xrServer.h"
 #include "game_sv_single.h"
 #include "alife_simulator.h"
 #include "xrserver_objects.h"
-#include "level.h"
+#include "Level.h"
 
 void xrServer::OnCL_Disconnected(IClient* CL)
 {

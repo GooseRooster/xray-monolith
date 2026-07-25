@@ -569,7 +569,7 @@ int opt_dynamic = 2;
 int ps_r4_point_light_shadows = 0;
 
 #ifndef _EDITOR
-#include	"../../xrEngine/xr_ioconsole.h"
+#include	"../../xrEngine/XR_IOConsole.h"
 #include	"../../xrEngine/xr_ioc_cmd.h"
 
 #if defined(USE_DX10) || defined(USE_DX11)

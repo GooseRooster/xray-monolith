@@ -1,5 +1,5 @@
-#include "stdafx.h"
-#include "car.h"
+#include "StdAfx.h"
+#include "Car.h"
 //#if 0
 
 #include "ParticlesObject.h"
@@ -10,28 +10,28 @@
 #	include "PHDebug.h"
 #endif // DEBUG
 
-//#include "hit.h"
+//#include "Hit.h"
 #include "PHDestroyable.h"
 
 #include "cameralook.h"
-#include "camerafirsteye.h"
+#include "CameraFirstEye.h"
 #include "Actor.h"
 #include "ActorEffector.h"
 #include "math.h"
 #include "script_entity_action.h"
-#include "inventory.h"
+#include "Inventory.h"
 #include "xrserver_objects_alife_items.h"
 #include "../Include/xrRender/Kinematics.h"
-#include "level.h"
+#include "Level.h"
 #include "ui/UIMainIngameWnd.h"
 //#include "UIGameCustom.h"
 #include "CarWeapon.h"
 #include "game_object_space.h"
-#include "../xrEngine/gamemtllib.h"
+#include "../xrEngine/GameMtlLib.h"
 //#include "PHActivationShape.h"
 #include "CharacterPhysicsSupport.h"
 #include "car_memory.h"
-#include "../xrphysics/IPHWorld.h"
+#include "../xrPhysics/IPHWorld.h"
 BONE_P_MAP CCar::bone_map = BONE_P_MAP();
 
 //extern CPHWorld*	ph_world;

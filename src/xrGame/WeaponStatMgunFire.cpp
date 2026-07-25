@@ -1,10 +1,10 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "WeaponStatMgun.h"
-#include "level.h"
+#include "Level.h"
 #include "entity_alive.h"
-#include "hudsound.h"
-#include "actor.h"
-#include "actorEffector.h"
+#include "HudSound.h"
+#include "Actor.h"
+#include "ActorEffector.h"
 #include "EffectorShot.h"
 #include "Weapon.h"
 
@@ -19,7 +19,7 @@
 #include "CameraFirstEye.h"
 
 #include "../Include/xrRender/Kinematics.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 #endif
 
 const Fvector& CWeaponStatMgun::get_CurrentFirePoint()

@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "fooditem.h"
+#include "FoodItem.h"
 #include "script_export_space.h"
 
 class CBottleItem : public CFoodItem

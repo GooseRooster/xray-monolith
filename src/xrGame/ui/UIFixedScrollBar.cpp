@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "UIFixedScrollbar.h"
+#include "UIFixedScrollBar.h"
 #include "UI3tButton.h"
 #include "UIFrameLineWnd.h"
 #include "UIScrollBox.h"
@@ -140,7 +140,7 @@ void CUIFixedScrollBar::ClampByViewRect()
 	}
 }
 
-#include "../uicursor.h"
+#include "../UICursor.h"
 u32 last_hold_tm = 0;
 
 bool CUIFixedScrollBar::OnKeyboardHold(int dik)

@@ -5,7 +5,7 @@
 #include <d3dx9.h>
 #ifndef _EDITOR
 #pragma comment( lib, "d3dx9.lib"		)
-#include "../../xrEngine/render.h"
+#include "../../xrEngine/Render.h"
 #endif
 #pragma warning(default:4995)
 
@@ -13,8 +13,8 @@
 
 #include "../xrRender/ResourceManager.h"
 #include "../xrRender/tss.h"
-#include "../xrRender/blenders/blender.h"
-#include "../xrRender/blenders/blender_recorder.h"
+#include "../xrRender/blenders/Blender.h"
+#include "../xrRender/blenders/Blender_Recorder.h"
 
 #include "../xrRenderDX10/dx10BufferUtils.h"
 #include "../xrRenderDX10/dx10ConstantBuffer.h"

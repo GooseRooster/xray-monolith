@@ -1,6 +1,6 @@
-#include "stdafx.h"
-#include "level.h"
-#include "xrserver.h"
+#include "StdAfx.h"
+#include "Level.h"
+#include "xrServer.h"
 
 void CLevel::SLS_Default() // Default/Editor Load
 {

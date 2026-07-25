@@ -157,6 +157,18 @@ private:
 public:
 	typedef allocator allocator_type;
 
+	// MSVC's permissive lookup finds these on the dependent base `inherited`
+	// unqualified; standard-conforming two-phase lookup (clang, gcc) doesn't,
+	// so pull them into this class's own scope explicitly.
+	using typename inherited::size_type;
+	using typename inherited::reference;
+	using typename inherited::const_reference;
+	using inherited::begin;
+	using inherited::end;
+	using inherited::capacity;
+	using inherited::reserve;
+	using inherited::erase;
+
 public:
 	xr_vector() : inherited()
 	{
@@ -221,6 +233,10 @@ private:
 	typedef std::vector<bool, xalloc<bool>> inherited;
 
 public:
+	using inherited::begin;
+	using inherited::end;
+	using inherited::erase;
+
 	u32 size() const { return (u32)inherited::size(); }
 	void clear() { erase(begin(), end()); }
 };
@@ -232,6 +248,10 @@ private:
 	typedef std::vector<bool, allocator> inherited;
 
 public:
+	using inherited::begin;
+	using inherited::end;
+	using inherited::erase;
+
 	u32 size() const { return (u32)inherited::size(); }
 	void clear() { erase(begin(), end()); }
 };

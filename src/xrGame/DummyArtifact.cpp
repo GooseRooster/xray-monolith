@@ -3,9 +3,9 @@
 // DummyArtefact - артефакт пустышка
 ///////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "DummyArtifact.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 
 
 CDummyArtefact::CDummyArtefact(void)

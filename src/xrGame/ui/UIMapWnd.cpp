@@ -970,10 +970,10 @@ void CUIMapWnd::Reset()
 	ResetActionPlanner();
 }
 
-#include "../gametaskmanager.h"
-#include "../actor.h"
+#include "../GametaskManager.h"
+#include "../Actor.h"
 #include "../map_spot.h"
-#include "../gametask.h"
+#include "../GameTask.h"
 
 void CUIMapWnd::SpotSelected(CUIWindow* w)
 {

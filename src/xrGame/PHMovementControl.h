@@ -2,9 +2,9 @@
 #ifndef CPHMOVEMENT_CONTROL_H
 #define CPHMOVEMENT_CONTROL_H
 
-#include "../xrphysics/physicsexternalcommon.h"
-#include "../xrphysics/mathutils.h"
-#include "../xrphysics/movementboxdynamicactivate.h"
+#include "../xrPhysics/PhysicsExternalCommon.h"
+#include "../xrPhysics/MathUtils.h"
+#include "../xrPhysics/MovementBoxDynamicActivate.h"
 
 namespace ALife
 {

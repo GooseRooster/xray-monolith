@@ -1,6 +1,6 @@
 #include "pch_script.h"
-#include "physicobject.h"
-#include "../xrphysics/PhysicsShell.h"
+#include "PhysicObject.h"
+#include "../xrPhysics/PhysicsShell.h"
 //#include "Physics.h"
 #include "xrserver_objects_alife.h"
 #include "Level.h"
@@ -10,12 +10,12 @@
 #include "../xrEngine/cf_dynamic_mesh.h"
 #include "PHSynchronize.h"
 #include "game_object_space.h"
-//#include "../xrphysics/PhysicsShellAnimator.h"
+//#include "../xrPhysics/PhysicsShellAnimator.h"
 #include "moving_bones_snd_player.h"
-#include "../xrphysics/extendedgeom.h"
+#include "../xrPhysics/ExtendedGeom.h"
 #ifdef	DEBUG
-#include "phdebug.h"
-#include "../xrengine/objectdump.h"
+#include "PHDebug.h"
+#include "../xrEngine/ObjectDump.h"
 #endif
 BOOL dbg_draw_doors = false;
 

@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "kills_store.h"
 #include "../xrServerEntities/object_broker.h"
 

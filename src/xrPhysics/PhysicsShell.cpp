@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #pragma hdrstop
-#include "physicsshell.h"
+#include "PhysicsShell.h"
 #include "PHDynamicData.h"
 #include "Physics.h"
 #include "PHJoint.h"
@@ -10,14 +10,14 @@
 #include "PHSplitedShell.h"
 
 //#include "gameobject.h"
-#include "iphysicsshellholder.h"
+#include "IPhysicsShellHolder.h"
 
 //#include "objectdump.h"
 #include "phvalide.h"
 
 #include "../Include/xrRender/Kinematics.h"
-#include "../xrengine/xr_object.h"
-#include "../xrengine/bone.h"
+#include "../xrEngine/xr_object.h"
+#include "../xrEngine/bone.h"
 
 extern CPHWorld* ph_world;
 

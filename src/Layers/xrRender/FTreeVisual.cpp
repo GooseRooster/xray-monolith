@@ -1,14 +1,14 @@
 #include "stdafx.h"
 #pragma hdrstop
 
-#include "../../xrEngine/igame_persistent.h"
-#include "../../xrEngine/igame_level.h"
-#include "../../xrEngine/environment.h"
-#include "../../xrEngine/fmesh.h"
+#include "../../xrEngine/IGame_Persistent.h"
+#include "../../xrEngine/IGame_Level.h"
+#include "../../xrEngine/Environment.h"
+#include "../../xrEngine/Fmesh.h"
 
 #include "../../build_config_defines.h"
 
-#include "ftreevisual.h"
+#include "FTreeVisual.h"
 
 //-----------------------------------------------------------------------------
 // Vertex declaration for instanced tree rendering (DX11)

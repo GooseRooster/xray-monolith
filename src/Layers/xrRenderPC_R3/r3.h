@@ -8,19 +8,19 @@
 #include "r2_types.h"
 #include "r3_rendertarget.h"
 
-#include "../xrRender/hom.h"
-#include "../xrRender/detailmanager.h"
-#include "../xrRender/modelpool.h"
-#include "../xrRender/wallmarksengine.h"
+#include "../xrRender/HOM.h"
+#include "../xrRender/DetailManager.h"
+#include "../xrRender/ModelPool.h"
+#include "../xrRender/WallmarksEngine.h"
 
-#include "smap_allocator.h"
-#include "../xrRender/light_db.h"
-#include "light_render_direct.h"
+#include "SMAP_Allocator.h"
+#include "../xrRender/Light_DB.h"
+#include "Light_Render_Direct.h"
 #include "../xrRender/LightTrack.h"
 #include "../xrRender/r_sun_cascades.h"
 
-#include "../../xrEngine/irenderable.h"
-#include "../../xrEngine/fmesh.h"
+#include "../../xrEngine/IRenderable.h"
+#include "../../xrEngine/Fmesh.h"
 
 
 class dxRender_Visual;

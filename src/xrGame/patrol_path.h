@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "graph_abstract.h"
 #include "patrol_point.h"
 

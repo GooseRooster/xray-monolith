@@ -5,7 +5,7 @@
 #ifdef PROJECTOR_NEW
 #include "PhysicsShellHolder.h"
 #include "PHSkeleton.h"
-#include "../xrphysics/PHUpdateObject.h"
+#include "../xrPhysics/PHUpdateObject.h"
 #include "script_game_object.h"
 
 struct SProjectorLight;

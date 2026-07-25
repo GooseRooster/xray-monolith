@@ -4,7 +4,7 @@
 
 #include "..\..\Include\xrRender\EnvironmentRender.h"
 
-#include "blenders\blender.h"
+#include "blenders/Blender.h"
 
 class CBlender_skybox : public IBlender
 {

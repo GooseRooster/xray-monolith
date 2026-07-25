@@ -4,8 +4,8 @@
 #include	"../../xrEngine/Render.h"
 #include	"../xrRender/ResourceManager.h"
 #include	"../xrRender/tss.h"
-#include	"../xrRender/blenders/blender.h"
-#include	"../xrRender/blenders/blender_recorder.h"
+#include	"../xrRender/blenders/Blender.h"
+#include	"../xrRender/blenders/Blender_Recorder.h"
 //	adopt_compiler don't have = operator And it can't have = operator
 #pragma warning( push )
 #pragma warning( disable : 4512)

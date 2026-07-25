@@ -1,14 +1,14 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "configs_dumper.h"
 #include "configs_common.h"
 #include "../xrCore/ppmd_compressor.h"
 #include "../xrCore/xr_ini.h"
 
 #include "GameObject.h"
-#include "level.h"
+#include "Level.h"
 #include "actor_mp_client.h"
-#include "inventory.h"
-#include "weapon.h"
+#include "Inventory.h"
+#include "Weapon.h"
 #include "game_cl_mp.h"
 #include "profiler.h"
 

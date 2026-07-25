@@ -3,7 +3,7 @@
 
 
 
-#include "../../include/xrrender/Kinematics.h"
+#include "../../Include/xrRender/Kinematics.h"
 
 #include "gameobject.h"
 
@@ -11,8 +11,8 @@
 #include "../ik_anim_state.h"
 
 //#include "../ode_include.h"
-#include "../../xrphysics/MathUtils.h"
-#include "../../xrphysics/matrix_utils.h"
+#include "../../xrPhysics/MathUtils.h"
+#include "../../xrPhysics/matrix_utils.h"
 #include "../pose_extrapolation.h"
 #ifdef DEBUG
 #include "../PHDebug.h"

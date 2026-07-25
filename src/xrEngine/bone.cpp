@@ -2,7 +2,7 @@
 #pragma hdrstop
 
 #include "bone.h"
-#include "gamemtllib.h"
+#include "GameMtlLib.h"
 
 
 u16 CBone::get_game_mtl_idx() const

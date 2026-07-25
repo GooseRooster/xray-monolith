@@ -9,7 +9,7 @@ class CUIWindow;
 
 #include "actor_defs.h"
 #include "inventory_space.h"
-#include "hudsound.h"
+#include "HudSound.h"
 #include "HUDManager.h"
 
 #define TENDTO_SPEED         1.0f     // Модификатор силы инерции (больше - чувствительней)

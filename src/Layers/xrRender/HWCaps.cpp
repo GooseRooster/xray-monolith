@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #pragma hdrstop
 
-#include "hwcaps.h"
-#include "hw.h"
+#include "HWCaps.h"
+#include "HW.h"
 
 #ifndef _EDITOR
 #include <nvapi.h>

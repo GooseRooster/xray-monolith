@@ -6,7 +6,7 @@
 //	Description : ALife dynamic object class
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "xrServer_Objects_ALife.h"
 #include "alife_simulator.h"
 #include "alife_schedule_registry.h"
@@ -16,7 +16,7 @@
 #include "game_level_cross_table.h"
 #include "game_graph.h"
 #include "xrServer.h"
-#include "level.h"
+#include "Level.h"
 #include "map_manager.h"
 
 void CSE_ALifeDynamicObject::on_spawn()

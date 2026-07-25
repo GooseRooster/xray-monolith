@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "UIGameDM.h"
 
@@ -6,7 +6,7 @@
 #include "ui/UIPdaWnd.h"
 #include "ui/UIMapDesc.h"
 #include "ui/KillMessageStruct.h"
-#include "level.h"
+#include "Level.h"
 #include "game_cl_base.h"
 #include "Spectator.h"
 #include "Inventory.h"
@@ -14,7 +14,7 @@
 #include "xrserver_objects_alife_items.h"
 #include "xr_level_controller.h"
 #include "ui/xrUIXmlParser.h"
-#include "game_cl_Deathmatch.h"
+#include "game_cl_deathmatch.h"
 #include "ui/UIMoneyIndicator.h"
 #include "ui/UIRankIndicator.h"
 #include "ui/UIVoteStatusWnd.h"

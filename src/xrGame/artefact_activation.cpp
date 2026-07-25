@@ -5,21 +5,21 @@
 //	Autor		:	Alexander Maniluk
 //	Description	:	artefact activation class
 ////////////////////////////////////////////////////////////////////////////////
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "artefact_activation.h"
 
-#include "../xrphysics/PhysicsShell.h"
+#include "../xrPhysics/PhysicsShell.h"
 #include "PhysicsShellHolder.h"
 #include "game_cl_base.h"
 
 #include "../Include/xrRender/Kinematics.h"
 #include "../Include/xrRender/KinematicsAnimated.h"
 
-#include "inventory.h"
-#include "level.h"
+#include "Inventory.h"
+#include "Level.h"
 #include "ai_object_location.h"
 #include "xrServer_Objects_ALife_Monsters.h"
-#include "../xrphysics/iphworld.h"
+#include "../xrPhysics/IPHWorld.h"
 #include "restriction_space.h"
 #include "../xrEngine/IGame_Persistent.h"
 

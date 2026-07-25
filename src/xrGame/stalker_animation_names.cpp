@@ -6,7 +6,7 @@
 //	Description : Stalker animation names
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "stalker_animation_names.h"
 
 LPCSTR state_names [] = {

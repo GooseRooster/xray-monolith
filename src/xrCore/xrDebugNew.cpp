@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #pragma hdrstop
 
-#include "xrdebug.h"
+#include "xrDebug.h"
 #include "os_clipboard.h"
 
 #include <sal.h>

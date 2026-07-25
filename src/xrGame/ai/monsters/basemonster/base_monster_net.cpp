@@ -4,7 +4,7 @@
 #include "../../../ai_object_location.h"
 #include "../../../game_graph.h"
 #include "../../../ai_space.h"
-#include "../../../hit.h"
+#include "../../../Hit.h"
 #include "../../../PHDestroyable.h"
 #include "../../../CharacterPhysicsSupport.h"
 

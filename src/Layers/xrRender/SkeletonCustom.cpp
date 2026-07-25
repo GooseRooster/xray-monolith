@@ -4,7 +4,7 @@
 
 #include 	"SkeletonCustom.h"
 #include	"SkeletonX.h"
-#include	"../../xrEngine/fmesh.h"
+#include	"../../xrEngine/Fmesh.h"
 #ifndef _EDITOR
 #include	"../../xrEngine/Render.h"
 #endif

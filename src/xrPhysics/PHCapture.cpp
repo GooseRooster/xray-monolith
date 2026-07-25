@@ -1,19 +1,19 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
-#include "StdAfx.h"
+#include "stdafx.h"
 
 #include "PHCapture.h"
-#include "phcharacter.h"
+#include "PHCharacter.h"
 #include "Physics.h"
 #include "ExtendedGeom.h"
 
 //#include "entity_alive.h"
 //#include "phmovementcontrol.h"
 #include "../Include/xrRender/Kinematics.h"
-#include "iphysicsshellholder.h"
-#include "../xrengine/bone.h"
-#include "../xrengine/device.h"
-#include "mathutilsode.h"
-#include "phelement.h"
+#include "IPhysicsShellHolder.h"
+#include "../xrEngine/bone.h"
+#include "../xrEngine/device.h"
+#include "MathUtilsOde.h"
+#include "PHElement.h"
 
 //#include "characterphysicssupport.h"
 ///////////////////////////////////////////////////////////////////////////////////

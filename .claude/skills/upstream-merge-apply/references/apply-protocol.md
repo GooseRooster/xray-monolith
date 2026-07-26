@@ -68,6 +68,21 @@ for each accepted commit, oldest first.
   before running `git cherry-pick --continue`. This reuses the same
   judgment-with-confirmation pattern as triage, just applied to conflict
   hunks instead of whole commits.
+  - **Exception - `README.md`**: this fork's README is fully rewritten for
+    Old World and shares nothing with upstream's; upstream's own README
+    churns constantly (readme-only commits are common in the pending
+    ledger). A `.gitattributes` `README.md merge=ours` driver is configured
+    to auto-resolve these instead of conflicting (each clone must run
+    `git config merge.ours.driver true` once - this local config isn't
+    committed). A commit that touches *only* `README.md` will therefore
+    either apply as a true no-op (git reports "previous cherry-pick is now
+    empty" - use `git cherry-pick --skip`, do not `--allow-empty`) or, if
+    `merge.ours.driver` isn't configured on this machine, will conflict the
+    old way - resolve by discarding the incoming README hunk entirely, no
+    confirmation needed, this is a standing rule not a per-commit judgment
+    call. Either way these commits are **skipped, not landed** - do not
+    mark them `applied` in the ledger; leave them for a future
+    `upstream-merge-triage` pass to re-verdict as `skip` if desired.
 - **If the user says stop/pause mid-sequence**: leave `merge-upstream` at
   whatever the last successfully-completed cherry-pick was (a valid,
   buildable state), never partway inside a conflicted pick. Run

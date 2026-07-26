@@ -10,3 +10,8 @@
 **/*.gs linguist-language=HLSL
 **/*.vs linguist-language=HLSL
 **/*.cs linguist-language=HLSL
+
+# README.md is fully rewritten for Old World and shares nothing with
+# upstream's; always keep ours on merge/cherry-pick instead of conflicting.
+# Requires each clone to run: git config merge.ours.driver true
+README.md merge=ours

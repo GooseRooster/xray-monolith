@@ -154,18 +154,29 @@ def cmd_plan(args):
         for e in plain:
             print(f"- `{e['short_hash']}` {e['date'][:10]} - {e['subject']}" + _flags_suffix(e))
 
-    playtest = [e for e in pending if any(f.get("type") == "playtest" for f in e.get("review_flags", []))]
-    if playtest:
-        print(f"\n## Playtest reminders ({len(playtest)}) - carry into the final report after landing\n")
-        for e in playtest:
-            for f in e.get("review_flags", []):
-                if f.get("type") == "playtest":
-                    print(f"- `{e['short_hash']}` {e['subject']}: {f.get('note', '')}")
+    _print_flag_section(pending, "playtest", "Playtest reminders", "carry into the final report after landing")
+    _print_flag_section(pending, "bug_found", "Known bugs found during review",
+                         "not a reason to skip - fix opportunistically if you're already touching the file, "
+                         "otherwise carry into the final report as a follow-up")
+    _print_flag_section(pending, "dangling_reference", "Dangling references flagged during review",
+                         "re-verify before cherry-picking (a later commit may have already cleaned it up) - "
+                         "if still dangling, note it in the final report rather than landing it silently")
 
     print(
         f"\n## Ordered cherry-pick list\n\n"
         + "\n".join(f"{i + 1}. `{e['hash']}` - {e['subject']}" for i, e in enumerate(pending))
     )
+
+
+def _print_flag_section(pending, flag_type, heading, subtitle):
+    matches = [e for e in pending if any(f.get("type") == flag_type for f in e.get("review_flags", []))]
+    if not matches:
+        return
+    print(f"\n## {heading} ({len(matches)}) - {subtitle}\n")
+    for e in matches:
+        for f in e.get("review_flags", []):
+            if f.get("type") == flag_type:
+                print(f"- `{e['short_hash']}` {e['subject']}: {f.get('note', '')}")
 
 
 def _flags_suffix(e):
@@ -178,7 +189,9 @@ def _flags_suffix(e):
         if t == "ordering_after":
             parts.append(f"ordering_after {', '.join(h[:8] for h in f.get('after', []))}")
         elif t == "hotzone_gap":
-            parts.append(f"hotzone_gap ({f.get('pattern', '')})")
+            parts.append(f"hotzone_gap ({f.get('pattern', '')}): {f.get('note', '')}")
+        elif t in ("bug_found", "dangling_reference"):
+            parts.append(f"{t}: {f.get('note', '')}")
         else:
             parts.append(t)
     return "\n  - review flags: " + "; ".join(parts)

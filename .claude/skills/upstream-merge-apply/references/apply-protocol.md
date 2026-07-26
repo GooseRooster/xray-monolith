@@ -29,10 +29,17 @@ this skill does. Once in plan mode, write a plan file containing:
    actually changed), followed by one small trailing "ledger sync" commit.
 5. What happens on conflict (see below) and what happens if the user wants
    to stop partway through.
-6. Any `Playtest reminders` `plan` surfaces (commits flagged `playtest` by
-   review - a real gameplay/behavior default changed) - carry these into
-   the final report in step 6 of `SKILL.md` so they aren't lost once the
-   commits are actually on `merge-upstream`.
+6. Any `Playtest reminders`, `Known bugs found during review`, or
+   `Dangling references flagged during review` sections `plan` surfaces
+   (commits flagged `playtest`/`bug_found`/`dangling_reference` by review) -
+   carry all three into the final report in step 6 of `SKILL.md` so they
+   aren't lost once the commits are actually on `merge-upstream`. For a
+   `bug_found` commit that's about to be cherry-picked anyway: fixing it
+   opportunistically in the same session is fine (small, same file already
+   in play) but not required - don't let it block or delay the batch. For a
+   `dangling_reference` commit: re-check at cherry-pick time whether a later
+   commit already cleaned up the reference (reviews can predate other
+   pending commits) before assuming it's still broken.
 
 Call `ExitPlanMode` to submit this for approval - the second safety gate.
 Only after approval does step 4 below run.

@@ -62,10 +62,13 @@ step below just notes how many pending commits haven't been through it yet.
    checks every reviewed commit's structured `ordering_after` flags (set by
    `upstream-merge-review`) against the actual batch - flagging any
    prerequisite that won't have landed yet (usually a `--limit` cutoff) as
-   a violation to resolve before the plan is approved. Use this output as
-   the basis for the plan file - see `references/apply-protocol.md` for
-   exactly what the plan-mode plan should contain and how execution
-   proceeds after approval.
+   a violation to resolve before the plan is approved. It also collects any
+   `playtest`, `bug_found`, and `dangling_reference` flags from
+   `upstream-merge-review` into their own dedicated sections (not just an
+   inline note next to the commit) so they can't be missed in a long batch.
+   Use this output as the basis for the plan file - see
+   `references/apply-protocol.md` for exactly what the plan-mode plan
+   should contain and how execution proceeds after approval.
 
 3. **Call `EnterPlanMode`** to switch into plan mode (this requires the
    user's explicit consent to even enter - that's the first confirmation
@@ -88,8 +91,11 @@ step below just notes how many pending commits haven't been through it yet.
 6. **Final report**: how many commits landed vs. were left pending, the
    resulting commit range on `merge-upstream`, any `playtest`-flagged
    commits that landed (carried from the plan's `Playtest reminders`
-   section - these need an in-game look before the branch is trusted), and
-   an explicit reminder that `all-in-one-vs2022-wpo` has not been touched.
+   section - these need an in-game look before the branch is trusted), any
+   `bug_found`/`dangling_reference`-flagged commits that landed (carried
+   from the plan's corresponding sections, noting whether they were fixed
+   opportunistically or left as follow-ups), and an explicit reminder that
+   `all-in-one-vs2022-wpo` has not been touched.
 
 ## Additional resources
 

@@ -29,44 +29,6 @@ extern int ps_r3_ssfx_il;
 
 CRender RImplementation;
 
-//////////////////////////////////////////////////////////////////////////
-class CGlow : public IRender_Glow
-{
-public:
-	bool bActive;
-public:
-	CGlow() : bActive(false)
-	{
-	}
-
-	virtual void set_active(bool b) { bActive = b; }
-	virtual bool get_active() { return bActive; }
-
-	virtual void set_position(const Fvector& P, const float eps = EPS_L)
-	{
-	}
-
-	virtual void set_direction(const Fvector& D)
-	{
-	}
-
-	virtual void set_radius(float R)
-	{
-	}
-
-	virtual void set_texture(LPCSTR name)
-	{
-	}
-
-	virtual void set_color(const Fcolor& C)
-	{
-	}
-
-	virtual void set_color(float r, float g, float b)
-	{
-	}
-};
-
 bool CRender::is_sun()
 {
 	if (o.sunstatic) return FALSE;

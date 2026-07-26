@@ -36,6 +36,11 @@ step itself.
 touches `all-in-one-vs2022-wpo` - landing the result there is a separate,
 later, manual step.
 
+**Optional prior step**: `upstream-merge-review` explains the pending
+`take` batch in real depth (grouped by subsystem, with a gotcha checklist)
+before this skill cherry-picks it. It's advisory, not required - the plan
+step below just notes how many pending commits haven't been through it yet.
+
 ## Steps
 
 1. **Query the pending set**:

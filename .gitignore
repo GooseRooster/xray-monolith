@@ -11,6 +11,7 @@
 .claude/skills/*
 !.claude/skills/README.md
 !.claude/skills/upstream-merge-triage/
+!.claude/skills/upstream-merge-review/
 !.claude/skills/upstream-merge-apply/
 !.claude/upstream-merge/
 .claude/skills/*/scripts/__pycache__/

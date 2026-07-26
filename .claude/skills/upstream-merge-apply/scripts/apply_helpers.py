@@ -67,8 +67,16 @@ def cmd_plan(args):
 
     hot = [e for e in pending if e["hot_zone"]]
     plain = [e for e in pending if not e["hot_zone"]]
+    unreviewed = [e for e in pending if not e.get("reviewed", False)]
 
     print(f"# Upstream apply plan - {len(pending)} commit(s)\n")
+    if unreviewed:
+        print(
+            f"Note: {len(unreviewed)}/{len(pending)} of these have not been "
+            "through `upstream-merge-review` yet (informational only, not a "
+            "blocker - see that skill if you want deeper explanation before "
+            "landing them).\n"
+        )
     print(
         "Cherry-pick each commit individually onto `merge-upstream`, oldest "
         "first, preserving original message and authorship (no squashing). "

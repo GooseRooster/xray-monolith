@@ -51,6 +51,14 @@ decided out of order.
 | `applied` | bool | whether it's been cherry-picked onto `merge-upstream` - written by `upstream-merge-apply`, always `false` when this skill creates the entry |
 | `applied_date` | string\|null | filled in by `upstream-merge-apply` |
 | `run_id` | string | e.g. `2026-07-25T10:00Z`, which invocation produced this entry |
+| `reviewed` | bool | optional - whether `upstream-merge-review` has explained this commit in depth. Absent/missing is equivalent to `false`; this skill never sets it |
+| `reviewed_date` | string\|null | optional - filled in by `upstream-merge-review` |
+| `review_notes` | string\|null | optional - short gotcha note from `upstream-merge-review`, if any surfaced |
+
+The `reviewed*` fields are additive and optional by design - every entry
+this skill (`upstream-merge-triage`) or `upstream-merge-apply` writes omits
+them, and both treat a missing `reviewed` as `false` rather than requiring
+a backfill. Only `upstream-merge-review` ever sets them.
 
 ## Worked examples
 

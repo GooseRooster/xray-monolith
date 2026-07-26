@@ -58,10 +58,14 @@ step below just notes how many pending commits haven't been through it yet.
    ```
    This renders the ordered commit list with hot-zone entries (commits that
    were reviewed and still accepted despite touching a file we've
-   customized - the most likely conflict points) called out separately.
-   Use this output as the basis for the plan file - see
-   `references/apply-protocol.md` for exactly what the plan-mode plan
-   should contain and how execution proceeds after approval.
+   customized - the most likely conflict points) called out separately, and
+   checks every reviewed commit's structured `ordering_after` flags (set by
+   `upstream-merge-review`) against the actual batch - flagging any
+   prerequisite that won't have landed yet (usually a `--limit` cutoff) as
+   a violation to resolve before the plan is approved. Use this output as
+   the basis for the plan file - see `references/apply-protocol.md` for
+   exactly what the plan-mode plan should contain and how execution
+   proceeds after approval.
 
 3. **Call `EnterPlanMode`** to switch into plan mode (this requires the
    user's explicit consent to even enter - that's the first confirmation
@@ -82,8 +86,10 @@ step below just notes how many pending commits haven't been through it yet.
    ledger files) described in `references/apply-protocol.md`.
 
 6. **Final report**: how many commits landed vs. were left pending, the
-   resulting commit range on `merge-upstream`, and an explicit reminder
-   that `all-in-one-vs2022-wpo` has not been touched.
+   resulting commit range on `merge-upstream`, any `playtest`-flagged
+   commits that landed (carried from the plan's `Playtest reminders`
+   section - these need an in-game look before the branch is trusted), and
+   an explicit reminder that `all-in-one-vs2022-wpo` has not been touched.
 
 ## Additional resources
 

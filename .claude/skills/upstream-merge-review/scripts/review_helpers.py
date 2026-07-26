@@ -16,10 +16,18 @@ Subcommands:
                            then by size. This grouping is for organizing
                            review sessions only - it is NOT the hot-zone
                            detector and never affects verdicts.
-  mark-reviewed FILE|-     Given records (JSON array of {"hash":..,"notes":..}
-                           or a plain hash list) that were looked at this
-                           session, set reviewed=true, reviewed_date, and
-                           review_notes (if given) on those ledger entries.
+  mark-reviewed FILE|-     Given records (JSON array of
+                           {"hash":.., "notes":.., "flags": [...]} or a plain
+                           hash list) that were looked at this session, set
+                           reviewed=true, reviewed_date, review_notes (if
+                           given), and review_flags (always set, [] if no
+                           flags given) on those ledger entries. `flags` is
+                           the machine-readable form of the gotcha checklist
+                           in references/review-protocol.md - see that file
+                           for the exact shape per type. Every flag type is
+                           validated against a fixed vocabulary; unknown
+                           types or malformed shapes are rejected so
+                           upstream-merge-apply can rely on the structure.
   revise HASH --verdict V --rationale TEXT [--decision-mode MODE]
                            Change an existing entry's verdict/rationale in
                            place (e.g. a review session surfaces a reason to
@@ -41,6 +49,37 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[4]
 LEDGER_DIR = REPO_ROOT / ".claude" / "upstream-merge" / "ledger"
 LEDGER_PATH = LEDGER_DIR / "upstream-merge-ledger.jsonl"
+
+# Fixed vocabulary for machine-readable review findings. Keep in sync with
+# references/review-protocol.md's "Structured review flags" section.
+FLAG_TYPES = {
+    "ordering_after",       # {"type": "ordering_after", "after": [hash, ...], "note": str}
+    "playtest",             # {"type": "playtest", "note": str}
+    "dangling_reference",   # {"type": "dangling_reference", "note": str}
+    "hotzone_gap",          # {"type": "hotzone_gap", "pattern": str, "note": str}
+    "bug_found",            # {"type": "bug_found", "note": str}
+}
+
+
+def validate_flag(flag, hash_lookup):
+    if not isinstance(flag, dict):
+        raise ValueError(f"flag must be an object, got {flag!r}")
+    ftype = flag.get("type")
+    if ftype not in FLAG_TYPES:
+        raise ValueError(f"flag type {ftype!r} not in {sorted(FLAG_TYPES)}")
+    if ftype == "ordering_after":
+        after = flag.get("after")
+        if not isinstance(after, list) or not after:
+            raise ValueError("ordering_after flag requires a non-empty 'after' list of hashes")
+        for h in after:
+            if not isinstance(h, str) or not all(c in "0123456789abcdef" for c in h.lower()) or len(h) < 8:
+                raise ValueError(f"ordering_after 'after' entry {h!r} doesn't look like a hex commit hash")
+            if hash_lookup is not None and h not in hash_lookup:
+                raise ValueError(f"ordering_after 'after' entry {h!r} not found in ledger")
+    if ftype == "hotzone_gap" and not flag.get("pattern"):
+        raise ValueError("hotzone_gap flag requires a 'pattern'")
+    if ftype in ("playtest", "dangling_reference", "bug_found") and not flag.get("note"):
+        raise ValueError(f"{ftype} flag requires a 'note'")
 
 THEME_RULES = [
     ("Rendering (R1-R4)", [
@@ -100,7 +139,11 @@ def pending_entries(verdicts):
         e for e in entries
         if e["verdict"] in verdicts and not e.get("reviewed", False)
     ]
-    pending.sort(key=lambda e: e["date"])
+    # Parse to aware datetimes rather than sorting the raw strings - commit
+    # authors span multiple UTC offsets, and plain string comparison of
+    # ISO8601 timestamps only sorts correctly when every entry shares the
+    # same offset.
+    pending.sort(key=lambda e: datetime.fromisoformat(e["date"]))
     return pending
 
 
@@ -161,16 +204,29 @@ def cmd_mark_reviewed(args):
     except json.JSONDecodeError:
         records = [{"hash": line.strip()} for line in raw.splitlines() if line.strip()]
 
-    notes_by_hash = {r["hash"]: r.get("notes") for r in records}
-
     entries = load_ledger()
+    hash_lookup = {e["hash"] for e in entries}
+
+    by_hash = {}
+    for r in records:
+        flags = r.get("flags") or []
+        for flag in flags:
+            try:
+                validate_flag(flag, hash_lookup)
+            except ValueError as exc:
+                print(f"invalid flag for {r['hash']}: {exc}", file=sys.stderr)
+                sys.exit(1)
+        by_hash[r["hash"]] = (r.get("notes"), flags)
+
     now = datetime.now(timezone.utc).isoformat()
     updated = 0
     for e in entries:
-        if e["hash"] in notes_by_hash:
+        if e["hash"] in by_hash:
+            notes, flags = by_hash[e["hash"]]
             e["reviewed"] = True
             e["reviewed_date"] = now
-            e["review_notes"] = notes_by_hash[e["hash"]]
+            e["review_notes"] = notes
+            e["review_flags"] = flags
             updated += 1
     save_ledger(entries)
     print(f"marked {updated} entries as reviewed")

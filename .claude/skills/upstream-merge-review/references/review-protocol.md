@@ -44,12 +44,13 @@ For every batch reviewed, explicitly check for and call out:
 
 1. **Gameplay/behavior defaults changing**, not just bugfixes - anything
    that changes balance, tuning, or visuals a player would notice, even if
-   the commit message frames it as a "fix."
+   the commit message frames it as a "fix." → emit a `playtest` flag.
 2. **Dangling references** - a symbol, config key, or script global that's
    added/renamed/removed here but still referenced elsewhere (same failure
    mode as the `xr_combat_ignore.script` deletion found during the
    2026-07-26 triage session - verified by checking whether upstream's own
-   later history ever cleaned up the reference).
+   later history ever cleaned up the reference). → emit a
+   `dangling_reference` flag.
 3. **Second-pass hot-zone check** - does this commit touch something Old
    World has clearly customized that isn't covered by the current hot-zone
    set (`CLAUDE.md` citations + `hotzones.jsonl`)? If so, propose a
@@ -58,11 +59,61 @@ For every batch reviewed, explicitly check for and call out:
    python3 .claude/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone-add "<pattern>" --reason "<why>" --related-commit <hash>
    ```
    Never append silently - list it alongside the batch findings and let the
-   confirmation step (below) approve it.
+   confirmation step (below) approve it. → also emit a `hotzone_gap` flag
+   (even though the addition itself waits for approval, the flag records
+   that this commit is what surfaced the gap).
 4. **Intra-batch ordering/dependency gotchas** - does a commit in this
    batch assume another *pending* commit (in this batch or elsewhere in the
-   `take` backlog) has already landed? Flag it so `upstream-merge-apply`'s
-   cherry-pick order doesn't hit an avoidable conflict.
+   `take` backlog) has already landed? → emit an `ordering_after` flag on
+   the *dependent* commit (never on the prerequisite), naming every
+   prerequisite hash. This is the one `upstream-merge-apply` actively
+   checks against its cherry-pick batch, so get it right: `after` lists the
+   full hashes (from the ledger's `hash` field, not `short_hash`) that must
+   land before this commit, regardless of which theme they were grouped
+   into or whether they've been reviewed yet.
+
+A fifth, non-checklist finding worth flagging when you spot one: a real bug
+in the upstream diff itself (not a divergence issue, just a bug) that isn't
+a reason to skip the commit but is worth a future fix - `bug_found`.
+
+## Structured review flags
+
+The prose write-up in the report file is for humans; `upstream-merge-apply`
+can't parse it. Every checklist hit above must *also* be encoded as a
+structured flag passed to `mark-reviewed`, so `apply`'s plan step can act on
+it deterministically instead of a human having to re-read every report
+before applying. `review_helpers.py mark-reviewed` validates flags against a
+fixed vocabulary (`FLAG_TYPES` in the script) and rejects anything
+malformed or unrecognized - if validation fails, fix the record and re-run
+rather than dropping the flag.
+
+`mark-reviewed`'s input records take an optional `flags` array alongside
+`hash`/`notes`:
+
+```json
+[
+  {
+    "hash": "<full hash>",
+    "notes": "human-readable note, same as before",
+    "flags": [
+      {"type": "ordering_after", "after": ["<full hash of prerequisite>"], "note": "why"},
+      {"type": "playtest", "note": "what a player would notice and why"},
+      {"type": "dangling_reference", "note": "what's dangling and where"},
+      {"type": "hotzone_gap", "pattern": "<proposed hotzones.jsonl pattern>", "note": "why"},
+      {"type": "bug_found", "note": "what's wrong, not a reason to skip"}
+    ]
+  }
+]
+```
+
+Omit `flags` (or pass `[]`) for commits the checklist found nothing on -
+`mark-reviewed` always sets `review_flags` (defaulting to `[]`) so every
+reviewed entry has the field, and `apply` can check `review_flags` without
+a presence check. Every `ordering_after` hash must already exist somewhere
+in the ledger (validated at write time) - if the prerequisite commit hasn't
+been triaged yet at all, that's a sign review is running ahead of triage
+for that area; note it in the report and hold the flag until the
+prerequisite exists in the ledger.
 
 ## Report file
 
@@ -88,7 +139,9 @@ Table or short list: hash, subject, one-line take.
 
 ## Gotchas / follow-ups
 - Anything flagged from the checklist above, including proposed hot-zone
-  additions and any verdict flips proposed to the user.
+  additions and any verdict flips proposed to the user. Name the structured
+  flag type next to each ("→ `ordering_after`", "→ `playtest`", etc.) so the
+  prose and the ledger's `review_flags` stay traceable to each other.
 ```
 
 Render the same content in the chat reply too - don't make the user open

@@ -12,12 +12,27 @@ this skill does. Once in plan mode, write a plan file containing:
    customized, and why they were accepted anyway per the ledger's
    `rationale` field) - these are the commits most likely to conflict, and
    the plan should say so explicitly.
-3. The intended final state: each commit cherry-picked individually
+3. **Any ordering-dependency violations** `plan` reports under its
+   `⚠️ Ordering-dependency violations` heading - these come from
+   `upstream-merge-review`'s structured `ordering_after` flags (see that
+   skill's `references/review-protocol.md`) and mean a commit in this batch
+   needs a prerequisite that won't have landed yet, almost always because
+   `--limit` cut the batch short. **Do not enter plan approval with an
+   unresolved violation** - either raise `--limit` to pull the prerequisite
+   in, or drop the dependent commit from this batch (cherry-pick it in a
+   later run once its prerequisite has landed). If a violation looks wrong
+   (the flagged dependency doesn't actually exist), say so in the plan and
+   confirm with the user rather than silently overriding it.
+4. The intended final state: each commit cherry-picked individually
    (original message + authorship preserved, no squashing - keeps
    `git blame`/bisect meaningful and keeps the review honest about what
    actually changed), followed by one small trailing "ledger sync" commit.
-4. What happens on conflict (see below) and what happens if the user wants
+5. What happens on conflict (see below) and what happens if the user wants
    to stop partway through.
+6. Any `Playtest reminders` `plan` surfaces (commits flagged `playtest` by
+   review - a real gameplay/behavior default changed) - carry these into
+   the final report in step 6 of `SKILL.md` so they aren't lost once the
+   commits are actually on `merge-upstream`.
 
 Call `ExitPlanMode` to submit this for approval - the second safety gate.
 Only after approval does step 4 below run.

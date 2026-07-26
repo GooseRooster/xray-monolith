@@ -46,7 +46,12 @@ def save_ledger(entries):
 def pending_entries():
     entries = load_ledger()
     pending = [e for e in entries if e["verdict"] == "take" and not e["applied"]]
-    pending.sort(key=lambda e: e["date"])
+    # Parse to aware datetimes rather than sorting the raw strings - commit
+    # authors span multiple UTC offsets, and plain string comparison of
+    # ISO8601 timestamps only sorts correctly when every entry shares the
+    # same offset. Correct ordering here is what the ordering_after check in
+    # cmd_plan relies on.
+    pending.sort(key=lambda e: datetime.fromisoformat(e["date"]))
     return pending
 
 
@@ -58,9 +63,14 @@ def cmd_pending(args):
 
 
 def cmd_plan(args):
-    pending = pending_entries()
-    if args.limit:
-        pending = pending[: args.limit]
+    all_entries = load_ledger()
+    by_hash = {e["hash"]: e for e in all_entries}
+
+    full_pending = pending_entries()
+    full_index = {e["hash"]: i for i, e in enumerate(full_pending)}
+
+    pending = full_pending[: args.limit] if args.limit else full_pending
+    batch_index = {e["hash"]: i for i, e in enumerate(pending)}
     if not pending:
         print("(no pending 'take' entries - nothing to apply)")
         return
@@ -69,7 +79,49 @@ def cmd_plan(args):
     plain = [e for e in pending if not e["hot_zone"]]
     unreviewed = [e for e in pending if not e.get("reviewed", False)]
 
+    # Ordering-dependency check: does every ordering_after prerequisite for a
+    # commit in this batch either already be applied, or appear earlier in
+    # this same batch? If not, cherry-picking this batch in isolation would
+    # violate a dependency review surfaced - most likely because --limit cut
+    # the batch short of the prerequisite.
+    violations = []
+    for e in pending:
+        for flag in e.get("review_flags", []):
+            if flag.get("type") != "ordering_after":
+                continue
+            for prereq_hash in flag.get("after", []):
+                prereq = by_hash.get(prereq_hash)
+                if prereq is None:
+                    violations.append((e, prereq_hash, "prerequisite hash not found in ledger at all"))
+                    continue
+                if prereq.get("applied"):
+                    continue
+                if prereq_hash in batch_index and batch_index[prereq_hash] < batch_index[e["hash"]]:
+                    continue
+                if prereq_hash in batch_index:
+                    violations.append((e, prereq_hash, "prerequisite is in this batch but ordered AFTER the dependent commit - ledger date order is broken"))
+                elif prereq.get("verdict") != "take":
+                    violations.append((e, prereq_hash, f"prerequisite verdict is '{prereq.get('verdict')}', not 'take' - will never apply"))
+                else:
+                    where = full_index.get(prereq_hash)
+                    hint = f"pending, position {where + 1} of {len(full_pending)} in full queue" if where is not None else "pending, not found in take/unapplied queue"
+                    violations.append((e, prereq_hash, f"prerequisite not applied and not in this batch ({hint}) - likely cut off by --limit"))
+
     print(f"# Upstream apply plan - {len(pending)} commit(s)\n")
+
+    if violations:
+        print(f"## ⚠️  Ordering-dependency violations ({len(violations)}) - resolve before approving\n")
+        for e, prereq_hash, reason in violations:
+            prereq = by_hash.get(prereq_hash)
+            prereq_label = f"`{prereq['short_hash']}` ({prereq['subject']})" if prereq else f"`{prereq_hash[:8]}` (unknown)"
+            print(f"- `{e['short_hash']}` ({e['subject']}) requires {prereq_label} first: {reason}")
+        print(
+            "\nFix by raising `--limit` to include the prerequisite, deferring "
+            "the dependent commit to a later batch, or (if the prerequisite "
+            "was wrongly flagged) revisiting the review flag. Do not cherry-pick "
+            "the dependent commit ahead of its prerequisite.\n"
+        )
+
     if unreviewed:
         print(
             f"Note: {len(unreviewed)}/{len(pending)} of these have not been "
@@ -94,16 +146,42 @@ def cmd_plan(args):
                 f"- `{e['short_hash']}` {e['date'][:10]} - {e['subject']}\n"
                 f"  - files: {', '.join(e['hot_zone_files'])}\n"
                 f"  - why accepted: {e['rationale']}"
+                + _flags_suffix(e)
             )
         print()
     if plain:
         print(f"## Remaining commits ({len(plain)})\n")
         for e in plain:
-            print(f"- `{e['short_hash']}` {e['date'][:10]} - {e['subject']}")
+            print(f"- `{e['short_hash']}` {e['date'][:10]} - {e['subject']}" + _flags_suffix(e))
+
+    playtest = [e for e in pending if any(f.get("type") == "playtest" for f in e.get("review_flags", []))]
+    if playtest:
+        print(f"\n## Playtest reminders ({len(playtest)}) - carry into the final report after landing\n")
+        for e in playtest:
+            for f in e.get("review_flags", []):
+                if f.get("type") == "playtest":
+                    print(f"- `{e['short_hash']}` {e['subject']}: {f.get('note', '')}")
+
     print(
         f"\n## Ordered cherry-pick list\n\n"
         + "\n".join(f"{i + 1}. `{e['hash']}` - {e['subject']}" for i, e in enumerate(pending))
     )
+
+
+def _flags_suffix(e):
+    flags = [f for f in e.get("review_flags", []) if f.get("type") != "playtest"]
+    if not flags:
+        return ""
+    parts = []
+    for f in flags:
+        t = f["type"]
+        if t == "ordering_after":
+            parts.append(f"ordering_after {', '.join(h[:8] for h in f.get('after', []))}")
+        elif t == "hotzone_gap":
+            parts.append(f"hotzone_gap ({f.get('pattern', '')})")
+        else:
+            parts.append(t)
+    return "\n  - review flags: " + "; ".join(parts)
 
 
 def cmd_mark_applied(args):

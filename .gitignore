@@ -13,8 +13,14 @@
 !.claude/skills/upstream-merge-triage/
 !.claude/skills/upstream-merge-review/
 !.claude/skills/upstream-merge-apply/
+!.claude/skills/upstream-merge-gamedata/
 !.claude/upstream-merge/
 .claude/skills/*/scripts/__pycache__/
+
+# upstream-merge-gamedata's pointer to your private gamedata repo's
+# location on disk - deliberately local-only, never committed. See
+# .claude/skills/upstream-merge-gamedata/references/gamedata-protocol.md.
+.claude/upstream-merge/gamedata-review.local.json
 
 # exclude binaries and temporary files
 _build/

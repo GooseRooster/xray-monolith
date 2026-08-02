@@ -1,3 +1,8 @@
+---
+name: upstream-merge-apply
+description: Applies accepted upstream commits to merge-upstream branch via cherry-pick with conflict resolution
+---
+
 # Upstream Merge Apply
 
 # Upstream merge apply

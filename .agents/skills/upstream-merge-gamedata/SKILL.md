@@ -1,3 +1,8 @@
+---
+name: upstream-merge-gamedata
+description: Ports upstream gamedata changes to the private Old World gamedata repository
+---
+
 # Upstream Merge Gamedata
 
 # Upstream merge gamedata

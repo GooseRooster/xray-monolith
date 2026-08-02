@@ -1,3 +1,8 @@
+---
+name: upstream-merge-review
+description: Reviews accepted upstream commits in depth by subsystem theme before applying
+---
+
 # Upstream Merge Review
 
 # Upstream merge review

@@ -1,3 +1,8 @@
+---
+name: upstream-merge-triage
+description: Proposes take/skip/review verdicts for upstream commits and logs decisions to a hash-keyed ledger
+---
+
 # Upstream Merge Triage
 
 # Upstream merge triage

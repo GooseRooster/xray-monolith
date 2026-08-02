@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-LEDGER_DIR = REPO_ROOT / ".claude" / "upstream-merge" / "ledger"
+LEDGER_DIR = REPO_ROOT / ".agents" / "upstream-merge" / "ledger"
 LEDGER_PATH = LEDGER_DIR / "upstream-merge-ledger.jsonl"
 META_PATH = LEDGER_DIR / "upstream-merge-ledger.meta.json"
 

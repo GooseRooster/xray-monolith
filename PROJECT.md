@@ -9,7 +9,7 @@ not contain the mod's gamedata, scripts, or configs.
 **Relationship to the game repo**: The actively-developed Old World gamedata
 (gameplay scripts, configs, quests, weather tuning, shaders) lives in a
 separate repo, referred to there as the "ENGINE repo" pointing back at this
-one. See that repo's `CLAUDE.md` for gamedata/scripting context. Concretely:
+one. See that repo's `PROJECT.md` for gamedata/scripting context. Concretely:
 
 - Shader development for OWA happens in **that** repo's
   `_GAME/gamedata/shaders/`, not here.
@@ -104,7 +104,7 @@ fidelity," on several independent axes, rather than forcing one look.
 
 **Source-of-truth warning**: the authoritative shader implementation is
 `_GAME/gamedata/shaders/r3/hdr10.h` in the private Old World game repo (see
-`_GAME` in that repo's `CLAUDE.md`) - shader development happens there, not
+`_GAME` in that repo's `PROJECT.md`) - shader development happens there, not
 in this engine repo. This engine repo's own bundled
 `gamedata/shaders/r3/hdr10.h` is a stale, unsynced distribution copy of an
 earlier iteration and does **not** reflect current design (it still shows a

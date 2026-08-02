@@ -4,23 +4,23 @@
 !.gitattributes
 
 # Track the upstream-merge skills + shared ledger; leave everything else
-# under .claude/ (settings.local.json, other local state, etc.) ignored.
-!.claude/
-.claude/*
-!.claude/skills/
-.claude/skills/*
-!.claude/skills/README.md
-!.claude/skills/upstream-merge-triage/
-!.claude/skills/upstream-merge-review/
-!.claude/skills/upstream-merge-apply/
-!.claude/skills/upstream-merge-gamedata/
-!.claude/upstream-merge/
-.claude/skills/*/scripts/__pycache__/
+# under .agents/ (settings.local.json, other local state, etc.) ignored.
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/README.md
+!.agents/skills/upstream-merge-triage/
+!.agents/skills/upstream-merge-review/
+!.agents/skills/upstream-merge-apply/
+!.agents/skills/upstream-merge-gamedata/
+!.agents/upstream-merge/
+.agents/skills/*/scripts/__pycache__/
 
 # upstream-merge-gamedata's pointer to your private gamedata repo's
 # location on disk - deliberately local-only, never committed. See
-# .claude/skills/upstream-merge-gamedata/references/gamedata-protocol.md.
-.claude/upstream-merge/gamedata-review.local.json
+# .agents/skills/upstream-merge-gamedata/references/gamedata-protocol.md.
+.agents/upstream-merge/gamedata-review.local.json
 
 # exclude binaries and temporary files
 _build/

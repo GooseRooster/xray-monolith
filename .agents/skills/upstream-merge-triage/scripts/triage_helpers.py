@@ -2,7 +2,7 @@
 """Mechanical helpers for the upstream-merge-triage skill.
 
 Subcommands:
-  hotzone [--refresh]         Derive/cache the hot-zone file set from CLAUDE.md
+  hotzone [--refresh]         Derive/cache the hot-zone file set from PROJECT.md
                                plus the persistent hotzones.jsonl registry.
   hotzone-add PATTERN         Append a new pattern to the hotzones registry
                                (--reason required, --glob, --related-commit).
@@ -28,13 +28,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-LEDGER_DIR = REPO_ROOT / ".claude" / "upstream-merge" / "ledger"
+LEDGER_DIR = REPO_ROOT / ".agents" / "upstream-merge" / "ledger"
 LEDGER_PATH = LEDGER_DIR / "upstream-merge-ledger.jsonl"
 META_PATH = LEDGER_DIR / "upstream-merge-ledger.meta.json"
-CACHE_DIR = REPO_ROOT / ".claude" / "upstream-merge" / ".cache"
+CACHE_DIR = REPO_ROOT / ".agents" / "upstream-merge" / ".cache"
 HOTZONE_CACHE_PATH = CACHE_DIR / "hotzone.json"
-CLAUDE_MD_PATH = REPO_ROOT / "CLAUDE.md"
-HOTZONES_REGISTRY_PATH = REPO_ROOT / ".claude" / "upstream-merge" / "hotzones.jsonl"
+PROJECT_MD_PATH = REPO_ROOT / "PROJECT.md"
+HOTZONES_REGISTRY_PATH = REPO_ROOT / ".agents" / "upstream-merge" / "hotzones.jsonl"
 
 UPSTREAM_REMOTE_BRANCH = "upstream/all-in-one-vs2022-wpo"
 LOCAL_MERGE_BRANCH = "merge-upstream"
@@ -68,10 +68,10 @@ def extract_section(text, start_heading, end_heading):
 
 def load_hotzones_registry():
     """Persistent, hand-curated hot-zone patterns - a third layer alongside
-    CLAUDE.md-derived commit hashes. Includes the original backstop globs
+    PROJECT.md-derived commit hashes. Includes the original backstop globs
     (added_via: seed) plus anything discovered and confirmed during later
     triage sessions (added_via: triage-session) or added by hand
-    (added_via: manual). Kept separate from CLAUDE.md deliberately, per
+    (added_via: manual). Kept separate from PROJECT.md deliberately, per
     owner request, so new hot zones don't require editing prose."""
     if not HOTZONES_REGISTRY_PATH.exists() or HOTZONES_REGISTRY_PATH.stat().st_size == 0:
         return []
@@ -93,9 +93,9 @@ def append_hotzone_registry_entry(entry):
 
 
 def derive_hotzone(refresh=False):
-    claude_md = CLAUDE_MD_PATH.read_text(encoding="utf-8")
-    divergence_section = extract_section(claude_md, DIVERGENCE_HEADING, HDR_HEADING)
-    hdr_section = extract_section(claude_md, HDR_HEADING, NEXT_HEADING_AFTER_HDR)
+    project_md = PROJECT_MD_PATH.read_text(encoding="utf-8")
+    divergence_section = extract_section(project_md, DIVERGENCE_HEADING, HDR_HEADING)
+    hdr_section = extract_section(project_md, HDR_HEADING, NEXT_HEADING_AFTER_HDR)
     registry = load_hotzones_registry()
     registry_text = HOTZONES_REGISTRY_PATH.read_text(encoding="utf-8") if HOTZONES_REGISTRY_PATH.exists() else ""
     source_text = divergence_section + hdr_section + registry_text

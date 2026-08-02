@@ -1,36 +1,11 @@
----
-name: upstream-merge-gamedata
-description: >-
-  Compare upstream commits already accepted (verdict: take) into this
-  repo's bundled/distribution gamedata/ against the corresponding files in
-  your private Old World gamedata tree, ask about anything that looks out
-  of scope for the mod, draft a merge plan, and - once approved - port the
-  in-scope changes into the private tree file by file. Reads the private
-  tree's location from a gitignored local pointer file so its path never
-  reaches anything this repo tracks. Use when the user says "review
-  gamedata changes", "port upstream gamedata", "what gamedata changed
-  upstream", or asks to reconcile distribution gamedata with the private
-  mod tree.
-argument-hint: "[--limit N]"
-user-invocable: true
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - Bash(git *)
-  - Bash(python3 *)
-  - Write
-  - EnterPlanMode
-  - ExitPlanMode
-  - AskUserQuestion
----
+# Upstream Merge Gamedata
 
 # Upstream merge gamedata
 
 The fourth skill in the upstream-merge system, sitting alongside
 `upstream-merge-triage`/`-review`/`-apply` but pointed at a different
 problem: `gamedata/` in *this* repo is the engine's own bundled/distribution
-copy, not the mod's actively-developed tree (see `CLAUDE.md`'s
+copy, not the mod's actively-developed tree (see `PROJECT.md`'s
 "Relationship to the game repo"). When an upstream commit changes something
 under `gamedata/`, that change usually also needs to be manually ported
 into the private Old World gamedata repo - this skill finds those commits,
@@ -38,7 +13,7 @@ compares the two sides, and drafts (then, on approval, executes) the port.
 
 **Privacy boundary - read this before doing anything else in this skill.**
 The private gamedata tree's location lives in one gitignored file,
-`.claude/upstream-merge/gamedata-review.local.json`, written only by
+`.agents/upstream-merge/gamedata-review.local.json`, written only by
 `gamedata_helpers.py set-path` and never by hand. Nothing this skill writes
 to a file *this repo tracks* - the `gamedata-ledger.jsonl`, this SKILL.md,
 anything under `references/` - may ever contain the private root path, a
@@ -53,18 +28,18 @@ see `references/gamedata-protocol.md` for the full rule set.
 ## Steps
 
 1. **Confirm setup**:
-   ```
-   python3 .claude/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py show-path
-   ```
+    ```
+    python3 .agents/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py show-path
+    ```
    If unconfigured, ask the user for the absolute path to their private
    gamedata tree (the directory whose relative structure mirrors this
    repo's `gamedata/` - e.g. `.../OldWorldRepo/_GAME/gamedata`), then run
    `set-path <path>` yourself. This is a one-time step per machine.
 
 2. **Query pending commits**:
-   ```
-   python3 .claude/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py pending [--limit N]
-   ```
+    ```
+    python3 .agents/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py pending [--limit N]
+    ```
    Returns shared-ledger `take` commits that touch `gamedata/` and haven't
    been dispositioned by this skill yet, oldest-first, each with its
    `engine_files` (this repo's own `gamedata/...` paths - safe to name,
@@ -78,11 +53,10 @@ see `references/gamedata-protocol.md` for the full rule set.
    shape) and get those answered *before* drafting the plan, so the plan
    reflects settled scope rather than open questions.
 
-4. **Draft the plan via `EnterPlanMode`** - required here because this
-   skill can write into a repo outside this one. The plan (see
-   `references/gamedata-protocol.md` for exact content) lists every file's
-   classification and, for anything going to be written, the specific
-   change. `ExitPlanMode` submits it for approval.
+4. **Draft the plan** - required here because this skill can write into a repo 
+    outside this one. The plan (see `references/gamedata-protocol.md` for exact 
+    content) lists every file's classification and, for anything going to be 
+    written, the specific change. Get approval through plan-mode flow.
 
 5. **On approval, execute** per
    `references/gamedata-protocol.md`'s execution rules: clean ports go in
@@ -92,9 +66,9 @@ see `references/gamedata-protocol.md` for the full rule set.
    committing there is the user's own deliberate step.
 
 6. **Record dispositions** for everything resolved this session:
-   ```
-   python3 .claude/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py record <file-with-records>
-   ```
+    ```
+    python3 .agents/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py record <file-with-records>
+    ```
 
 7. **Final report**: counts by disposition, anything left `needs_followup`,
    and an explicit reminder that the private repo's git state (staging,

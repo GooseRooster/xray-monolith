@@ -6,7 +6,7 @@
 World's engine wants (`verdict: take`). Re-deriving that from scratch here
 would duplicate its judgment and risk disagreeing with it. Instead this
 skill filters the same shared ledger
-(`.claude/upstream-merge/ledger/upstream-merge-ledger.jsonl`) down to
+(`.agents/upstream-merge/ledger/upstream-merge-ledger.jsonl`) down to
 `take` commits that touch `gamedata/`, and works directly from each
 commit's diff (`git show <hash> -- gamedata/`) rather than waiting for
 `upstream-merge-apply` to have cherry-picked it onto `merge-upstream` -
@@ -16,7 +16,7 @@ gating on this repo's own commit history.
 ## Privacy rules (read this section fully before running anything)
 
 1. **Only `gamedata_helpers.py set-path` may write the private root path**,
-   and only into `.claude/upstream-merge/gamedata-review.local.json`,
+    and only into `.agents/upstream-merge/gamedata-review.local.json`,
    which is gitignored. Never write that path into any other file, never
    echo it into a commit message, never put it in `gamedata-ledger.jsonl`.
 2. **`gamedata-ledger.jsonl` may only ever name this repo's own

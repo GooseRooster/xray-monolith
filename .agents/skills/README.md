@@ -1,10 +1,10 @@
-# Upstream merge skills
+# Upstream Merge Skills
 
-Four Claude Code skills for pulling fixes/features from
+Four agent-agnostic skills for pulling fixes/features from
 `themrdemonized/xray-monolith` (the `upstream` remote) into this fork
 without re-litigating, every session, which of the hundreds of upstream
 commits conflict with Old World's deliberate engine divergence (documented
-in `CLAUDE.md`) - plus a fourth for the adjacent problem of upstream
+in [PROJECT.md](../PROJECT.md)) - plus a fourth for the adjacent problem of upstream
 changes to bundled/distribution `gamedata/` that need a manual port into
 the private, actively-developed Old World gamedata tree.
 
@@ -21,8 +21,8 @@ the private, actively-developed Old World gamedata tree.
 - **`upstream-merge-apply`** - execution. Takes the ledger's accepted
   (`take`) commits, drafts a plan - checking review's ordering-dependency
   flags against the actual batch along the way - gets it approved through
-  Claude Code's real plan-mode flow, then cherry-picks them onto
-  `merge-upstream`. Never touches `all-in-one-vs2022-wpo`.
+  plan-mode flow, then cherry-picks them onto `merge-upstream`. Never touches
+  `all-in-one-vs2022-wpo`.
 - **`upstream-merge-gamedata`** - compares `take` commits that touch this
   repo's bundled/distribution `gamedata/` against your private gamedata
   tree, asks about anything that looks out of scope for the mod, drafts a
@@ -32,27 +32,22 @@ the private, actively-developed Old World gamedata tree.
   `references/gamedata-protocol.md` for the full privacy rule set before
   using it.
 
-The first three share state under `.claude/upstream-merge/` (see below), so
+The first three share state under `.agents/upstream-merge/` (see below), so
 any teammate running any of them sees the same history of decisions.
 `upstream-merge-gamedata` reads that same shared ledger but keeps its own
 findings in a separate, still-shared file (`gamedata-ledger.jsonl`) that's
 deliberately scrubbed of anything private - only its one-line pointer file
 is local-only.
 
-## Invoking them
+## Integration
 
-From a Claude Code session in this repo:
+To use these skills with your agent harness:
 
-```
-/upstream-merge-triage
-/upstream-merge-triage --since <ref>
-/upstream-merge-review
-/upstream-merge-review --theme "AI / Combat"
-/upstream-merge-apply
-/upstream-merge-apply --limit 10
-/upstream-merge-gamedata
-/upstream-merge-gamedata --limit 10
-```
+1. Point your skill discovery to `.agents/skills/`
+2. Each skill's `SKILL.md` contains the execution logic
+3. Shared state is maintained in `.agents/upstream-merge/`
+
+## Usage Patterns
 
 Triage will fetch `upstream`, classify anything new, auto-log the obvious
 low-risk ones, and walk you through the rest in batches (usually 1-2
@@ -74,14 +69,14 @@ land a batch. Run gamedata whenever you want to catch up the private tree
 on distribution gamedata changes - independent of whether apply has landed
 those commits on `merge-upstream` yet.
 
-## Shared state (`.claude/upstream-merge/`)
+## Shared State (`.agents/upstream-merge/`)
 
 | Path | What it is |
 |---|---|
 | `ledger/upstream-merge-ledger.jsonl` | One JSON line per triaged upstream commit: verdict, rationale, hot-zone info, whether it's been applied yet, and (optional) whether/when `upstream-merge-review` looked at it. Append-only from triage; `applied`/`applied_date` flipped in place by apply; `reviewed`/`reviewed_date`/`review_notes`/`review_flags` flipped in place by review. |
 | `ledger/upstream-merge-ledger.meta.json` | Small state record: how far triage has fully processed (`last_synced_upstream_hash`), entry count, etc. |
-| `hotzones.jsonl` | Persistent, hand-curated list of files/globs we've deliberately customized, beyond what's derivable from commit hashes cited in `CLAUDE.md`. Grows over time as triage (and review) sessions discover more. |
-| `.cache/hotzone.json` | Recomputed automatically whenever `CLAUDE.md` or `hotzones.jsonl` changes - not something you need to touch or clear by hand. |
+| `hotzones.jsonl` | Persistent, hand-curated list of files/globs we've deliberately customized, beyond what's derivable from commit hashes cited in [PROJECT.md](../PROJECT.md). Grows over time as triage (and review) sessions discover more. |
+| `.cache/hotzone.json` | Recomputed automatically whenever [PROJECT.md](../PROJECT.md) or `hotzones.jsonl` changes - not something you need to touch or clear by hand. |
 | `reviews/<theme-slug>-<date>.md` | Written by `upstream-merge-review`: one dated report per subsystem theme per session, explaining what that batch of commits changes and any gotchas found. |
 | `gamedata-ledger.jsonl` | Written by `upstream-merge-gamedata`: one JSON line per dispositioned gamedata-touching commit (`ported`/`adapted`/`not_applicable`/`skipped`/`needs_followup`), naming only this repo's own `gamedata/...` paths - never anything private. |
 | `gamedata-review.local.json` | **Not shared** - gitignored, machine-local. Written only by `gamedata_helpers.py set-path`. Holds the absolute path to your private gamedata tree; nothing else in this repo may ever contain it. |
@@ -91,19 +86,19 @@ Full field-level schemas: `upstream-merge-triage/references/ledger-schema.md`,
 `upstream-merge-review/references/review-protocol.md` (structured review
 flags), and `upstream-merge-gamedata/references/gamedata-protocol.md`.
 
-## Running the scripts yourself
+## Running the Scripts Yourself
 
 All four skills are backed by small stdlib-only Python scripts that do
 nothing git-mutating except `append`/`hotzone-add`/`revise`/`mark-reviewed`/
 `record` (ledger/registry writes) and apply's actual `git cherry-pick`
 (which the skill runs directly, not the script). You can run them straight
 from a terminal any time you want to poke at state without going through
-Claude at all.
+your agent harness at all.
 
 **See what's pending, without deciding anything:**
 
 ```
-python3 .claude/skills/upstream-merge-triage/scripts/triage_helpers.py pending
+python3 .agents/skills/upstream-merge-triage/scripts/triage_helpers.py pending
 ```
 
 Prints JSON: `auto_take` (already-decided, low-risk commits) and
@@ -114,33 +109,33 @@ instead of the last-synced marker.
 **Check the current hot-zone set:**
 
 ```
-python3 .claude/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone
+python3 .agents/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone
 ```
 
 Prints the full derived file list plus the registry patterns folded in.
 Add `--refresh` to force recomputation (normally automatic on any
-`CLAUDE.md`/`hotzones.jsonl` change).
+[PROJECT.md](../PROJECT.md)/`hotzones.jsonl` change).
 
 **Add something to the hot-zone registry by hand** (e.g. you noticed a file
 matters without going through a triage session):
 
 ```
-python3 .claude/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone-add \
+python3 .agents/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone-add \
   "src/xrGame/SomeFile.cpp" --reason "why this matters" --added-via manual
 ```
 
 **Read the ledger as a table** instead of raw JSONL:
 
 ```
-python3 .claude/skills/upstream-merge-triage/scripts/triage_helpers.py render
-python3 .claude/skills/upstream-merge-triage/scripts/triage_helpers.py render --verdict skip
+python3 .agents/skills/upstream-merge-triage/scripts/triage_helpers.py render
+python3 .agents/skills/upstream-merge-triage/scripts/triage_helpers.py render --verdict skip
 ```
 
 **See what's queued to be cherry-picked, or preview the apply plan:**
 
 ```
-python3 .claude/skills/upstream-merge-apply/scripts/apply_helpers.py pending
-python3 .claude/skills/upstream-merge-apply/scripts/apply_helpers.py plan --limit 10
+python3 .agents/skills/upstream-merge-apply/scripts/apply_helpers.py pending
+python3 .agents/skills/upstream-merge-apply/scripts/apply_helpers.py plan --limit 10
 ```
 
 `plan` also cross-checks every reviewed commit's `ordering_after` flags
@@ -149,8 +144,8 @@ against the actual batch and prints any violation up front.
 **See the accepted backlog grouped by subsystem, without writing anything:**
 
 ```
-python3 .claude/skills/upstream-merge-review/scripts/review_helpers.py pending
-python3 .claude/skills/upstream-merge-review/scripts/review_helpers.py group
+python3 .agents/skills/upstream-merge-review/scripts/review_helpers.py pending
+python3 .agents/skills/upstream-merge-review/scripts/review_helpers.py group
 ```
 
 `group` prints themes ordered riskiest-first (by hot-zone-entry count, then
@@ -162,9 +157,9 @@ script can produce.
 disposition ledger:**
 
 ```
-python3 .claude/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py set-path /abs/path/to/private/gamedata
-python3 .claude/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py pending
-python3 .claude/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py render
+python3 .agents/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py set-path /abs/path/to/private/gamedata
+python3 .agents/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py pending
+python3 .agents/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py render
 ```
 
 `set-path` is one-time per machine. `record` (used by the skill, not
@@ -179,7 +174,7 @@ plan. `upstream-merge-gamedata` can write file content into your private
 gamedata tree after its own plan approval, but never runs git inside that
 tree either - staging/committing there stays a manual step.
 
-## If you're new to this
+## Getting Started
 
 Read `upstream-merge-triage/SKILL.md`, `upstream-merge-review/SKILL.md`,
 `upstream-merge-apply/SKILL.md`, and `upstream-merge-gamedata/SKILL.md`

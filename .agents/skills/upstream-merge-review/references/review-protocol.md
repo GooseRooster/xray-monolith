@@ -23,7 +23,7 @@ Reading full diffs for 300 commits every session doesn't scale and isn't
 where the value is. Within a theme's batch:
 
 - **Hot-zone entries** (`hot_zone: true`) and anything else that looks
-  adjacent to a `CLAUDE.md` divergence paragraph even without the flag →
+  adjacent to a `PROJECT.md` divergence paragraph even without the flag →
   full `git show <hash>` read, real explanation, run the gotcha checklist
   below explicitly.
 - **Everything else in the theme** → skim via `git show --stat <hash>` plus
@@ -53,11 +53,11 @@ For every batch reviewed, explicitly check for and call out:
    `dangling_reference` flag.
 3. **Second-pass hot-zone check** - does this commit touch something Old
    World has clearly customized that isn't covered by the current hot-zone
-   set (`CLAUDE.md` citations + `hotzones.jsonl`)? If so, propose a
-   registry addition the same way triage does:
-   ```
-   python3 .claude/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone-add "<pattern>" --reason "<why>" --related-commit <hash>
-   ```
+  set (`PROJECT.md` citations + `hotzones.jsonl`)? If so, propose a
+    registry addition the same way triage does:
+    ```
+    python3 .agents/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone-add "<pattern>" --reason "<why>" --related-commit <hash>
+    ```
    Never append silently - list it alongside the batch findings and let the
    confirmation step (below) approve it. → also emit a `hotzone_gap` flag
    (even though the addition itself waits for approval, the flag records
@@ -117,7 +117,7 @@ prerequisite exists in the ledger.
 
 ## Report file
 
-Write findings to `.claude/upstream-merge/reviews/<theme-slug>-<YYYY-MM-DD>.md`
+Write findings to `.agents/upstream-merge/reviews/<theme-slug>-<YYYY-MM-DD>.md`
 (one file per theme per session; re-running review on the same theme later
 appends a new dated file rather than overwriting, so old sessions stay
 readable) with this shape:

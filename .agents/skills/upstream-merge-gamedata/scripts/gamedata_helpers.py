@@ -27,7 +27,7 @@ Subcommands:
   render [--disposition D] Print a Markdown summary table of the gamedata
                            ledger.
 
-This script never writes anything outside .claude/upstream-merge/ (the
+This script never writes anything outside .agents/upstream-merge/ (the
 shared, tracked ledger area) except the gitignored pointer file itself. It
 never reads or writes inside the private gamedata tree - that happens in
 the skill directly (Read/Write tools), never through this script, so the
@@ -42,7 +42,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-UPSTREAM_MERGE_DIR = REPO_ROOT / ".claude" / "upstream-merge"
+UPSTREAM_MERGE_DIR = REPO_ROOT / ".agents" / "upstream-merge"
 SHARED_LEDGER_PATH = UPSTREAM_MERGE_DIR / "ledger" / "upstream-merge-ledger.jsonl"
 GAMEDATA_LEDGER_PATH = UPSTREAM_MERGE_DIR / "gamedata-ledger.jsonl"
 POINTER_PATH = UPSTREAM_MERGE_DIR / "gamedata-review.local.json"

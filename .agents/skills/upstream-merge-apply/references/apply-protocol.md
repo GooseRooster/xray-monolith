@@ -62,7 +62,7 @@ for each accepted commit, oldest first.
 - **On success**: move to the next commit.
 - **On the first conflict**: stop immediately. Do not attempt automatic
   `ours`/`theirs` resolution or any other automatic heuristic. Read the
-  conflicting hunks, consult the relevant `CLAUDE.md` divergence section
+  conflicting hunks, consult the relevant `PROJECT.md` divergence section
   for design intent (this is exactly the hot-zone case flagged in the
   plan), propose a specific resolution, and get explicit confirmation
   before running `git cherry-pick --continue`. This reuses the same
@@ -95,7 +95,7 @@ After `mark-applied` updates the ledger's `applied`/`applied_date` fields
 for the batch that landed, commit just the ledger files:
 
 ```
-git add .claude/upstream-merge/ledger/
+git add .agents/upstream-merge/ledger/
 git commit -m "upstream-merge: mark N commits applied through <date>"
 ```
 
@@ -111,4 +111,4 @@ The end state of a run is a reviewable commit series sitting on
 `merge-upstream` - built, buildable, and ready for the owner to inspect,
 test, or open a PR from. This skill does **not** merge into
 `all-in-one-vs2022-wpo`; that remains a deliberate, separate, manual step,
-consistent with `CLAUDE.md`'s existing merge-workflow guidance.
+consistent with `PROJECT.md`'s existing merge-workflow guidance.

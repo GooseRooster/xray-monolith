@@ -1,6 +1,6 @@
 # Ledger schema
 
-Location: `.claude/upstream-merge/ledger/upstream-merge-ledger.jsonl` (data,
+Location: `.agents/upstream-merge/ledger/upstream-merge-ledger.jsonl` (data,
 append-only) + `upstream-merge-ledger.meta.json` (single mutable record).
 Both are managed exclusively through `scripts/triage_helpers.py` - don't
 hand-edit the JSONL file directly; append through the script so the
@@ -22,7 +22,7 @@ rather than maintaining a second stored copy that could go stale.
 {
   "schema_version": 1,
   "last_synced_upstream_hash": "920da8f82876ae37615c168fd83d0d73e4915422",
-  "hotzone_source_hash": "sha256-of-claude-md-divergence-section",
+  "hotzone_source_hash": "sha256-of-project-md-divergence-section",
   "entry_count": 44,
   "updated_at": "2026-07-25T15:57:28+00:00"
 }
@@ -40,11 +40,11 @@ decided out of order.
 | Field | Type | Notes |
 |---|---|---|
 | `hash` | string | full 40-char SHA, primary key |
-| `short_hash` | string | 8-char, matches `CLAUDE.md`'s own citation style |
+| `short_hash` | string | 8-char, matches `PROJECT.md`'s own citation style |
 | `date` | string (ISO 8601) | author date |
 | `subject` | string | commit subject, truncated ~120 chars |
 | `verdict` | enum | `take` \| `skip` \| `review` |
-| `rationale` | string | 1-2 sentences; cites the `CLAUDE.md` section/feature on conflict |
+| `rationale` | string | 1-2 sentences; cites the `PROJECT.md` section/feature on conflict |
 | `hot_zone` | bool | true if touched files intersected the hot-zone set/globs |
 | `hot_zone_files` | array\<string\> | overlapping paths; `[]` if not hot-zone |
 | `decision_mode` | enum | `auto` (bulk, unasked) \| `confirmed` (batch-approved) \| `manual` (hand-edited) |
@@ -81,12 +81,12 @@ weather divergence work, but the diff itself is a 4-line unrelated tweak):
 real backlog commit as of this writing):
 
 ```jsonl
-{"hash":"deadbeef00000000000000000000000000000000","short_hash":"deadbeef","date":"2026-01-01T00:00:00+00:00","subject":"[ILLUSTRATIVE - not a real commit] re-add HDR10_TONEMAPPER operator selector","verdict":"skip","rationale":"Directly contradicts the deliberate single-Hermite-spline design (the prior tonemap-selector system was intentionally deleted, not merged into a default); see CLAUDE.md's 'Tonemapping is one custom curve, not a menu.'","hot_zone":true,"hot_zone_files":["src/Layers/xrRenderPC_R4/r4_rendertarget_phase_combine.cpp"],"decision_mode":"confirmed","applied":false,"applied_date":null,"run_id":"2026-07-25T10:00Z"}
+{"hash":"deadbeef00000000000000000000000000000000","short_hash":"deadbeef","date":"2026-01-01T00:00:00+00:00","subject":"[ILLUSTRATIVE - not a real commit] re-add HDR10_TONEMAPPER operator selector","verdict":"skip","rationale":"Directly contradicts the deliberate single-Hermite-spline design (the prior tonemap-selector system was intentionally deleted, not merged into a default); see PROJECT.md's 'Tonemapping is one custom curve, not a menu.'","hot_zone":true,"hot_zone_files":["src/Layers/xrRenderPC_R4/r4_rendertarget_phase_combine.cpp"],"decision_mode":"confirmed","applied":false,"applied_date":null,"run_id":"2026-07-25T10:00Z"}
 ```
 
 ## Script commands
 
-- `hotzone [--refresh]` - derive/print the hot-zone file set (CLAUDE.md
+- `hotzone [--refresh]` - derive/print the hot-zone file set (PROJECT.md
   cited hashes + the `hotzones.jsonl` registry - see
   `hotzones-schema.md`); `--refresh` forces recomputation even if the cache
   looks valid.

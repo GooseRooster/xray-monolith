@@ -1,23 +1,23 @@
 # Hot-zone registry schema
 
-Location: `.claude/upstream-merge/hotzones.jsonl` - a persistent,
-hand-curated companion to the `CLAUDE.md`-derived hot-zone set. Same JSONL
+Location: `.agents/upstream-merge/hotzones.jsonl` - a persistent,
+hand-curated companion to the `PROJECT.md`-derived hot-zone set. Same JSONL
 append-only rationale as the ledger (see `ledger-schema.md`): trivial
 concurrent-append conflicts instead of a scrambled table, independent
 per-line parsing, no drift from hand-editing a formatted table.
 
-## Why this exists as a separate file, not more prose in `CLAUDE.md`
+## Why this exists as a separate file, not more prose in `PROJECT.md`
 
-`CLAUDE.md`'s divergence section is *derived from* - it's the human-facing
+`PROJECT.md`'s divergence section is *derived from* - it's the human-facing
 narrative of Old World's engineering decisions, and the triage skill mines
 it for cited commit hashes. But triage sessions routinely surface files
 that matter and aren't covered by any cited hash (e.g. a file touched
 alongside a documented feature, but not by one of the specific commits
-named in the prose). Requiring a `CLAUDE.md` edit every time one of these
-turns up would mean either skipping the discovery or degrading `CLAUDE.md`
+named in the prose). Requiring a `PROJECT.md` edit every time one of these
+turns up would mean either skipping the discovery or degrading `PROJECT.md`
 into a hot-zone list instead of a design narrative. This file is the
 pressure release: a append-only, structured place for exactly those
-discoveries, unioned with the `CLAUDE.md`-derived set at hotzone-compute
+discoveries, unioned with the `PROJECT.md`-derived set at hotzone-compute
 time (see `derive_hotzone()` in `triage_helpers.py`).
 
 ## Entry fields
@@ -36,7 +36,7 @@ time (see `derive_hotzone()` in `triage_helpers.py`).
 **Seed entry** (migrated from the original hardcoded backstop list):
 
 ```jsonl
-{"pattern": "src/xrSound/*", "is_glob": true, "reason": "Backstop hot-zone from original design - explicitly named hot files/globs in CLAUDE.md's merge-workflow and HDR sections, not resolvable via commit-hash citation.", "added_at": "2026-07-25T00:00:00+00:00", "added_via": "seed", "related_commit": null}
+{"pattern": "src/xrSound/*", "is_glob": true, "reason": "Backstop hot-zone from original design - explicitly named hot files/globs in PROJECT.md's merge-workflow and HDR sections, not resolvable via commit-hash citation.", "added_at": "2026-07-25T00:00:00+00:00", "added_via": "seed", "related_commit": null}
 ```
 
 **Discovered during a triage session** (illustrative shape - not a real
@@ -52,7 +52,7 @@ Never hand-edit the file. Always go through the script so dedup-by-pattern
 is enforced:
 
 ```
-python3 .claude/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone-add "<pattern>" \
+python3 .agents/skills/upstream-merge-triage/scripts/triage_helpers.py hotzone-add "<pattern>" \
   --reason "<why this matters>" \
   --related-commit <hash-that-surfaced-it> \
   [--glob] [--added-via triage-session|manual|seed]
@@ -63,7 +63,7 @@ safe to call speculatively.
 
 ## Interaction with the cache
 
-`derive_hotzone()`'s cache key is a hash of `CLAUDE.md`'s relevant sections
+`derive_hotzone()`'s cache key is a hash of `PROJECT.md`'s relevant sections
 *plus* the full text of this file, so any addition here invalidates the
 cache on the very next `hotzone` call - no separate cache-busting step
 needed.

@@ -37,7 +37,7 @@ For more information, see the original: https://github.com/themrdemonized/xray-m
   probe-based GI (`r4_lighting_style`, `r3_gi`) - so content can lean as
   retro or as high-fidelity as it wants rather than the engine picking one
   look. Also unified bloom into a single multi-scale pass across SDR/HDR,
-  replacing several separate legacy paths. See `CLAUDE.md` for the full
+  replacing several separate legacy paths. See `PROJECT.md` for the full
   breakdown (and its note on which shader source is actually authoritative).
 - **Build/branding/tooling** - Old World exe naming/branding, MSBuild trimmed to
   DX11-first, a Discord CI notification hook, and Linux-side clangd/`compile_commands.json`

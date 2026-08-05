@@ -48,6 +48,11 @@ LOW_RISK_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+AUTO_SKIP_PATTERN = re.compile(
+    r"\b(readme|changelog)\b",
+    re.IGNORECASE,
+)
+
 HASH_RE = re.compile(r"`([0-9a-f]{7,40})`")
 
 
@@ -233,6 +238,7 @@ def cmd_pending(args):
 
     commits = candidate_commit_list(since_ref=args.since)
     auto_take = []
+    auto_skip = []
     needs_review = []
     for c in commits:
         if c["hash"] in decided_hashes:
@@ -243,6 +249,7 @@ def cmd_pending(args):
         files = [f for f in files_raw.splitlines() if f]
         hz_files = is_hot_zone(files, hotzone)
         low_risk = bool(LOW_RISK_PATTERN.search(c["subject"]))
+        auto_skip_subject = bool(AUTO_SKIP_PATTERN.search(c["subject"]))
         record = {
             "hash": c["hash"],
             "short_hash": c["hash"][:8],
@@ -265,6 +272,20 @@ def cmd_pending(args):
                 }
             )
             auto_take.append(record)
+        elif not hz_files and auto_skip_subject:
+            record.update(
+                {
+                    "verdict": "skip",
+                    "rationale": (
+                        f"Subject matches AUTO_SKIP_PATTERN (readme/changelog); "
+                        f"auto-skipped per owner preference. "
+                        f"Touches: {', '.join(files[:5])}"
+                        + (f" (+{len(files) - 5} more)" if len(files) > 5 else "")
+                    ),
+                    "decision_mode": "auto",
+                }
+            )
+            auto_skip.append(record)
         else:
             needs_review.append(record)
 
@@ -273,6 +294,7 @@ def cmd_pending(args):
             {
                 "total_new": len(commits) - sum(1 for c in commits if c["hash"] in decided_hashes),
                 "auto_take": auto_take,
+                "auto_skip": auto_skip,
                 "needs_review": needs_review,
             },
             indent=2,

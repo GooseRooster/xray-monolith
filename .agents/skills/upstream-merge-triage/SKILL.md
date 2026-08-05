@@ -62,6 +62,14 @@ happened to cite when this skill was built.
     python3 .agents/skills/upstream-merge-triage/scripts/triage_helpers.py append <file-with-auto_take-array>
     ```
 
+4b. **Append the `auto_skip` batch the same way** (also no confirmation -
+    these match `AUTO_SKIP_PATTERN` in `triage_helpers.py` and are owner-
+    pre-approved `skip` verdicts, e.g. pure-readme / pure-changelog commits).
+    Currently matched by `\b(readme|changelog)\b` on the commit subject;
+    extend the regex there if the owner wants to add new categories.
+    Same `append` command as step 4, just against the `auto_skip` array
+    from the `pending` output.
+
 5. **Classify the `needs_review` batch**: for each commit, read the actual
    diff (`git show <hash>`) - file-overlap alone is too coarse, see the
    `review`-verdict worked example in `references/ledger-schema.md` - and

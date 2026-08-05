@@ -79,6 +79,30 @@ see `references/gamedata-protocol.md` for the full rule set.
    and an explicit reminder that the private repo's git state (staging,
    committing) hasn't been touched - only its working-tree files.
 
+## Alternative Approach: File-Based Processing
+
+For large merge sessions with many commits touching the same files, consider a **file-based approach** instead of commit-by-commit:
+
+1. **Identify unique files**: Get all unique files touched by pending commits (excluding out-of-scope like Russian localization)
+2. **Get final upstream state**: For each file, get the content from the latest upstream commit that modifies it
+3. **Compare with private tree**: Determine classification (clean port / needs adaptation / already ported / not applicable)
+4. **Batch process by file**: Adapt each file as a whole rather than piecemeal across multiple commits
+
+**Benefits**:
+- Faster processing (avoid redundant work on same file across multiple commits)
+- Better conflict resolution (see complete picture of all changes to a file)
+- Easier to preserve Old World customizations
+- More accurate progress tracking
+
+**Implementation**:
+```bash
+# Get all unique files from pending commits
+python3 .agents/skills/upstream-merge-gamedata/scripts/gamedata_helpers.py pending | jq -r '.[] | .engine_files[]' | sort | uniq
+
+# For each file, get latest upstream version
+git show $(git log --oneline --follow -- <file> | head -1 | cut -d' ' -f1):<file>
+```
+
 ## Additional resources
 
 - `references/gamedata-protocol.md` - file classification rules, the

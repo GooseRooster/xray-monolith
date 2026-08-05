@@ -15,3 +15,8 @@
 # upstream's; always keep ours on merge/cherry-pick instead of conflicting.
 # Requires each clone to run: git config merge.ours.driver true
 README.md merge=ours
+
+# .github/workflows/msbuild.yml is Old World-specific (DX11-only build +
+# release pipeline + discord webhook); upstream's version packs gamedata and
+# is not what we want. Always keep ours on merge/cherry-pick.
+.github/workflows/msbuild.yml merge=ours

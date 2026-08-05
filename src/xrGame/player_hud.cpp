@@ -686,7 +686,7 @@ u32 attachable_hud_item::anim_play(const shared_str& anm_name_b, BOOL bMixIn, co
 			if (FS.exist(ce_path, "$game_anims$", anm_name))
 			{
 				int rand = ::Random.randI(5000, 10000);
-				CAnimatorCamEffector* e = xr_new<CAnimatorCamEffector>();
+				CAnimatorCamEffector* e = xr_new<CHudMotionCamEffector>();
 				e->SetType(ECamEffectorType(rand));
 				e->SetHudAffect(false);
 				e->SetCyclic(false);
@@ -1493,6 +1493,7 @@ void play_blend(player_hud* hud, u8 pid, const MotionID& M, BOOL bMixIn, float s
 	}
 }
 
+extern BOOL print_bone_warnings;
 void player_hud::StopScriptAnim()
 {
 	u8 part = script_anim_part;
@@ -1502,7 +1503,16 @@ void player_hud::StopScriptAnim()
 
 	updateMovementLayerState();
 
-	if (part != 2 && !m_attached_items[part])
+    if (part > 2)
+    {
+        if (print_bone_warnings)
+        {
+            Msg("![player_hud::StopScriptAnim()] invalid script_anim_part %d, must be < 3", part);
+            ai().script_engine().print_stack();
+        }
+    }
+        
+	if (part < 2 && !m_attached_items[part])
 		re_sync_anim(part + 1);
 	else
 		OnMovementChanged((ACTOR_DEFS::EMoveCommand) 0);

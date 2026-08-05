@@ -844,7 +844,7 @@ void CEnvironment::load_weathers()
 		sections_type::const_iterator e = sections.end();
 		for (; i != e; ++i)
 		{
-			CEnvDescriptor* object = create_descriptor((*i)->Name, config);
+			CEnvDescriptor* object = create_descriptor((*i).Name, config);
 			env.push_back(object);
 		}
 
@@ -902,7 +902,7 @@ void CEnvironment::load_weather_effects()
 		sections_type::const_iterator e = sections.end();
 		for (; i != e; ++i)
 		{
-			CEnvDescriptor* object = create_descriptor((*i)->Name, config);
+			CEnvDescriptor* object = create_descriptor((*i).Name, config);
 			env.push_back(object);
 		}
 

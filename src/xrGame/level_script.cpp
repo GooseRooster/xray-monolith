@@ -41,6 +41,9 @@
 #include "HUDManager.h"
 #include "ui\UIMainIngameWnd.h"
 #include "ui\UIHudStatesWnd.h"
+#include "ui\UIPdaWnd.h"
+#include "ui\UITaskWnd.h"
+#include "ui\UIMapWnd.h"
 #include "raypick.h"
 #include "../xrCDB/xr_collide_defs.h"
 #include "../xrEngine/Rain.h"
@@ -161,12 +164,40 @@ LPCSTR get_weather()
 	return (*g_pGamePersistent->Environment().GetWeather());
 }
 
+// demonized: get current weather interpolation
+float get_weather_weight()
+{
+    return g_pGamePersistent->Environment().CurrentEnv->weight;
+}
+
+void set_weather_weight(float weight)
+{
+    g_pGamePersistent->Environment().set_lerp(weight);
+}
+
 void set_weather(LPCSTR weather_name, bool forced)
 {
 #ifdef INGAME_EDITOR
 	if (!Device.editor())
 #endif // #ifdef INGAME_EDITOR
 	g_pGamePersistent->Environment().SetWeather(weather_name, forced);
+}
+
+// demonized: Sets weather and force updates next environment so the interpolation will happen between current environment and next weather's environment
+void set_weather_smooth(LPCSTR weather_name)
+{
+#ifdef INGAME_EDITOR
+    if (!Device.editor())
+#endif // #ifdef INGAME_EDITOR
+    g_pGamePersistent->Environment().SetWeather(weather_name, false);
+    if (g_pGamePersistent->Environment().Current[1] && g_pGamePersistent->Environment().CurrentWeather)
+    {
+        g_pGamePersistent->Environment().SelectEnv(
+            g_pGamePersistent->Environment().CurrentWeather,
+            g_pGamePersistent->Environment().Current[1],
+            g_pGamePersistent->Environment().GetGameTime());
+    }
+    
 }
 
 bool set_weather_fx(LPCSTR weather_name)
@@ -476,6 +507,30 @@ CUIStatic* map_get_minimap_spot_static(u16 id, LPCSTR spot_type)
 u16 map_has_object_spot(u16 id, LPCSTR spot_type)
 {
 	return Level().MapManager().HasMapLocation(spot_type, id);
+}
+
+void map_pan_to(LPCSTR level_name, float x, float z, bool zoom_in)
+{
+	CUIGameCustom* gameUI = CurrentGameUI();
+	if (!gameUI) return;
+	CUITaskWnd* taskWnd = gameUI->GetPdaMenu().pUITaskWnd;
+	if (!taskWnd) return;
+	CUIMapWnd* mapWnd = taskWnd->GetMapWnd();
+	if (!mapWnd) return;
+	mapWnd->SetTargetMap(shared_str(level_name),
+		Fvector2().set(x, z),
+		zoom_in);
+}
+
+void map_pan_to_level(LPCSTR level_name, bool zoom_in)
+{
+	CUIGameCustom* gameUI = CurrentGameUI();
+	if (!gameUI) return;
+	CUITaskWnd* taskWnd = gameUI->GetPdaMenu().pUITaskWnd;
+	if (!taskWnd) return;
+	CUIMapWnd* mapWnd = taskWnd->GetMapWnd();
+	if (!mapWnd) return;
+	mapWnd->SetTargetMap(shared_str(level_name), zoom_in);
 }
 
 bool patrol_path_exists(LPCSTR patrol_path)
@@ -847,7 +902,7 @@ void set_cam_position_direction(Fvector& position, Fvector& direction, unsigned 
 	actor->initFPCam();
 	actor->m_FPCam->m_HPB.set(direction);
 	actor->m_FPCam->m_Position.set(position);
-	actor->m_FPCam->m_customSmoothing = smoothing;
+	actor->m_FPCam->m_customSmoothing = _max(1, smoothing);
 	actor->m_FPCam->hudEnabled = hudEnabled;
 	actor->m_FPCam->SetHudAffect(hudAffect);
 }
@@ -908,6 +963,12 @@ bool check_cam_effector(int id)
 	return false;
 }
 
+void remove_hud_motion_cam_effectors()
+{
+	CActor* actor = Actor();
+	if (actor)
+		actor->Cameras().RemoveHudMotionEffectors();
+}
 
 float get_snd_volume()
 {
@@ -1677,6 +1738,18 @@ float MotionLength(LPCSTR section, LPCSTR name, float speed)
 bool AllowHudMotion()
 {
 	return g_player_hud->allow_script_anim();
+}
+
+bool MotionExists(LPCSTR model_path, LPCSTR motion_name)
+{
+	::Render->hud_loading = true;
+	IRenderVisual* vis = ::Render->model_Create(model_path);
+	::Render->hud_loading = false;
+	if (!vis) return false;
+	IKinematicsAnimated* ka = smart_cast<IKinematicsAnimated*>(vis);
+	bool found = ka && ka->ID_Cycle_Safe(motion_name).valid();
+	::Render->model_Delete(vis);
+	return found;
 }
 
 void PlayBlendAnm(LPCSTR name, u8 part, float speed, float power, bool bLooped, bool no_restart, LPCSTR pivot_bone)
@@ -2557,6 +2630,10 @@ void CLevel::script_register(lua_State* L)
 			def("get_wfx_time", get_wfx_time),
 			def("stop_weather_fx", stop_weather_fx),
 
+            def("get_weather_weight", get_weather_weight),
+            def("set_weather_weight", set_weather_weight),
+            def("set_weather_smooth", set_weather_smooth),
+
 			def("environment", environment),
 
 			def("set_time_factor", set_time_factor),
@@ -2598,6 +2675,9 @@ void CLevel::script_register(lua_State* L)
 			def("map_get_object_minimap_spot_static", map_get_minimap_spot_static),
 			def("map_get_object_spots_by_id", map_get_object_spots_by_id),
 
+			def("map_pan_to", &map_pan_to),
+			def("map_pan_to_level", &map_pan_to_level),
+
 			def("add_dialog_to_render", add_dialog_to_render),
 			def("remove_dialog_to_render", remove_dialog_to_render),
 			def("hide_indicators", hide_indicators),
@@ -2638,6 +2718,7 @@ void CLevel::script_register(lua_State* L)
 
 			// demonized: Set custom camera position and direction with movement smoothing (for cutscenes, etc)
 			def("set_cam_custom_position_direction", ((void (*)(Fvector&, Fvector&, unsigned int, bool, bool))& set_cam_position_direction)),
+			def("remove_hud_motion_cam_effectors", &remove_hud_motion_cam_effectors),
 			def("set_cam_custom_position_direction", ((void (*)(Fvector&, Fvector&, unsigned int, bool))&set_cam_position_direction)),
 			def("set_cam_custom_position_direction", ((void (*)(Fvector&, Fvector&, unsigned int))&set_cam_position_direction)),
 			def("set_cam_custom_position_direction", ((void (*)(Fvector&, Fvector&))&set_cam_position_direction)),
@@ -2701,7 +2782,8 @@ void CLevel::script_register(lua_State* L)
 		.def("get_result", &CRayPick::get_result)
 		.def("get_object", &CRayPick::get_object)
 		.def("get_distance", &CRayPick::get_distance)
-		.def("get_element", &CRayPick::get_element),
+		.def("get_element", &CRayPick::get_element)
+		.def("get_normal", &CRayPick::get_normal),
 		class_<script_rq_result>("rq_result")
 		.def_readonly("object", &script_rq_result::O)
 		.def_readonly("range", &script_rq_result::range)
@@ -2848,6 +2930,7 @@ void CLevel::script_register(lua_State* L)
 		def("stop_hud_motion", StopHudMotion),
 		def("get_motion_length", MotionLength),
 		def("hud_motion_allowed", AllowHudMotion),
+		def("motion_exists", MotionExists),
 		def("play_hud_anm", PlayBlendAnm),
 		def("stop_hud_anm", StopBlendAnm),
 		def("stop_all_hud_anms", StopAllBlendAnms),

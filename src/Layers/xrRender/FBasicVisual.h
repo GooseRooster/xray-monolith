@@ -81,6 +81,7 @@ public:
 	vis_data vis; // visibility-data
 	ref_shader shader; // pipe state, shared
 	s32 skinning;
+    bool hud;
 
 	//-------------------------------------------------------------------------
 	// Tree/Flora Instancing Support (for GPU instancing)

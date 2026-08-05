@@ -58,7 +58,7 @@ _G.convert_class_name = function(obj)
 	end
 end
 
--- èñïîëüçóåòñÿ äëÿ âûÿâëåíèÿ ñèãíàòóð ôóíêöèé êîòîðûå çàëîæåíû â xr_conditions
+-- Ð¸ÑÐ¿Ð¾Ð»ÑŒÐ·ÑƒÐµÑ‚ÑÑ Ð´Ð»Ñ Ð²Ñ‹ÑÐ²Ð»ÐµÐ½Ð¸Ñ ÑÐ¸Ð³Ð½Ð°Ñ‚ÑƒÑ€ Ñ„ÑƒÐ½ÐºÑ†Ð¸Ð¹ ÐºÐ¾Ñ‚Ð¾Ñ€Ñ‹Ðµ Ð·Ð°Ð»Ð¾Ð¶ÐµÐ½Ñ‹ Ð² xr_conditions
 _G.printf_xrscript = function(fmt, ...)
 	log(debug.traceback(1))
 	printf(fmt, ...)
@@ -1047,7 +1047,7 @@ end
 
 -- If some script called spairs without order function, use merge spairs, much faster, otherwise use heap spairs
 _G.spairs = function(t, order)
-	if order then
+	if order and order ~= sort_func_keys_ascend then
 		return hspairs(t, order)
 	else
 		return mspairs_default(t)
@@ -1127,7 +1127,7 @@ end
 
 -- get_object_by_id that uses gameobjects_registry, more reliable than db.storage
 _G.get_object_by_id = function(id)
-	if not (id and type(id) == "number") then
+	if (id == nil or id > 65535) then
 		callstack()
 		printe("!ERROR get_object_by_id | id (%s) is invalid", id)
 		return
@@ -1136,10 +1136,14 @@ _G.get_object_by_id = function(id)
 	if id == AC_ID then
 		return db.actor
 	end
+
+	if id == 65535 then
+		return
+	end
 	
 	local obj = gameobjects_registry[id] or level.object_by_id(id)
 	if not obj then
-		callstack()
+		-- callstack()
 		printe("!ERROR get_object_by_id | no game object recieved from id (%s)", id)
 		return
 	end
@@ -1147,20 +1151,21 @@ _G.get_object_by_id = function(id)
 end
 
 -- alife_object that uses server_objects_registry, less calls to engine unless necessary
-_G.alife_object = function(id)
-	if (id == nil or id >= 65535) then
-		callstack()
-		printe("!ALIFE OBJECT ID IS %s!",id)
-		return
-	end
-	return server_objects_registry[id] or alife():object(id)
-end
+-- Disabled since i have paranoia and cant check if it doesn't lead to errors
+-- _G.alife_object = function(id)
+-- 	if (id == nil or id >= 65535) then
+-- 		callstack()
+-- 		printe("!ALIFE OBJECT ID IS %s!",id)
+-- 		return
+-- 	end
+-- 	return server_objects_registry[id] or alife():object(id)
+-- end
 
 -- alife_on_limit more accurate and prints more information
 _G.alife_on_limit = function()
 	local result = alife():object_count() > _ALIFE_WARNING
 	if result then
-		printe("![alife_on_limit] WARNING alife ID storage is almost filled: %s", _ALIFE_CNT)
+		printe("![alife_on_limit] WARNING alife ID storage is almost filled: %s", alife():object_count())
 		local section_name_count = {}
 		for id, obj in pairs(server_objects_registry) do
 			local sec = obj:section_name()
@@ -1399,13 +1404,20 @@ _G.MinHeap = function(order, copyFrom)
 	end
 
 	self.rebuild = function(self)
-		empty_table(self.__indices)
-		local n = #self.__data
+		local heap = self.__data
+		local indices = self.__indices
+		empty_table(indices)
+		local n = #heap
 	    
 	    -- Floyd's Build-Heap algorithm:
 	    -- We start from the last non-leaf node (n/2) and sift down to the root.
 	    for i = math_floor(n / 2), 1, -1 do
 	        self:sift_down_index(i)
+	    end
+
+	    -- Ensure every node has an index, including leaves that never moved during heapify.
+	    for i = 1, n do
+	    	indices[heap[i]] = i
 	    end
 
 	    return self

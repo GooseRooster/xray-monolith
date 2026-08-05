@@ -1051,27 +1051,28 @@ void CActor::g_Physics(Fvector& _accel, float jump, float dt)
 
 	if (Local() && g_Alive())
 	{
-		if (character_physics_support()->movement()->gcontact_Was)
-			Cameras().AddCamEffector(xr_new<CEffectorFall>(character_physics_support()->movement()->gcontact_Power));
+        CPHMovementControl* const mctrl = character_physics_support()->movement();
 
-		if (!fis_zero(character_physics_support()->movement()->gcontact_HealthLost))
+		if (mctrl->gcontact_Was)
+			Cameras().AddCamEffector(xr_new<CEffectorFall>(mctrl->gcontact_Power));
+
+		if (!fis_zero(mctrl->gcontact_HealthLost))
 		{
-			VERIFY(character_physics_support());
-			VERIFY(character_physics_support()->movement());
-			ICollisionDamageInfo* di = character_physics_support()->movement()->CollisionDamageInfo();
+			ICollisionDamageInfo* di = mctrl->CollisionDamageInfo();
 			VERIFY(di);
 			bool b_hit_initiated = di->GetAndResetInitiated();
+            CObject* initiator = mctrl->gcontact_Initiator ? mctrl->gcontact_Initiator : di->DamageInitiator();
 			Fvector hdir;
 			di->HitDir(hdir);
-			SetHitInfo(this, NULL, 0, Fvector().set(0, 0, 0), hdir);
+			SetHitInfo(initiator, NULL, 0, Fvector().set(0, 0, 0), hdir);
 			//				Hit	(m_PhysicMovementControl->gcontact_HealthLost,hdir,di->DamageInitiator(),m_PhysicMovementControl->ContactBone(),di->HitPos(),0.f,ALife::eHitTypeStrike);//s16(6 + 2*::Random.randI(0,2))
 			if (Level().CurrentControlEntity() == this)
 			{
-				SHit HDS = SHit(character_physics_support()->movement()->gcontact_HealthLost,
+				SHit HDS = SHit(mctrl->gcontact_HealthLost,
 				                //.								0.0f,
 				                hdir,
-				                di->DamageInitiator(),
-				                character_physics_support()->movement()->ContactBone(),
+				                initiator,
+				                mctrl->ContactBone(),
 				                di->HitPos(),
 				                0.f,
 				                di->HitType(),
@@ -1081,8 +1082,8 @@ void CActor::g_Physics(Fvector& _accel, float jump, float dt)
 
 				NET_Packet l_P;
 				HDS.GenHeader(GE_HIT, ID());
-				HDS.whoID = di->DamageInitiator()->ID();
-				HDS.weaponID = di->DamageInitiator()->ID();
+				HDS.whoID = initiator->ID();
+				HDS.weaponID = initiator->ID();
 				HDS.Write_Packet(l_P);
 
 				u_EventSend(l_P);
@@ -2160,13 +2161,18 @@ void CActor::RenderCamAttached()
 	}
 }
 
+#include "../xrEngine/FDemoRecord.h"
+extern xr_unordered_set<CDemoRecord*> pDemoRecords;
 extern Flags32 ps_actor_shadow_flags;
 extern BOOL  ps_r_fp_body;
 extern float ps_r_fp_body_base_offset; // constant backward body shift (always applied)
 extern float ps_r_fp_body_cam_offset;  // extra backward body shift scaled by look_down
+BOOL r__actor_shadow_in_demo_record = TRUE;
 
 bool CActor::AllowActorShadow()
 {
+	if (!r__actor_shadow_in_demo_record && !pDemoRecords.empty()) return false;
+	if (!r__actor_shadow_in_demo_record && m_FPCam) return false;
 	if (!ps_actor_shadow_flags.test(1)) return false;
 	if (::Render->get_generation() != ::Render->GENERATION_R2) return false;
 
@@ -2300,8 +2306,6 @@ void CActor::SyncFPBodyTransforms()
 // OWA: End First-Person Body ---------------------------------------------------
 
 #include "debug_renderer.h"
-#include "../xrEngine/FDemoRecord.h"
-extern xr_unordered_set<CDemoRecord*> pDemoRecords;
 void CActor::renderable_Render()
 {
 	VERIFY(_valid(XFORM()));

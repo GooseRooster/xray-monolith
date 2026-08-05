@@ -211,6 +211,7 @@ bool CWeaponMagazinedWGrenade::SwitchMode(bool force)
 }
 
 extern BOOL useSeparateUBGLKeybind;
+extern BOOL g_launcher_dynamic_range_zoom;
 void CWeaponMagazinedWGrenade::PerformSwitchGL()
 {
 	m_bGrenadeMode = !m_bGrenadeMode;
@@ -429,7 +430,7 @@ void CWeaponMagazinedWGrenade::LaunchGrenade()
 
 		launch_matrix.c.set(p1);
 
-		if (IsGameTypeSingle() && IsZoomed() && smart_cast<CActor*>(H_Parent()))
+		if (IsGameTypeSingle() && IsZoomed() && smart_cast<CActor*>(H_Parent()) && g_launcher_dynamic_range_zoom)
 		{
 			H_Parent()->setEnabled(FALSE);
 			setEnabled(FALSE);
@@ -1023,7 +1024,7 @@ void CWeaponMagazinedWGrenade::load(IReader& input_packet)
 		SwitchMode(true);
 
 	if (b && !m_bGrenadeMode) {
-		Msg("[%s] ERROR: CWeaponMagazinedWGrenade::load: m_bGrenadeMode = %d, failed to switch to grenade mode", Name(), m_bGrenadeMode);
+		Msg("![%s] ERROR: CWeaponMagazinedWGrenade::load: m_bGrenadeMode = %d, failed to switch to grenade mode", Name(), m_bGrenadeMode);
 		return;
 	}
 
@@ -1035,7 +1036,7 @@ void CWeaponMagazinedWGrenade::load(IReader& input_packet)
 
     if (sz > 0xffff)
     {
-        Msg("[%s] ERROR: CWeaponMagazinedWGrenade::load: current magazine size %zu for underbarrel is too big, truncate to 1", Name(), sz);
+        Msg("![%s] ERROR: CWeaponMagazinedWGrenade::load: current magazine size %zu for underbarrel is too big, truncate to 1", Name(), sz);
         sz = 1;
     }
 

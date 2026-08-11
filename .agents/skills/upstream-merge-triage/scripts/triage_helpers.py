@@ -6,9 +6,9 @@ Subcommands:
                                plus the persistent hotzones.jsonl registry.
   hotzone-add PATTERN         Append a new pattern to the hotzones registry
                                (--reason required, --glob, --related-commit).
-  pending [--since REF]       List upstream commits not yet in the ledger, with
-                               hot_zone/low_risk_message facts computed and
-                               auto-take entries pre-built.
+  pending [--since REF]       List upstream commits not yet in the ledger,
+                               classified by interest category and hot-zone
+                               overlap.
   append FILE|-               Append finalized ledger record(s) (JSON array or
                                JSON-lines) to the ledger and update meta.json.
   render [--verdict V]        Render a Markdown summary table from the ledger.
@@ -43,17 +43,78 @@ DIVERGENCE_HEADING = "## Old World's intentional divergence from upstream"
 HDR_HEADING = "## Color grading, HDR and retro rendering options"
 NEXT_HEADING_AFTER_HDR = "## Architecture"
 
-LOW_RISK_PATTERN = re.compile(
-    r"\b(fix|typo|leak|crash|perf|optimi[sz]e|revert|null|sanitiz|clean ?up|refactor|warning)\b",
-    re.IGNORECASE,
-)
-
-AUTO_SKIP_PATTERN = re.compile(
-    r"\b(readme|changelog)\b",
-    re.IGNORECASE,
-)
-
 HASH_RE = re.compile(r"`([0-9a-f]{7,40})`")
+
+INTEREST_CATEGORIES = {
+    "perf": {
+        "pattern": re.compile(
+            r"\b(multithread|thread[._]?(pool|safe|local|desc)|"
+            r"parallel|simd|vectori[sz]|lock[._]?(less|free)|"
+            r"job[._]?syste|fiber|coroutine|concurrent|async|"
+            r"perf(ormance)?\b|optimi[sz]|cache|prefetch|"
+            r"throughput|latency|bottleneck|memory[._]?pool|"
+            r"batch|inline|unroll|spatial[._]?hash|octree|"
+            r"quadtree|aabb|broadphase|narrowphase|"
+            r"frustum.*cull|occlusion.*cull|visibility.*test|"
+            r"lod|instanc|pixel.?shader.*drop|"
+            r"frame[._]?time|frame[._]?rate|framerate|fps|"
+            r"micro[._]?optimiz"
+            r")\b",
+            re.IGNORECASE,
+        ),
+        "auto_verdict": "take",
+        "rationale_prefix": "Performance optimisation:",
+    },
+    "modding": {
+        "pattern": re.compile(
+            r"\b(dltx|DXML|modxml|mod[._]?xml|script[._]?engin|"
+            r"lua[._]?bindin|xml[._]?(pars|config|rewrit|read|write|lint|validat)|"
+            r"config[._]?pars|ltx[._]?pars|"
+            r"callback|event[._]?hook|extend[._]?api|api[._]?extend|"
+            r"export[._]?script|script[._]?export|register[._]?script|"
+            r"expose.*lua|lua.*expose|open.*lua|lua.*open|"
+            r"fs[._]?game|game[._]?fs|virtual[._]?fs|"
+            r"spawn[._]?read|spawn[._]?write|spawn[._]?pars|"
+            r"add[._]?callback|get[._]?callback"
+            r")\b",
+            re.IGNORECASE,
+        ),
+        "auto_verdict": "take",
+        "rationale_prefix": "Modding capability:",
+    },
+    "graphics": {
+        "pattern": re.compile(
+            r"\b(shader|render|hdr|hdr10|post[._]?process|ssao|ssr|gtao|bloom|"
+            r"dof|motion[._]?blur|tonemap|cascade|shadow[._]?map|light[._]?map|"
+            r"indirect[._]?light|gi\b|illuminat|pbr|volumetric|fog|particle|"
+            r"terrain|tree|grass|instanc|decal|water|ocean|reflect|refract|"
+            r"tessellat|sunshaft|god.?ray|lens.?flare|color.?grad|procedural|"
+            r"material|light[._]?expansion|skybox|skydome|cloud|rain[._]?drop|"
+            r"wet.?surf|ssfx|screen[._]?space"
+            r")\b",
+            re.IGNORECASE,
+        ),
+        "auto_verdict": "review",
+        "rationale_prefix": "Graphics/rendering feature - flagged for review against Old World's visual vision:",
+    },
+    "infra": {
+        "pattern": re.compile(
+            r"\b(xrCore|xrcore|engine[._]?core|"
+            r"build[._]?system|toolchain|cmake|msbuild|"
+            r"clang|mingw|gcc|cross[._]?compil|"
+            r"allocat|heap|memory[._]?manag|"
+            r"container|xr_vector|xr_map|xr_set|xr_list|xr_deque|"
+            r"file[._]?system|serializ|profiler|tracy|optick|"
+            r"xrCPU[._]?Pipe|xrCDB|xrXML|"
+            r"safe.?wrap|lock[._]?guard|scoped[._]?ptr|unique[._]?ptr|"
+            r"raii|smart[._]?ptr|shared[._]?ptr"
+            r")\b",
+            re.IGNORECASE,
+        ),
+        "auto_verdict": "take",
+        "rationale_prefix": "Engine infrastructure:",
+    },
+}
 
 
 def run_git(*args):
@@ -150,6 +211,13 @@ def is_hot_zone(files, hotzone):
     return sorted(set(hits))
 
 
+def classify_interest(subject):
+    for category, config in INTEREST_CATEGORIES.items():
+        if config["pattern"].search(subject):
+            return category, config
+    return None, None
+
+
 def load_ledger():
     if not LEDGER_PATH.exists() or LEDGER_PATH.stat().st_size == 0:
         return []
@@ -203,6 +271,37 @@ def candidate_commit_list(since_ref=None):
     return commits
 
 
+def get_cherry_picked_hashes(base_ref):
+    """Return the set of upstream commit hashes that already have patch-id
+    equivalents on base_ref. Uses `git cherry` which applies --cherry-pick
+    detection via patch-id comparison — catches commits that were cherry-picked
+    with a different hash (e.g. due to conflict resolution)."""
+    merge_base = run_git("merge-base", base_ref, UPSTREAM_REMOTE_BRANCH).strip()
+    try:
+        output = run_git(
+            "cherry", "-v", base_ref, UPSTREAM_REMOTE_BRANCH, merge_base
+        )
+    except RuntimeError:
+        return set()
+    hashes = set()
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith("- "):
+            # '- <hash>' means the commit has an equivalent on base_ref
+            parts = line.split()
+            if len(parts) >= 2:
+                hashes.add(parts[1])
+    return hashes
+
+
+def _build_auto_rationale(prefix, subject, files):
+    tail = (
+        f"Touches: {', '.join(files[:5])}"
+        + (f" (+{len(files) - 5} more)" if len(files) > 5 else "")
+    )
+    return f"{prefix} {subject[:100]}. {tail}"
+
+
 def cmd_hotzone(args):
     hz = derive_hotzone(refresh=args.refresh)
     print(json.dumps(hz, indent=2))
@@ -235,21 +334,24 @@ def cmd_pending(args):
     hotzone = derive_hotzone(refresh=False)
     ledger = load_ledger()
     decided_hashes = {e["hash"] for e in ledger}
+    cherry_picked = get_cherry_picked_hashes(LOCAL_MERGE_BRANCH)
 
     commits = candidate_commit_list(since_ref=args.since)
-    auto_take = []
+    already_cherry_picked = []
     auto_skip = []
+    interest_perf = []
+    interest_modding = []
+    interest_graphics = []
+    interest_infra = []
     needs_review = []
+
     for c in commits:
         if c["hash"] in decided_hashes:
             continue
-        files_raw = run_git(
-            "show", "--name-only", "--format=", c["hash"]
-        )
+        files_raw = run_git("show", "--name-only", "--format=", c["hash"])
         files = [f for f in files_raw.splitlines() if f]
         hz_files = is_hot_zone(files, hotzone)
-        low_risk = bool(LOW_RISK_PATTERN.search(c["subject"]))
-        auto_skip_subject = bool(AUTO_SKIP_PATTERN.search(c["subject"]))
+
         record = {
             "hash": c["hash"],
             "short_hash": c["hash"][:8],
@@ -258,43 +360,75 @@ def cmd_pending(args):
             "hot_zone": bool(hz_files),
             "hot_zone_files": hz_files,
             "files": files,
+            "interest_category": None,
         }
-        if not hz_files and low_risk:
-            record.update(
-                {
-                    "verdict": "take",
-                    "rationale": (
-                        f"No hot-zone overlap; message matches low-risk pattern. "
-                        f"Touches: {', '.join(files[:5])}"
-                        + (f" (+{len(files) - 5} more)" if len(files) > 5 else "")
-                    ),
-                    "decision_mode": "auto",
-                }
+
+        # Already cherry-picked onto merge-upstream — no need to re-triage.
+        # Detected via git cherry's patch-id equivalence, which catches
+        # commits that landed with a different hash (e.g. after conflict
+        # resolution during manual cherry-pick).
+        if c["hash"] in cherry_picked:
+            record["verdict"] = "skip"
+            record["rationale"] = (
+                f"Already cherry-picked onto merge-upstream (detected via "
+                f"patch-id equivalence). No re-triage needed."
             )
-            auto_take.append(record)
-        elif not hz_files and auto_skip_subject:
-            record.update(
-                {
-                    "verdict": "skip",
-                    "rationale": (
-                        f"Subject matches AUTO_SKIP_PATTERN (readme/changelog); "
-                        f"auto-skipped per owner preference. "
-                        f"Touches: {', '.join(files[:5])}"
-                        + (f" (+{len(files) - 5} more)" if len(files) > 5 else "")
-                    ),
-                    "decision_mode": "auto",
-                }
-            )
-            auto_skip.append(record)
-        else:
+            record["decision_mode"] = "auto"
+            already_cherry_picked.append(record)
+            continue
+
+        # Hot-zone hits always go to manual review, regardless of subject match.
+        # This protects Old World's deliberate divergence areas from accidental
+        # auto-classification.
+        if hz_files:
             needs_review.append(record)
+            continue
+
+        category, config = classify_interest(c["subject"])
+        if category:
+            rationale = _build_auto_rationale(config["rationale_prefix"], c["subject"], files)
+            record["interest_category"] = category
+            record["verdict"] = config["auto_verdict"]
+            record["rationale"] = rationale
+            record["decision_mode"] = "auto"
+
+            if category == "graphics":
+                interest_graphics.append(record)
+            elif category == "perf":
+                interest_perf.append(record)
+            elif category == "modding":
+                interest_modding.append(record)
+            elif category == "infra":
+                interest_infra.append(record)
+        else:
+            record["verdict"] = "skip"
+            record["rationale"] = (
+                f"No interest-category match (perf/modding/graphics/infra) "
+                f"and no hot-zone overlap. Auto-skipped per Old World's "
+                f"debloat-only triage philosophy. "
+                f"Touches: {', '.join(files[:5])}"
+                + (f" (+{len(files) - 5} more)" if len(files) > 5 else "")
+            )
+            record["decision_mode"] = "auto"
+            auto_skip.append(record)
+
+    new_count = (
+        len(already_cherry_picked) + len(auto_skip)
+        + len(interest_perf) + len(interest_modding)
+        + len(interest_graphics) + len(interest_infra)
+        + len(needs_review)
+    )
 
     print(
         json.dumps(
             {
-                "total_new": len(commits) - sum(1 for c in commits if c["hash"] in decided_hashes),
-                "auto_take": auto_take,
+                "total_new": new_count,
+                "already_cherry_picked": already_cherry_picked,
                 "auto_skip": auto_skip,
+                "interest_perf": interest_perf,
+                "interest_modding": interest_modding,
+                "interest_infra": interest_infra,
+                "graphics_review": interest_graphics,
                 "needs_review": needs_review,
             },
             indent=2,
@@ -317,7 +451,7 @@ def cmd_append(args):
 
     required = {
         "hash", "short_hash", "date", "subject", "verdict", "rationale",
-        "hot_zone", "hot_zone_files", "decision_mode",
+        "hot_zone", "hot_zone_files", "decision_mode", "interest_category",
     }
     run_id = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     existing = load_ledger()
@@ -346,8 +480,6 @@ def cmd_append(args):
     meta["entry_count"] = len(all_entries)
     meta["hotzone_source_hash"] = derive_hotzone()["source_hash"]
 
-    # Advance last_synced_upstream_hash to the last commit in the longest
-    # fully-decided contiguous prefix of the candidate list.
     decided = {e["hash"] for e in all_entries}
     commits = candidate_commit_list()
     marker = meta.get("last_synced_upstream_hash")
@@ -367,15 +499,18 @@ def cmd_render(args):
     ledger = load_ledger()
     if args.verdict:
         ledger = [e for e in ledger if e["verdict"] == args.verdict]
+    if args.category:
+        ledger = [e for e in ledger if e.get("interest_category") == args.category]
     if not ledger:
         print("(no matching ledger entries)")
         return
-    print("| hash | date | subject | verdict | hot_zone | rationale |")
-    print("|---|---|---|---|---|---|")
+    print("| hash | date | subject | verdict | interest | hot_zone | rationale |")
+    print("|---|---|---|---|---|---|---|")
     for e in ledger:
+        interest = e.get("interest_category") or "-"
         print(
             f"| {e['short_hash']} | {e['date'][:10]} | {e['subject'][:60]} "
-            f"| {e['verdict']} | {'yes' if e['hot_zone'] else 'no'} "
+            f"| {e['verdict']} | {interest} | {'yes' if e['hot_zone'] else 'no'} "
             f"| {e['rationale'][:100]} |"
         )
 
@@ -409,6 +544,7 @@ def main():
 
     p_render = sub.add_parser("render")
     p_render.add_argument("--verdict", default=None, choices=["take", "skip", "review"])
+    p_render.add_argument("--category", default=None, choices=["perf", "modding", "graphics", "infra"])
     p_render.set_defaults(func=cmd_render)
 
     args = parser.parse_args()

@@ -2,26 +2,35 @@
 
 `AskUserQuestion` is capped at 2-4 options and a handful of questions per
 call, so hundreds of `needs_review` commits can't be confirmed one at a
-time. This is how step 6 of `SKILL.md` scales.
+time. This is how step 7 of `SKILL.md` scales.
+
+Under the new interest-category triage, the batch combines two sources:
+- `needs_review` entries from step 6 (hot-zone hits, manually classified)
+- `graphics_review` entries from step 3 (auto-verdict `review`, batch
+  confirmed here)
 
 ## Grouping
 
-1. Group `needs_review` commits into batches of **25** (override with
-   `--batch-size`).
+1. Group commits into batches of **25** (override with `--batch-size`).
 2. Order groups so hot-zone hits come first (highest-value review time),
-   then everything else, oldest-first within each group.
+   then graphics_review entries, oldest-first within each group.
 3. Render each batch as a Markdown table directly in the chat reply before
    asking anything, so every individual proposal is visible:
 
    ```
-   | hash | subject | proposed verdict | hot-zone files | rationale |
-   |---|---|---|---|---|
-   | 132ae11b | apply random offset for weather's... | review | GamePersistent.cpp | Touches weather divergence file but only randomizes an emitter offset... |
-   | ... | ... | ... | ... | ... |
+   | hash | subject | proposed verdict | interest | hot-zone files | rationale |
+   |---|---|---|---|---|---|
+   | 132ae11b | apply random offset for weather's... | review | - | GamePersistent.cpp | Touches weather divergence file but only randomizes an emitter offset... |
+   | a5cb7680 | possibility to set shadow, volumetric... | review | graphics | - | Graphics/rendering feature - flagged for review against Old World's... |
+   | ... | ... | ... | ... | ... | ... |
    ```
 
+   The `interest` column shows `perf`/`modding`/`graphics`/`infra` for
+   interest-category auto-classified entries, or `-` for hot-zone-flagged
+   entries (where `interest_category` is `null`).
+
    If any commit in the batch surfaced a proposed hot-zone registry
-   addition (per `SKILL.md` step 5), list those separately underneath the
+   addition (per `SKILL.md` step 6), list those separately underneath the
    table so they're reviewed as their own thing, not folded into a verdict:
 
    ```
@@ -49,7 +58,8 @@ options:
   after so it's not a silent side effect).
 - **Approve all except ones I'll list** → the user replies in free text
   (e.g. "flip 132ae11b to take", "skip the rest of the bloom-related ones",
-  "skip the ActorCondition.cpp hot-zone addition") - apply those overrides
+  "skip the ActorCondition.cpp hot-zone addition", "flip a5cb7680 to skip
+  — volumetric lights don't fit Old World's look") - apply those overrides
   to the in-memory batch (verdicts and/or hot-zone additions) before
   appending/adding.
 - **Hold this batch - go commit-by-commit** → drop batching for just this
@@ -65,5 +75,6 @@ options:
 
 This grouping is sized for the *initial* backlog (hundreds of commits). In
 steady state - triaging periodically as upstream moves - the delta since
-`meta.last_synced_upstream_hash` should be tens of commits at most, which
-collapses to 1-2 batches (1-2 `AskUserQuestion` calls) per session.
+`meta.last_synced_upstream_hash` should be tens of commits at most. Since
+most commits are now auto-skipped, the `needs_review` + `graphics_review`
+pool should be small: perhaps one batch (one `AskUserQuestion`) per session.

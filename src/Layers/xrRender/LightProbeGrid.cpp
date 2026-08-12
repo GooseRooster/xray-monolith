@@ -6,46 +6,28 @@
 #include "../../xrEngine/IGame_Persistent.h"
 #include "../../xrEngine/IGame_Level.h"
 #include "../../xrEngine/Environment.h"
-#include "light.h"
-#include "../../xrCDB/ISpatial.h"
-#include "../../xrEngine/GameMtlLib.h"
 #include "../../xrCore/_thread_types.h"
 
 // =========================================================================
-// Thread-local working buffers for UpdateProbe / CastBounceRay
+// Thread-local working buffers for UpdateProbe
 //
-// These replace the former per-instance members (m_collider, m_lightQueryResults,
-// m_bounceLightCache). Using thread_local makes UpdateProbe safe to call from
-// xr_parallel_for during Build() — each worker thread gets its own isolated
-// instances. The main thread's instances are reused for the single-threaded
-// runtime Update() path with zero overhead change.
+// These replace the former per-instance members (m_collider).
+// Using thread_local makes UpdateProbe safe to call from xr_parallel_for during
+// Build() — each worker thread gets its own isolated instances. The main thread's
+// instances are reused for the single-threaded runtime Update() path with zero
+// overhead change.
 //
 // CDB::MODEL is read-only after level load, so concurrent ray_query calls on
 // separate COLLIDER instances are safe (they share the BVH but never write it).
-// ISpatial_DB::q_sphere takes a critical-section lock internally — thread-safe
-// but serializing (fine: lock hold time is short, O(log N) octree walk).
 // =========================================================================
 
-// Cached lights for bounce computation — queried once per UpdateProbe, reused in CastBounceRay
-struct CachedBounceLight {
-    Fvector position;
-    Fvector color;
-    float   range;
-    float   attenuation0, attenuation1, attenuation2;
-};
-
 thread_local static CDB::COLLIDER               s_tl_collider;
-thread_local static xr_vector<ISpatial*>        s_tl_lightQueryResults;
-thread_local static xr_vector<CachedBounceLight> s_tl_bounceLightCache;
 
 // External console variables
 extern int   ps_r_probe_update_rate;
-extern float ps_r_probe_bounce_intensity;
 extern int   ps_r_debug_probes;
-extern float ps_r_probe_max_distance;
 extern int   ps_r_probe_upload_rate;
 extern int   ps_r3_ssfx_il;
-extern int   ps_r_probe_bounce_lights;
 
 // Global instance
 CLightProbeGrid* g_LightProbeGrid = nullptr;
@@ -71,12 +53,9 @@ CLightProbeGrid::CLightProbeGrid()
     , m_gpuCacheTexHeight(0)
     , m_updateBudget(50)
     , m_currentFrame(0)
-    , m_bounceIntensity(DEFAULT_BOUNCE_INTENSITY)
     , m_lastUpdateTimeMs(0)
     , m_debugEnabled(false)
     , m_hashCellSize(DEFAULT_HASH_CELL_SIZE)
-    , m_propagationIters(DEFAULT_PROPAGATION_ITERS)
-    , m_propagationRate(DEFAULT_PROPAGATION_RATE)
     , m_lastUploadFrame(0)
     , m_lastGameTime(-1.0f)
     , m_temporalBlend(0.3f)
@@ -119,14 +98,10 @@ CLightProbeGrid::~CLightProbeGrid()
 void CLightProbeGrid::Clear()
 {
     m_probes.clear();
-    m_materialAlbedos.clear();
     m_spatialHash.clear();
-    m_probeNeighbors.clear();
     m_gpuCache.clear();
     m_gpuCacheRowPitch = 0;
     m_gpuCacheTexHeight = 0;
-    m_propagationBuffer.clear();
-    m_propagationActiveSet.clear();
     m_frustumProbes.clear();
     m_volAccum.clear();
     for (int i = 0; i < NUM_VOLUME_TEXTURES; i++)
@@ -229,7 +204,6 @@ CLightProbe CLightProbeGrid::MakeDefaultProbe(const Fvector& pos)
     probe.skyVisibility = 0.0f;
     probe.ambient.set(0, 0, 0);
     probe.sunVisibility = 0.0f;
-    probe.bounce.set(0, 0, 0);
     probe.shDirection.set(0, 0, 0);
     probe._shPad = 0.0f;
     probe.pointLightColor.set(0, 0, 0);
@@ -300,9 +274,6 @@ void CLightProbeGrid::Build()
     Clear();
 
     Msg("* [LightProbeGrid] Building probe grid...");
-
-    // Build per-material albedo table from GMLib for colored bounce
-    BuildMaterialAlbedos();
 
     if (!g_pGameLevel) return;
 
@@ -397,29 +368,19 @@ void CLightProbeGrid::Build()
     ComputeGridBounds();
     BuildSpatialHash();
 
-    // Build neighbor connectivity for light propagation
-    Msg("* [LightProbeGrid] Building neighbor connectivity...");
-    BuildNeighborConnectivity();
-
     // Initial full update of all probes — runs in parallel via PPL.
-    // Each thread uses its own thread_local CDB::COLLIDER, spatial query buffer, and
-    // bounce light cache, so all per-probe computation is fully isolated.
-    // bInitialBuild=true: skips UpdateVolumeProbe (RasterizeVolume() follows),
-    // neighbor sunlit reads (all probes start at default zeros), and the per-probe
-    // m_gpuBufferDirty write (set once below after the loop).
+    // Each thread uses its own thread_local CDB::COLLIDER and spatial query buffer,
+    // so all per-probe computation is fully isolated.
+    // bInitialBuild=true: skips UpdateVolumeProbe (RasterizeVolume() follows) and
+    // the per-probe m_gpuBufferDirty write (set once below after the loop).
     Msg("* [LightProbeGrid] Performing initial probe update (parallel)...");
     xr_parallel_for(0u, (u32)m_probes.size(), [this](u32 i) {
         UpdateProbe(m_probes[i], i, PROBE_QUALITY_FULL, /*bInitialBuild=*/true);
     });
     m_gpuBufferDirty = true;
 
-    // Initial propagation pass
-    PropagateLight(m_propagationIters);
-
-    // Initialize persistent GPU cache and propagation buffers
+    // Initialize persistent GPU cache and frustum list
     InitGPUCache();
-    m_propagationBuffer.resize(m_probes.size());
-    m_propagationActiveSet.reserve(m_probes.size());
     m_frustumProbes.reserve(m_probes.size());
 
     m_gpuBufferDirty = true;
@@ -469,29 +430,6 @@ void CLightProbeGrid::ComputeGridBounds()
     m_gridDims.z = _max(1, (int)(extent.z / avgSpacing) + 1);
 }
 
-Fvector CLightProbeGrid::ComputeTriangleNormal(const CDB::RESULT& hit)
-{
-    CDB::MODEL* staticModel = g_pGameLevel->ObjectSpace.GetStaticModel();
-    if (!staticModel)
-        return Fvector().set(0, 1, 0);
-
-    CDB::TRI* tris = staticModel->get_tris();
-    Fvector* verts = staticModel->get_verts();
-
-    CDB::TRI& tri = tris[hit.id];
-    Fvector v0 = verts[tri.verts[0]];
-    Fvector v1 = verts[tri.verts[1]];
-    Fvector v2 = verts[tri.verts[2]];
-
-    Fvector e1, e2, normal;
-    e1.sub(v1, v0);
-    e2.sub(v2, v0);
-    normal.crossproduct(e1, e2);
-    normal.normalize_safe();
-
-    return normal;
-}
-
 float CLightProbeGrid::ComputeEnvLuminance() const
 {
     if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv)
@@ -501,216 +439,6 @@ float CLightProbeGrid::ComputeEnvLuminance() const
     float hemiLum = env.hemi_color.x * 0.2126f + env.hemi_color.y * 0.7152f + env.hemi_color.z * 0.0722f;
     float sunLum  = env.sun_color.x  * 0.2126f + env.sun_color.y  * 0.7152f + env.sun_color.z  * 0.0722f;
     return hemiLum + sunLum * 0.5f;
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Material Albedo Table — per-material RGB for colored bounce
-//////////////////////////////////////////////////////////////////////////
-
-// Keyword → approximate albedo color mapping
-// Covers the most common Zone surface types
-struct MaterialAlbedoEntry
-{
-    const char* keyword;
-    Fvector     albedo;
-};
-
-static const MaterialAlbedoEntry s_albedoTable[] = {
-    // --- Concrete / masonry ---
-    { "concrete",   { 0.55f, 0.53f, 0.50f } },
-    { "beton",      { 0.55f, 0.53f, 0.50f } },
-    { "brick",      { 0.40f, 0.25f, 0.20f } },
-    { "kirpich",    { 0.40f, 0.25f, 0.20f } },
-    { "stucco",     { 0.60f, 0.58f, 0.55f } },
-    { "plaster",    { 0.65f, 0.63f, 0.58f } },
-    { "tile",       { 0.50f, 0.48f, 0.45f } },
-    { "shifer",     { 0.40f, 0.40f, 0.38f } },
-    // --- Natural ground ---
-    { "grass",      { 0.25f, 0.40f, 0.15f } },
-    { "trava",      { 0.25f, 0.40f, 0.15f } },
-    { "dirt",       { 0.35f, 0.28f, 0.20f } },
-    { "earth",      { 0.35f, 0.28f, 0.20f } },
-    { "zemlya",     { 0.35f, 0.28f, 0.20f } },
-    { "gravel",     { 0.30f, 0.28f, 0.25f } },
-    { "sand",       { 0.60f, 0.55f, 0.40f } },
-    { "pesok",      { 0.60f, 0.55f, 0.40f } },
-    { "mud",        { 0.20f, 0.15f, 0.10f } },
-    { "asphalt",    { 0.15f, 0.15f, 0.15f } },
-    { "stone",      { 0.40f, 0.38f, 0.35f } },
-    { "kamen",      { 0.40f, 0.38f, 0.35f } },
-    { "rock",       { 0.35f, 0.33f, 0.30f } },
-    // --- Metal ---
-    { "metal",      { 0.45f, 0.45f, 0.45f } },
-    { "tin",        { 0.50f, 0.48f, 0.43f } },
-    { "setka",      { 0.45f, 0.45f, 0.45f } },
-    { "barrel",     { 0.40f, 0.38f, 0.35f } },
-    { "rust",       { 0.30f, 0.15f, 0.08f } },
-    // --- Wood / vegetation ---
-    { "wood",       { 0.45f, 0.30f, 0.18f } },
-    { "derevo",     { 0.45f, 0.30f, 0.18f } },
-    { "tree",       { 0.30f, 0.22f, 0.14f } },
-    { "trunk",      { 0.30f, 0.22f, 0.14f } },
-    { "bush",       { 0.20f, 0.35f, 0.12f } },
-    { "leaves",     { 0.20f, 0.35f, 0.12f } },
-    // --- Water ---
-    { "water",      { 0.02f, 0.02f, 0.02f } },
-    { "voda",       { 0.02f, 0.02f, 0.02f } },
-    // --- Fabric / soft surfaces ---
-    { "fabric",     { 0.30f, 0.25f, 0.20f } },
-    { "cloth",      { 0.30f, 0.25f, 0.20f } },
-    { "carpet",     { 0.25f, 0.20f, 0.18f } },
-    { "leather",    { 0.25f, 0.18f, 0.12f } },
-    // --- Manufactured ---
-    { "paper",      { 0.70f, 0.68f, 0.62f } },
-    { "rubber",     { 0.10f, 0.10f, 0.10f } },
-    { "wheel",      { 0.10f, 0.10f, 0.10f } },
-    { "glass",      { 0.04f, 0.04f, 0.04f } },
-    { "steklo",     { 0.04f, 0.04f, 0.04f } },
-    { "plastic",    { 0.35f, 0.35f, 0.35f } },
-    { "paint",      { 0.50f, 0.45f, 0.40f } },
-    { "linoleum",   { 0.35f, 0.30f, 0.25f } },
-    // --- Weather ---
-    { "snow",       { 0.85f, 0.85f, 0.85f } },
-    { "sneg",       { 0.85f, 0.85f, 0.85f } },
-    { "ice",        { 0.50f, 0.55f, 0.60f } },
-};
-
-static const int s_albedoTableCount = sizeof(s_albedoTable) / sizeof(s_albedoTable[0]);
-
-void CLightProbeGrid::BuildMaterialAlbedos()
-{
-    m_materialAlbedos.clear();
-
-    u32 matCount = GMLib.CountMaterial();
-    if (matCount == 0)
-    {
-        Msg("* [LightProbeGrid] No materials in GMLib — using default albedo");
-        return;
-    }
-
-    m_materialAlbedos.resize(matCount);
-
-    // Default: neutral gray
-    Fvector defaultAlbedo = { DEFAULT_ALBEDO, DEFAULT_ALBEDO, DEFAULT_ALBEDO };
-    for (u32 i = 0; i < matCount; i++)
-        m_materialAlbedos[i] = defaultAlbedo;
-
-    u32 matched = 0;
-    for (u32 idx = 0; idx < matCount; idx++)
-    {
-        SGameMtl* mtl = GMLib.GetMaterialByIdx((u16)idx);
-        if (!mtl || !mtl->m_Name.size()) continue;
-
-        // Case-insensitive keyword match against material name
-        const char* name = mtl->m_Name.c_str();
-        bool found = false;
-
-        for (int k = 0; k < s_albedoTableCount && !found; k++)
-        {
-            // strstr for substring match (material names like "materials/concrete_floor")
-            if (strstr(name, s_albedoTable[k].keyword))
-            {
-                m_materialAlbedos[idx] = s_albedoTable[k].albedo;
-                found = true;
-                matched++;
-            }
-        }
-    }
-
-    Msg("* [LightProbeGrid] Material albedos built: %d/%d materials matched keywords", matched, matCount);
-}
-
-Fvector CLightProbeGrid::GetMaterialAlbedo(u16 materialIdx) const
-{
-    if (materialIdx < (u16)m_materialAlbedos.size())
-        return m_materialAlbedos[materialIdx];
-
-    return Fvector().set(DEFAULT_ALBEDO, DEFAULT_ALBEDO, DEFAULT_ALBEDO);
-}
-
-void CLightProbeGrid::CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal,
-                                     Fvector& bounceAccum, const Fvector& sunDir, const Fvector& sunColor,
-                                     const Fvector& skyColor, const Fvector& albedo,
-                                     float probeSkyVisibility)
-{
-    if (!g_pGameLevel) return;
-
-    CDB::MODEL* staticModel = g_pGameLevel->ObjectSpace.GetStaticModel();
-    if (!staticModel) return;
-
-    // Check if sun is visible from hit point
-    s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
-    s_tl_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
-
-    if (s_tl_collider.r_count() == 0)
-    {
-        // Sun visible - compute Lambertian bounce with material-colored albedo
-        // Fixed 0.3 internal scale: physical diffuse bounce attenuation (energy lost
-        // per reflection). NOT tied to console var — GPU-side bounce_intensity handles tuning.
-        float NdotL = hitNormal.dotproduct(sunDir);
-        if (NdotL > 0)
-        {
-            Fvector contribution;
-            contribution.set(sunColor.x * albedo.x, sunColor.y * albedo.y, sunColor.z * albedo.z);
-            contribution.mul(NdotL * 0.3f);
-            bounceAccum.add(contribution);
-        }
-    }
-
-    // Ambient bounce — sky light reflecting off this surface
-    // Zero additional CDB queries: we already know this surface exists.
-    // hemiReceived approximates hemisphere integral of sky visibility at surface,
-    // gated by the probe's measured sky openness (indoor surfaces ≈ 0, outdoor ≈ 1).
-    float hemiReceived = _max(0.0f, hitNormal.y) * 0.5f + 0.5f;
-    hemiReceived *= probeSkyVisibility;
-    Fvector ambBounce;
-    ambBounce.set(skyColor.x * albedo.x, skyColor.y * albedo.y, skyColor.z * albedo.z);
-    ambBounce.mul(hemiReceived * 0.3f);
-    bounceAccum.add(ambBounce);
-
-    // --- Point light bounce ---
-    // Surfaces illuminated by nearby point lights bounce their colored light.
-    // Uses cached light query from UpdateProbe (one spatial query per probe,
-    // reused across all 6 bounce rays).
-    int maxBounceLights = ps_r_probe_bounce_lights;
-    if (maxBounceLights > 0)
-    {
-        int bounceLightsUsed = 0;
-        for (size_t li = 0; li < s_tl_bounceLightCache.size() && bounceLightsUsed < maxBounceLights; li++)
-        {
-            const CachedBounceLight& cl = s_tl_bounceLightCache[li];
-
-            Fvector dirToLight;
-            dirToLight.sub(cl.position, hitPos);
-            float distToLight = dirToLight.magnitude();
-            if (distToLight >= cl.range || distToLight < 0.01f) continue;
-            dirToLight.div(distToLight);
-
-            float NdotL_light = hitNormal.dotproduct(dirToLight);
-            if (NdotL_light <= 0) continue;  // Surface faces away from light
-
-            // Attenuation at hit surface (same D3D model as direct injection)
-            float denom = cl.attenuation0 + cl.attenuation1 * distToLight
-                        + cl.attenuation2 * distToLight * distToLight;
-            if (denom < 0.001f) continue;
-            float atten = 1.0f / denom;
-            float rangeFade = 1.0f - _min(distToLight / cl.range, 1.0f);
-            atten *= rangeFade * rangeFade;
-            if (atten < 0.01f) continue;
-
-            // Shadow test: is light visible from hit surface?
-            s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
-            s_tl_collider.ray_query(staticModel, hitPos, dirToLight, distToLight - 0.05f);
-            if (s_tl_collider.r_count() > 0) continue;
-
-            // Colored bounce: lightColor × surfaceAlbedo × NdotL × attenuation
-            Fvector contrib;
-            contrib.set(cl.color.x * albedo.x, cl.color.y * albedo.y, cl.color.z * albedo.z);
-            contrib.mul(atten * NdotL_light * 0.3f);
-            bounceAccum.add(contrib);
-            bounceLightsUsed++;
-        }
-    }
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1217,15 +945,6 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     float skyHits = 0;
     float totalRays = 0;
     Fvector ambientAccum = { 0, 0, 0 };
-    Fvector bounceAccum = { 0, 0, 0 };
-
-    // Dominant direction accumulators
-    Fvector dirAccum = { 0, 0, 0 };
-    float   energyAccum = 0;
-
-    // Point light accumulators
-    Fvector pointLightAccum = { 0, 0, 0 };
-    float   pointIntensityAccum = 0;
 
     // Get current environment data
     if (!g_pGamePersistent || !g_pGamePersistent->Environment().CurrentEnv)
@@ -1234,8 +953,6 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     CEnvDescriptorMixer& env = *g_pGamePersistent->Environment().CurrentEnv;
     Fvector skyColor;
     skyColor.set(env.hemi_color.x, env.hemi_color.y, env.hemi_color.z);
-    Fvector sunColor;
-    sunColor.set(env.sun_color.x, env.sun_color.y, env.sun_color.z);
     Fvector sunDir;
     sunDir.set(env.sun_dir.x, env.sun_dir.y, env.sun_dir.z);
     sunDir.normalize_safe();
@@ -1246,53 +963,15 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
 
     s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
 
-    // Quality-dependent ray counts: reduced quality cuts rays from ~30 to ~11 CDB queries
+    // Quality-dependent ray counts
     int hemisphereRayCount = (quality == PROBE_QUALITY_FULL) ? RAYS_PER_PROBE : 6;
     int shadowRayCount     = (quality == PROBE_QUALITY_FULL) ? SOFT_SHADOW_RAYS : 3;
-    bool doBounce          = (quality == PROBE_QUALITY_FULL);
 
     // Temporal rotation: golden-ratio azimuthal offset rotates the entire ray pattern
     // each update. Since probes update round-robin, m_currentFrame gives both temporal
     // diversity (same probe samples different dirs over time) and spatial diversity
     // (nearby probes sample different dirs on the same frame).
     float rotation = float(m_currentFrame) * s_invGoldenRatio;
-
-    // =========================================================================
-    // Cache nearby point/spot lights for bounce + direct injection (one query)
-    // =========================================================================
-    s_tl_bounceLightCache.clear();
-    if (g_SpatialSpace)
-    {
-        s_tl_lightQueryResults.clear();
-        g_SpatialSpace->q_sphere(s_tl_lightQueryResults, 0,
-            STYPE_LIGHTSOURCE | STYPE_LIGHTSOURCEHEMI,
-            probe.position, POINT_LIGHT_SEARCH_RADIUS);
-
-        for (u32 li = 0; li < s_tl_lightQueryResults.size() && (int)s_tl_bounceLightCache.size() < MAX_POINT_LIGHTS_PER_PROBE; li++)
-        {
-            ISpatial* spatial = s_tl_lightQueryResults[li];
-            if (!spatial) continue;
-            IRender_Light* ilight = spatial->dcast_Light();
-            if (!ilight) continue;
-            light* L = (light*)ilight;
-            if (!L->flags.bActive) continue;
-            if (L->flags.type != IRender_Light::POINT && L->flags.type != IRender_Light::SPOT) continue;
-
-            Fvector dirToLight;
-            dirToLight.sub(L->position, probe.position);
-            float distToLight = dirToLight.magnitude();
-            if (distToLight >= L->range || distToLight < 0.01f) continue;
-
-            CachedBounceLight cl;
-            cl.position.set(L->position);
-            cl.color.set(L->color.r, L->color.g, L->color.b);
-            cl.range = L->range;
-            cl.attenuation0 = L->attenuation0;
-            cl.attenuation1 = L->attenuation1;
-            cl.attenuation2 = L->attenuation2;
-            s_tl_bounceLightCache.push_back(cl);
-        }
-    }
 
     // Track received sunlight from hemisphere samples
     float receivedSunlight = 0;
@@ -1321,56 +1000,11 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
             skyHits += 1.0f;
             ambientAccum.add(skyColor);
 
-            // Sky direction contribution to dominant direction
-            float skyLum = skyColor.x * 0.2126f + skyColor.y * 0.7152f + skyColor.z * 0.0722f;
-            dirAccum.mad(dir, skyLum);
-            energyAccum += skyLum;
-
             // Check if this sky ray is toward the sun (receiving direct sunlight through opening)
             float sunAlignment = dir.dotproduct(sunDir);
             if (sunAlignment > SUN_ALIGNMENT_THRESHOLD)
             {
                 receivedSunlight += sunAlignment;
-            }
-        }
-        else
-        {
-            // Ray hit geometry
-            CDB::RESULT* hit = s_tl_collider.r_begin();
-            Fvector hitNormal = ComputeTriangleNormal(*hit);
-            Fvector hitPos;
-            hitPos.mad(probe.position, dir, hit->range);
-
-            if (doBounce)
-            {
-                // Look up material-colored albedo from hit triangle
-                CDB::TRI* tris = staticModel->get_tris();
-                Fvector hitAlbedo = GetMaterialAlbedo(tris[hit->id].material);
-
-                // Compute bounce with direction tracking (full quality only)
-                Fvector bounceBefore = bounceAccum;
-                CastBounceRay(hitPos, hitNormal, bounceAccum, sunDir, sunColor, skyColor, hitAlbedo, probe.skyVisibility);
-                Fvector bounceContrib;
-                bounceContrib.sub(bounceAccum, bounceBefore);
-                float bounceLum = bounceContrib.x * 0.2126f + bounceContrib.y * 0.7152f + bounceContrib.z * 0.0722f;
-                if (bounceLum > 0)
-                {
-                    dirAccum.mad(dir, bounceLum);
-                    energyAccum += bounceLum;
-                }
-
-                // Check if the surface we hit is sunlit (receiving reflected sunlight)
-                s_tl_collider.ray_query(staticModel, hitPos, sunDir, RAY_MAX_DISTANCE);
-                if (s_tl_collider.r_count() == 0)
-                {
-                    float NdotL = hitNormal.dotproduct(sunDir);
-                    if (NdotL > 0)
-                    {
-                        float hitDist = hit->range;
-                        float distFactor = 1.0f / (1.0f + hitDist * 0.1f);
-                        receivedSunlight += NdotL * distFactor * 0.5f;
-                    }
-                }
             }
         }
     }
@@ -1420,101 +1054,6 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
     // temporal smoothing now integrates many more shadow directions over time.
     float combinedSunVis = _max(directSunVis, receivedSunlight * RECEIVED_LIGHT_WEIGHT);
 
-    // Gather bounce light from sunlit neighbors (Phase 4: Sunlit Bounce)
-    // Skipped during initial build: all neighbors start at default zeros (sunVisibility=0),
-    // so this section contributes nothing useful. Skipping also avoids a benign but technically
-    // undefined C++ data race (reading neighbor probe data while other threads initialize it).
-    if (!bInitialBuild && probeIndex < m_probeNeighbors.size())
-    {
-        const ProbeNeighbors& neighbors = m_probeNeighbors[probeIndex];
-        Fvector sunlitBounce = { 0, 0, 0 };
-        float sunlitWeight = 0;
-
-        for (int n = 0; n < 6; n++)
-        {
-            if (neighbors.indices[n] == 0xFFFFFFFF) continue;
-
-            const CLightProbe& neighbor = m_probes[neighbors.indices[n]];
-
-            // Only contribute if neighbor is sunlit
-            if (neighbor.sunVisibility > 0.3f)
-            {
-                float dist = neighbors.distances[n];
-                // Weight by sun visibility and inverse distance squared
-                float weight = neighbor.sunVisibility / (1.0f + dist * dist * 0.1f);
-
-                // Use neighbor's ambient as bounce source
-                sunlitBounce.mad(neighbor.ambient, weight);
-                sunlitWeight += weight;
-            }
-        }
-
-        if (sunlitWeight > 0)
-        {
-            sunlitBounce.div(sunlitWeight);
-            sunlitBounce.mul(0.15f);  // 0.3 bounce scale × 0.5 neighbor attenuation
-            bounceAccum.add(sunlitBounce);
-        }
-    }
-
-    // =========================================================================
-    // Point Light Injection (uses cached lights from earlier spatial query)
-    // =========================================================================
-    for (size_t li = 0; li < s_tl_bounceLightCache.size(); li++)
-    {
-        const CachedBounceLight& cl = s_tl_bounceLightCache[li];
-
-        Fvector dirToLight;
-        dirToLight.sub(cl.position, probe.position);
-        float distToLight = dirToLight.magnitude();
-        if (distToLight >= cl.range || distToLight < 0.01f) continue;
-        dirToLight.div(distToLight);
-
-        // D3D-style attenuation with range fade
-        // Guard: uninitialized or zero attenuation values → denominator=0 → inf.
-        // 0*inf = NaN (IEEE 754), which permanently contaminates probe data
-        // through temporal smoothing (NaN lerp = NaN).
-        float denom = cl.attenuation0 + cl.attenuation1 * distToLight
-                    + cl.attenuation2 * distToLight * distToLight;
-        if (denom < 0.001f) continue;  // Skip lights with degenerate attenuation
-        float atten = 1.0f / denom;
-        float rangeFade = 1.0f - _min(distToLight / cl.range, 1.0f);
-        atten *= rangeFade * rangeFade;  // Quadratic fade at range boundary
-        if (atten < 0.001f) continue;
-
-        // Shadow test — is the light visible from the probe?
-        s_tl_collider.ray_options(CDB::OPT_ONLYNEAREST);
-        s_tl_collider.ray_query(staticModel, probe.position, dirToLight, distToLight - 0.05f);
-        if (s_tl_collider.r_count() > 0) continue;  // Occluded
-
-        // Accumulate attenuated light color
-        Fvector lightContrib;
-        lightContrib.set(cl.color);
-        lightContrib.mul(atten);
-        pointLightAccum.add(lightContrib);
-        float lightLum = lightContrib.x * 0.2126f + lightContrib.y * 0.7152f + lightContrib.z * 0.0722f;
-        pointIntensityAccum += lightLum;
-
-        // NOTE: Point lights intentionally do NOT contribute to dirAccum/energyAccum.
-        // They have their own dedicated channel (pointLightColor/Intensity).
-    }
-
-    // =========================================================================
-    // Finalize dominant direction
-    // =========================================================================
-    // L1 SH directional vector: dirAccum/energyAccum preserves both direction
-    // and magnitude (directional strength). No normalization needed — magnitude
-    // IS the signal (replaces the old directionalRatio scalar).
-    Fvector newSHDir;
-    if (energyAccum > 0.001f)
-    {
-        newSHDir.set(dirAccum).div(energyAccum);
-    }
-    else
-    {
-        newSHDir.set(0, 0, 0);
-    }
-
     // =========================================================================
     // Adaptive temporal smoothing
     // Normal: 70% old / 30% new. Time jump: up to 100% new (instant snap).
@@ -1535,32 +1074,11 @@ void CLightProbeGrid::UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQual
         newAmbient.set(ambientAccum).div(totalRays);
     else
         newAmbient.set(0, 0, 0);
-    newAmbient.add(bounceAccum);
 
     probe.ambient.lerp(probe.ambient, newAmbient, blend);
-    probe.bounce.lerp(probe.bounce, bounceAccum, blend);
 
     // Store environment luminance for ToD snap (used when this probe goes stale)
     probe.envLuminance = m_currentEnvLum;
-
-    // SH vectors lerp naturally — no re-normalization needed (magnitude IS the signal)
-    probe.shDirection.lerp(probe.shDirection, newSHDir, blend);
-
-    // Point light color and intensity
-    // Sanitize: clamp to prevent inf/NaN from propagating through temporal smoothing
-    pointLightAccum.x = _finite(pointLightAccum.x) ? _min(pointLightAccum.x, 100.0f) : 0.0f;
-    pointLightAccum.y = _finite(pointLightAccum.y) ? _min(pointLightAccum.y, 100.0f) : 0.0f;
-    pointLightAccum.z = _finite(pointLightAccum.z) ? _min(pointLightAccum.z, 100.0f) : 0.0f;
-    pointIntensityAccum = _finite(pointIntensityAccum) ? _min(pointIntensityAccum, 100.0f) : 0.0f;
-    // Sanitize existing probe data before lerp (NaN * 0.7 = NaN persists forever)
-    if (!_finite(probe.pointLightColor.x) || !_finite(probe.pointLightColor.y) || !_finite(probe.pointLightColor.z))
-        probe.pointLightColor.set(0, 0, 0);
-    if (!_finite(probe.pointLightIntensity))
-        probe.pointLightIntensity = 0.0f;
-
-    // Slower blend for point lights (0.1 vs 0.3 for other fields)
-    probe.pointLightColor.lerp(probe.pointLightColor, pointLightAccum, 0.1f);
-    probe.pointLightIntensity = probe.pointLightIntensity * 0.9f + pointIntensityAccum * 0.1f;
 
     // During initial build (bInitialBuild=true):
     //   - WriteProbeToCache is a no-op anyway (m_gpuCache is empty before InitGPUCache())
@@ -1582,7 +1100,6 @@ void CLightProbeGrid::Update()
 
     m_currentFrame++;
     m_updateBudget = (u32)ps_r_probe_update_rate;
-    m_bounceIntensity = ps_r_probe_bounce_intensity;
     m_debugEnabled = ps_r_debug_probes != 0;
 
     CTimer updateTimer;
@@ -1738,10 +1255,6 @@ void CLightProbeGrid::Update()
         }
         m_bgRobinIndex = (m_bgRobinIndex + bgBudget) % _max(1u, probeCount);
     }
-
-    // Periodic light propagation pass
-    if (m_currentFrame % m_propagationRate == 0)
-        PropagateLight(m_propagationIters);
 
     m_lastUpdateTimeMs = updateTimer.GetElapsed_sec() * 1000.0f;
 
@@ -2128,167 +1641,3 @@ void CLightProbeGrid::BuildSpatialHash()
     }
 }
 
-//////////////////////////////////////////////////////////////////////////
-// Neighbor Connectivity Implementation
-//////////////////////////////////////////////////////////////////////////
-
-void CLightProbeGrid::BuildNeighborConnectivity()
-{
-    if (m_probes.empty()) return;
-
-    m_probeNeighbors.resize(m_probes.size());
-
-    // Direction vectors for +X, -X, +Y, -Y, +Z, -Z
-    static const Fvector dirs[6] = {
-        { 1, 0, 0 }, { -1, 0, 0 },
-        { 0, 1, 0 }, { 0, -1, 0 },
-        { 0, 0, 1 }, { 0, 0, -1 }
-    };
-
-    // Maximum distance to consider as neighbor (2.5x outdoor spacing)
-    float maxNeighborDist = OUTDOOR_GRID_SPACING * 2.5f;
-
-    for (u32 i = 0; i < m_probes.size(); i++)
-    {
-        ProbeNeighbors& neighbors = m_probeNeighbors[i];
-        const Fvector& pos = m_probes[i].position;
-
-        // Initialize as no neighbors
-        for (int n = 0; n < 6; n++)
-        {
-            neighbors.indices[n] = 0xFFFFFFFF;
-            neighbors.distances[n] = FLT_MAX;
-        }
-
-        // Use spatial hash to find candidate neighbors efficiently
-        Ivector centerCell = WorldToHashCell(pos);
-
-        // Check 3x3x3 neighborhood of hash cells
-        for (int dz = -1; dz <= 1; dz++)
-        for (int dy = -1; dy <= 1; dy++)
-        for (int dx = -1; dx <= 1; dx++)
-        {
-            Ivector checkCell;
-            checkCell.x = centerCell.x + dx;
-            checkCell.y = centerCell.y + dy;
-            checkCell.z = centerCell.z + dz;
-
-            // Bounds check
-            if (checkCell.x < 0 || checkCell.x >= m_hashDims.x) continue;
-            if (checkCell.y < 0 || checkCell.y >= m_hashDims.y) continue;
-            if (checkCell.z < 0 || checkCell.z >= m_hashDims.z) continue;
-
-            int cellIndex = checkCell.z * (m_hashDims.x * m_hashDims.y)
-                          + checkCell.y * m_hashDims.x
-                          + checkCell.x;
-
-            const SpatialHashCell& cell = m_spatialHash[cellIndex];
-
-            for (int p = 0; p < cell.count; p++)
-            {
-                u32 j = cell.probeIndices[p];
-                if (j == i) continue;  // Skip self
-
-                Fvector delta;
-                delta.sub(m_probes[j].position, pos);
-                float dist = delta.magnitude();
-
-                // Skip probes too far away
-                if (dist > maxNeighborDist) continue;
-
-                delta.normalize_safe();
-
-                // Check which direction this neighbor is in
-                for (int n = 0; n < 6; n++)
-                {
-                    float alignment = delta.dotproduct(dirs[n]);
-                    // Must be mostly aligned (>0.7 = ~45 degrees) and closer than current
-                    if (alignment > 0.7f && dist < neighbors.distances[n])
-                    {
-                        neighbors.indices[n] = j;
-                        neighbors.distances[n] = dist;
-                    }
-                }
-            }
-        }
-    }
-}
-
-//////////////////////////////////////////////////////////////////////////
-// Light Propagation Implementation
-//////////////////////////////////////////////////////////////////////////
-
-void CLightProbeGrid::PropagateLight(int iterations)
-{
-    if (m_probes.empty() || m_probeNeighbors.empty()) return;
-
-    u32 probeCount = (u32)m_probes.size();
-
-    // Ensure persistent buffers are sized (handles first call from Build before explicit resize)
-    if (m_propagationBuffer.size() < probeCount)
-        m_propagationBuffer.resize(probeCount);
-
-    // Gather active probe indices within maxDist + 20m margin
-    float maxDist = ps_r_probe_max_distance + 20.0f;
-    float maxDistSq = maxDist * maxDist;
-    Fvector playerPos = Device.vCameraPosition;
-
-    m_propagationActiveSet.clear();
-    for (u32 i = 0; i < probeCount; i++)
-    {
-        if (playerPos.distance_to_sqr(m_probes[i].position) < maxDistSq)
-            m_propagationActiveSet.push_back(i);
-    }
-
-    u32 activeCount = (u32)m_propagationActiveSet.size();
-    if (activeCount == 0) return;
-
-    for (int iter = 0; iter < iterations; iter++)
-    {
-        // Compute new ambient for active probes only
-        for (u32 a = 0; a < activeCount; a++)
-        {
-            u32 i = m_propagationActiveSet[a];
-            const ProbeNeighbors& neighbors = m_probeNeighbors[i];
-            Fvector neighborContrib = { 0, 0, 0 };
-            float totalWeight = 0;
-
-            for (int n = 0; n < 6; n++)
-            {
-                if (neighbors.indices[n] == 0xFFFFFFFF) continue;
-
-                const CLightProbe& neighbor = m_probes[neighbors.indices[n]];
-                float dist = neighbors.distances[n];
-                float weight = 1.0f / (1.0f + dist);
-
-                neighborContrib.mad(neighbor.ambient, weight);
-                totalWeight += weight;
-            }
-
-            if (totalWeight > 0)
-            {
-                neighborContrib.div(totalWeight);
-                // Blend: 90% self, 10% neighbors (reduced bleed preserves indoor gradients)
-                m_propagationBuffer[i].lerp(m_probes[i].ambient, neighborContrib, 0.10f);
-            }
-            else
-            {
-                m_propagationBuffer[i] = m_probes[i].ambient;
-            }
-        }
-
-        // Copy back and incrementally update volume for each propagated probe.
-        // Must snapshot old values BEFORE overwriting ambient.
-        for (u32 a = 0; a < activeCount; a++)
-        {
-            u32 i = m_propagationActiveSet[a];
-            CLightProbe oldValues = m_probes[i];  // Snapshot before modification
-            m_probes[i].ambient = m_propagationBuffer[i];  // Apply propagated ambient
-            WriteProbeToCache(i);
-            UpdateVolumeProbe(i, oldValues);  // Incremental: only 27 voxels per probe
-        }
-    }
-
-    m_gpuBufferDirty = true;
-    // m_volDirty already set by UpdateVolumeProbe calls above
-}

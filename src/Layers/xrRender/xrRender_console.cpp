@@ -42,29 +42,13 @@ xr_token static_lighting_quality_token [] = {
 	{ 0, 0 }
 };
 
-// OWA: R4 Material style (classic vs PBR) - requires restart
-u32 ps_r4_material_style = st_opt_classic;  // Default to classic (current OWA behavior)
-xr_token material_style_token [] = {
-	{ "st_opt_classic", st_opt_classic },  // LUT-based material response
-	{ "st_opt_pbr",     st_opt_pbr     },  // GGX-based PBR materials
-	{ 0, 0 }
-};
-
 // OWA: Probe lighting system for static lighting mode
 int   ps_r_probe_update_rate = 50;       // Probes updated per frame (10-200)
-float ps_r_probe_bounce_intensity = 0.3f; // Indirect sun strength (0.0-1.0)
 int   ps_r_debug_probes = 0;             // Debug visualization (0 or 1)
-float ps_r_probe_max_distance = 100.0f;  // Max distance for probe updates (30-500)
 int   ps_r_probe_upload_rate = 4;        // GPU upload every N frames (1-16)
 float ps_r_probe_chroma_blend = 0.6f;   // Probe chrominance indoor blend cap (0.0-1.0)
-int   ps_r_probe_bounce_lights = 2;    // Max point lights per bounce ray (0=disabled, 0-3)
 float ps_r_probe_ambient_floor = 0.15f; // Minimum ambient in deepest interior (0.0-0.5)
 float ps_r_probe_gi_boost = 3.0f;      // GI multiplicative lift on base ambient (0.0-10.0)
-
-// OWA SSPE: Screen-Space Probe Enhancement
-float ps_r_sspe_radius       = 2.0f;   // World-space meters (sample reach)
-float ps_r_sspe_intensity    = 0.3f;   // Multiplicative scale on bounce
-float ps_r_sspe_max_distance = 100.0f; // Fadeout distance (meters)
 
 u32 ps_r_sun_shafts = 2;
 xr_token qsun_shafts_token [ ] = {
@@ -74,12 +58,10 @@ xr_token qsun_shafts_token [ ] = {
 	{0, 0}
 };
 
-u32 ps_sunshafts_mode = 2;
+u32 ps_sunshafts_mode = 1;
 xr_token sunshafts_mode_token [ ] = {
 	{"off", 0},
 	{"volumetric", 1},
-	{"screen_space", 2},
-	{"combined", 3},
 	{0, 0}
 };
 
@@ -259,11 +241,6 @@ float ps_r2_ls_bloom_speed = 100.f;   // Eye adaptation speed (kept for luminanc
 // OWA texture contrast - global console variable (replaces per-weather parameter)
 float ps_r__tf_contrast = 0.5f;
 
-// OWA auto fog - derives fog color from environment instead of weather file
-// 0 = use weather fog_color with distance-based sky horizon blending
-// 1 = fully automatic fog color from sky/environment sampling
-float ps_r2_auto_fog = 0.f; // Default off (use weather fog_color)
-
 Fvector ps_r2_aa_barier = {.8f, .1f, 0}; // r2-only
 Fvector ps_r2_aa_weight = {.25f, .25f, 0}; // r2-only
 float ps_r2_aa_kernel = .5f; // r2-only
@@ -304,7 +281,6 @@ float ps_r2_lt_smooth = 1.f; // 1.f
 float ps_r2_slight_fade = 0.5f; // 1.f
 ///////lvutner
 Fvector4 ps_r2_mask_control = {.0f, .0f, .0f, .0f}; // r2-only
-Fvector ps_r2_drops_control = {.0f, 1.15f, .0f}; // r2-only
 
 int ps_r2_nightvision = 0;
 
@@ -334,9 +310,6 @@ Fvector4 heat_vision_args_2 = { .0f, .0f, .0f, .0f };
 int scope_fake_enabled = 1;
 int scope_3D_fake_enabled = 0; // Redotix99: for 3D Shader Based Scopes
 //string32 scope_fake_texture = "wpn\\wpn_crosshair_pso1";
-
-float ps_r2_ss_sunshafts_length = 1.f;
-float ps_r2_ss_sunshafts_radius = 1.f;
 
 // OWA: tnmp_* removed - unified hermite spline tonemapping now handles all cases
 
@@ -414,9 +387,6 @@ float hud_fov_aim_factor = 0;
 // Screen Space Shaders Stuff
 Fvector4 ps_ssfx_floravariation = { 0.025, 0.1, 0.025, 0.05 }; // Grass Int, Grass Freq, Foliage Int, Foliage Freq ( 0.025, 0.1, 0.03, 0.05 )
 Fvector4 ps_ssfx_taa = { 1, 0.5f, 0.6f, 0 }; // Enable, Jitter, Sharpness, -
-Fvector4 ps_ssfx_fog = { 8, 1.3f, 0.1f, 0 }; // Height, Density, SunColor, -
-float ps_ssfx_fog_scattering = 0.6f; // Fog scattering intensity
-float ps_ssfx_fog_terrain_y = 0.0f;  // OWA: terrain Y under camera + pressure offset (set from Lua)
 
 int ps_ssfx_pom_refine = 0;
 Fvector4 ps_ssfx_pom = { 16, 12, 0.035f, 0.4f };  // Samples , Range, Height, AO
@@ -445,11 +415,6 @@ Fvector4 ps_ssfx_il = { 6.66f, 1.0f, 1.0f, 5.0f }; // Res, Int, Vibrance, Blur
 Fvector4 ps_ssfx_il_setup1 = { 150.0f, 1.0f, 0.5f, 0.0f }; // Distance, HUD, Flora, -
 
 
-// OWA: Perceptual Lighting parameters (part of Perceptual GI, controlled by r3_gi)
-// PL is automatically enabled when r3_gi is enabled - no separate toggle
-Fvector4 ps_r3_gi_pl_params = { 0.9f, 1.0f, 1.0f, 0.5f }; // Intensity, Occlusion, Irradiance, Threshold
-Fvector4 ps_r3_gi_pl_params2 = { 0.65f, 0.1f, 0.75f, 0.0f }; // Radius, Saturation, Recovery, Reserved
-
 Fvector4 ps_ssfx_water = { 1.0f, 0.8f, 1.0f, 0.0f }; // Res, Blur, Blur Perlin, -
 Fvector3 ps_ssfx_water_quality = { 1.0, 2.0, 0.0 }; // SSR Quality, Parallax Quality, -
 Fvector4 ps_ssfx_water_setup1 = { 0.6f, 3.0f, 0.3f, 0.05f }; // Distortion, Turbidity, Softborder, Parallax Height
@@ -464,7 +429,6 @@ Fvector4 ps_ssfx_volumetric = { 1.0f, 1.0f, 3.0f, 1.0f }; // Force Volumetric, V
 Fvector3 ps_ssfx_shadow_bias = { 0.4f, 0.03f, 0.0f };
 
 // OWA SSFX compile-time toggles (require restart, default OFF for low-end PC compatibility)
-int ps_r3_ssfx_fog = 0;        // r3_ssfx_fog command
 int ps_r3_ssfx_shadows = 0;    // r3_ssfx_shadows command
 int ps_r3_ssfx_water = 0;      // r3_ssfx_water command
 int ps_r3_ssfx_taa = 0;        // r3_ssfx_taa command
@@ -480,13 +444,7 @@ int ps_ssfx_is_underground = 0;
 
 Fvector4 ps_ssfx_lightsetup_1 = { 0.35f, 0.5f, 0.0f, 0.0f }; // Spec intensity
 
-Fvector4 ps_ssfx_hud_drops_1 = { 1.0f, 1.0f, 1.0f, 1.0f }; // Anim Speed, Int, Reflection, Refraction
-Fvector4 ps_ssfx_hud_drops_2 = { 1.5f, 0.85f, 0.0f, 2.0f }; // Density, Size, Extra Gloss, Gloss
-
-Fvector4 ps_ssfx_blood_decals = { 0.6f, 0.6f, 0.f, 0.f };
-
 Fvector3 ps_ssfx_shadow_cascades = { 20, 40, 160 };
-Fvector4 ps_ssfx_grass_shadows = { .0f, .35f, 30.0f, .0f };
 
 Fvector4 ps_ssfx_grass_interactive = { .0f, .0f, 2000.0f, 1.0f };
 Fvector4 ps_ssfx_int_grass_params_1 = { 1.0f, 1.0f, 1.0f, 25.0f };
@@ -1150,7 +1108,6 @@ void xrRender_initconsole()
 	CMD4(CCC_Float, "r2_bloom_radius", &ps_r2_bloom_radius, 0.5f, 4.0f);
 	CMD4(CCC_Float, "r2_ls_bloom_speed", &ps_r2_ls_bloom_speed, 0.f, 100.f);
 	CMD4(CCC_Float, "r__tf_contrast", &ps_r__tf_contrast, 0.0f, 1.0f);
-	CMD4(CCC_Float, "r2_auto_fog", &ps_r2_auto_fog, 0.f, 1.f);
 	CMD4(CCC_Float, "r2_ls_dsm_kernel", &ps_r2_ls_dsm_kernel, .1f, 3.f);
 	CMD4(CCC_Float, "r2_ls_psm_kernel", &ps_r2_ls_psm_kernel, .1f, 3.f);
 	CMD4(CCC_Float, "r2_ls_ssm_kernel", &ps_r2_ls_ssm_kernel, .1f, 3.f);
@@ -1213,12 +1170,7 @@ void xrRender_initconsole()
 	///////lvutner
 	CMD4(CCC_Vector4, "r2_mask_control", &ps_r2_mask_control, Fvector4().set(0,0,0,0), Fvector4().set(10,3,1,1));
 
-	tw_min.set(0, 0, 0);
-	tw_max.set(1, 2, 1);
-	CMD4(CCC_Vector3, "r2_drops_control", &ps_r2_drops_control, tw_min, tw_max);
 	CMD3(CCC_Token, "r2_sunshafts_mode", &ps_sunshafts_mode, sunshafts_mode_token);
-	CMD4(CCC_Float, "r2_ss_sunshafts_length", &ps_r2_ss_sunshafts_length, .2f, 1.5f);
-	CMD4(CCC_Float, "r2_ss_sunshafts_radius", &ps_r2_ss_sunshafts_radius, .5f, 2.f);
 
 	// OWA: r2_tnmp_* removed - unified hermite spline tonemapping now handles all cases
 
@@ -1232,22 +1184,13 @@ void xrRender_initconsole()
 	CMD3(CCC_Token, "r4_lighting_style", &ps_r4_lighting_style, lighting_style_token);
 	CMD4(CCC_Float, "r4_static_brightness", &ps_r4_static_brightness, 0.5f, 4.0f);
 	CMD3(CCC_Token, "r4_static_lighting_quality", &ps_r4_static_lighting_quality, static_lighting_quality_token);
-	// OWA: R4 Material Style (classic vs PBR) - requires restart
-	CMD3(CCC_Token, "r4_material_style", &ps_r4_material_style, material_style_token);
 	// OWA: Probe lighting system for static lighting mode
 	CMD4(CCC_Integer, "r_probe_update_rate", &ps_r_probe_update_rate, 10, 200);
-	CMD4(CCC_Float, "r_probe_bounce_intensity", &ps_r_probe_bounce_intensity, 0.0f, 1.0f);
 	CMD4(CCC_Integer, "r_debug_probes", &ps_r_debug_probes, 0, 9);
-	CMD4(CCC_Float, "r_probe_max_distance", &ps_r_probe_max_distance, 30.0f, 500.0f);
 	CMD4(CCC_Integer, "r_probe_upload_rate", &ps_r_probe_upload_rate, 1, 16);
 	CMD4(CCC_Float, "r_probe_chroma_blend", &ps_r_probe_chroma_blend, 0.0f, 1.0f);
-	CMD4(CCC_Integer, "r_probe_bounce_lights", &ps_r_probe_bounce_lights, 0, 3);
 	CMD4(CCC_Float, "r_probe_ambient_floor", &ps_r_probe_ambient_floor, 0.0f, 0.5f);
 	CMD4(CCC_Float, "r_probe_gi_boost", &ps_r_probe_gi_boost, 0.0f, 10.0f);
-	// OWA SSPE: Screen-Space Probe Enhancement
-	CMD4(CCC_Float, "r_sspe_radius", &ps_r_sspe_radius, 0.5f, 5.0f);
-	CMD4(CCC_Float, "r_sspe_intensity", &ps_r_sspe_intensity, 0.0f, 2.0f);
-	CMD4(CCC_Float, "r_sspe_max_distance", &ps_r_sspe_max_distance, 10.0f, 500.0f);
 	// OWA: Point light shadows (high-end option, expensive - 6 shadow passes per point light)
 	CMD4(CCC_Integer, "r4_point_light_shadows", &ps_r4_point_light_shadows, 0, 1);
     CMD4(CCC_Integer, "r4_hdr10_colorspace",	  &ps_r4_hdr10_colorspace, 		     0, 2);
@@ -1330,12 +1273,8 @@ void xrRender_initconsole()
 	// Screen Space Shaders
 	CMD4(CCC_Vector4, "ssfx_floravariation", &ps_ssfx_floravariation, Fvector4().set(0, 0, 0, 0), Fvector4().set(10, 1, 10, 1));
 	CMD4(CCC_Vector4, "ssfx_taa", &ps_ssfx_taa, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 1, 2, 1));
-	CMD4(CCC_Float, "ssfx_fog_scattering", &ps_ssfx_fog_scattering, 0, 1);
-	CMD4(CCC_Vector4, "ssfx_fog", &ps_ssfx_fog, Fvector4().set(0, 0, 0, 0), Fvector4().set(20, 5, 1, 100));
-	CMD4(CCC_Float, "ssfx_fog_terrain_y", &ps_ssfx_fog_terrain_y, -500.f, 500.f); // OWA: terrain Y offset for dynamic height fog
 
 	// OWA SSFX feature toggles (requires restart for shader recompilation)
-	CMD4(CCC_Integer, "r3_ssfx_fog", &ps_r3_ssfx_fog, 0, 1);
 	CMD4(CCC_Integer, "r3_ssfx_shadows", &ps_r3_ssfx_shadows, 0, 1);
 	CMD4(CCC_Integer, "r3_ssfx_water", &ps_r3_ssfx_water, 0, 1);
 	CMD4(CCC_Integer, "r3_ssfx_taa", &ps_r3_ssfx_taa, 0, 1);
@@ -1360,12 +1299,6 @@ void xrRender_initconsole()
 	CMD4(CCC_Vector4, "ssfx_il_setup1", &ps_ssfx_il_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(300, 1, 1, 1));
 
 
-	// OWA: Perceptual Lighting parameters (part of Perceptual GI, controlled by r3_gi)
-	// x = Intensity, y = Occlusion, z = Irradiance, w = Threshold
-	CMD4(CCC_Vector4, "r3_gi_pl_params", &ps_r3_gi_pl_params, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 2, 2, 1));
-	// x = Radius (unused), y = Saturation, z = Recovery, w = Reserved
-	CMD4(CCC_Vector4, "r3_gi_pl_params2", &ps_r3_gi_pl_params2, Fvector4().set(0.25, 0, 0, 0), Fvector4().set(1, 1, 1, 1));
-
 	CMD4(CCC_Vector4, "ssfx_water", &ps_ssfx_water, Fvector4().set(1, 0, 0, 0), Fvector4().set(8, 1, 1, 0));
 	CMD4(CCC_Vector3, "ssfx_water_quality", &ps_ssfx_water_quality, Fvector3().set(0, 0, 0), Fvector3().set(4, 3, 0));
 	CMD4(CCC_Vector4, "ssfx_water_setup1", &ps_ssfx_water_setup1, Fvector4().set(0, 0, 0, 0), Fvector4().set(2, 10, 1, 0.1));
@@ -1389,12 +1322,6 @@ void xrRender_initconsole()
 
 	CMD4(CCC_Vector4, "ssfx_lightsetup_1", &ps_ssfx_lightsetup_1, Fvector4().set(0, 0, 0, 0), Fvector4().set(1.0, 1.0, 1.0, 1.0));
 
-	CMD4(CCC_Vector4, "ssfx_hud_drops_1", &ps_ssfx_hud_drops_1, Fvector4().set(0, 0, 0, 0), Fvector4().set(100000, 100, 100, 100));
-	CMD4(CCC_Vector4, "ssfx_hud_drops_2", &ps_ssfx_hud_drops_2, Fvector4().set(0, 0, 0, 0), tw2_max);
-
-	CMD4(CCC_Vector4, "ssfx_blood_decals", &ps_ssfx_blood_decals, Fvector4().set(0, 0, 0, 0), Fvector4().set(5, 5, 0, 0));
-
-	CMD4(CCC_Vector4, "ssfx_grass_shadows", &ps_ssfx_grass_shadows, Fvector4().set(0, 0, 0, 0), Fvector4().set(3, 1, 100, 100));
 	CMD4(CCC_ssfx_cascades, "ssfx_shadow_cascades", &ps_ssfx_shadow_cascades, Fvector3().set(1.0f, 1.0f, 1.0f), Fvector3().set(300, 300, 300));
 	
 	CMD4(CCC_Vector4, "ssfx_grass_interactive", &ps_ssfx_grass_interactive, Fvector4().set(0, 0, 0, 0), Fvector4().set(1, 15, 5000, 1));
@@ -1531,7 +1458,6 @@ void xrRender_initconsole()
 	CMD4(CCC_detail_radius, "r__detail_radius", &ps_r__detail_radius, 0, 250);
 	CMD3(CCC_Mask, "r__clear_models_on_unload", &psDeviceFlags2, rsClearModels); //Alundaio
 	CMD3(CCC_Mask, "r__use_precompiled_shaders", &psDeviceFlags2, rsPrecompiledShaders); //Alundaio
-	CMD3(CCC_Mask, "r__enable_grass_shadow", &psDeviceFlags2, rsGrassShadow); //Alundaio
 	CMD3(CCC_Mask, "r__no_scale_on_fade", &psDeviceFlags2, rsNoScale); //Alundaio
 #endif
 

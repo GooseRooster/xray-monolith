@@ -252,12 +252,6 @@ void CRenderTarget::phase_combine()
 		}
 	}
 
-	if (!_menu_pp)
-	{
-		if (ps_sunshafts_mode == R2SS_SCREEN_SPACE || ps_sunshafts_mode == R2SS_COMBINE_SUNSHAFTS)
-			phase_sunshafts();
-	}
-	
 		phase_blur();
 	
 	if (ps_r2_ls_flags.test(R2FLAG_DOF))
@@ -270,10 +264,6 @@ void CRenderTarget::phase_combine()
 	if(ps_r2_mask_control.x > 0)
 	{
 		phase_gasmask_dudv();
-		if (ps_r2_drops_control.x > 0)
-		{
-			phase_gasmask_drops();
-		}
 	}
 	
 	if(ps_r2_nightvision > 0)

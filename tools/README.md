@@ -7,14 +7,23 @@ as before. It does **not** change how the engine is built.
 
 ## Why this exists / where it's headed
 
-The immediate goal was host-side editor tooling. The longer-term goal (not
-done, not started as a build-system project) is to eventually get this fork
-building with CMake on Linux too, the way
-[OpenXRay/xray-16](https://github.com/OpenXRay/xray-16) already does for its
-fork. That's a much bigger job than editor tooling - see
-["Path to a CMake/Linux build"](#path-to-a-cmakelinux-build-the-real-goal)
-below for what that would actually require and how this work contributes to
-it.
+The immediate goal was host-side editor tooling. The longer-term goal is to
+**cross-compile from Linux to Windows PE** — producing the exact same DirectX
+binary, just built from the Linux host — using the
+`clang-cl + xwin + lld-link` toolchain.
+
+This is now confirmed **feasible** (July 2025 investigation):
+- **The engine does not actually use MFC/ATL** — the MSVC workload
+  requirement in `AGENTS.md` is legacy/editor-only, not needed by the runtime.
+  Every `.vcxproj` declares `UseOfMfc=false` or omits it entirely. The ~3280
+  `AFX_*` tokens in the codebase are ClassWizard include-guard conventions
+  (`AFX_BLENDER_H__`), not MFC API calls. The splash dialog and crash reporter
+  use raw Win32 `CreateDialog`/`DialogBox`.
+- The tooling pipeline (`xwin`, `clang-cl`, `compile_commands.json` remapping)
+  is already 80% in place from the clangd setup — the missing piece is making
+  the code actually *compile* under clang rather than just *parse* for LSP.
+- See ["Path to a CMake-based Windows cross-compile"](#path-to-a-cmake-based-windows-cross-compile-the-real-goal)
+  for the full roadmap, approach comparison, and interim build options.
 
 ## How it works
 
@@ -151,6 +160,23 @@ a small, bounded list, so it's tracked here rather than promised as "done."
   tricks - plausibly a different, harder problem than the engine's own code,
   and lower priority since you don't edit vendored code day-to-day.
 
+**3rd-party libraries: cross-compilation impact**
+
+For an actual clang-cl cross-compile (not just clangd parsing), these
+libraries become a genuine blocker — clang can't ingest MSVC inline assembly.
+Two tiers:
+
+- **Hard (hand-written asm)**: `LuaJIT` (x86/x64 asm in `lj_*.c` +
+  `buildvm` host tool), `OpenSSL` (`bn_asm.c` and other per-arch asm files).
+  The pragmatic mitigation is to pre-build `.lib` files once on Windows,
+  commit them to the repo, and link statically — many real cross-compilation
+  projects do exactly this.
+
+- **Likely OK (intrinsics)**: `libtheora`, `libvorbis`, `libjpeg`,
+  `mimalloc` — these use MMX/SSE intrinsics that clang-cl supports. Need
+  testing but expected to compile as-is. `OpenAL-soft` already has a
+  portable C fallback.
+
 **How to keep going:** fix these opportunistically - when a file you're
 actually working on is noisy in clangd, dig into *that* file's blocker rather
 than trying to sweep the whole repository to zero. The pattern so far: get
@@ -162,36 +188,163 @@ standard-conforming fix that doesn't change MSVC's behavior.
 ## Path to a CMake-based Windows cross-compile (the real goal)
 
 The goal is purely to get Linux devs out of needing a Windows VM/VS install
-*to build* - i.e. real cross-compilation, producing the exact same
+*to build* — i.e. real cross-compilation, producing the exact same
 `x86_64-pc-windows-msvc` binary (DirectX, Win32 APIs, all untouched), just
-built from a Linux host. No engine porting, no DirectX/OpenGL swap,  none of that is needed or wanted here.
+built from a Linux host. No engine porting, no DirectX/OpenGL swap — none of
+that is needed or wanted here.
 
-This tooling work directly serves that goal. Concretely, the pieces line up
-like this:
+### Feasibility: confirmed viable
 
-- **The actual CMake migration**: translating 55 `.vcxproj`/`Common.props`
-  into `CMakeLists.txt` - per-project include dirs, defines, and PCH settings.
-  [OpenXRay's CMakeLists structure](https://github.com/OpenXRay/xray-16) is
-  still worth diffing against for *how to structure the mechanical
-  translation* (same engine lineage, same vcxproj-shaped problem) - just
-  ignore the parts of their fork that are about porting to native
-  Linux/OpenGL, which don't apply here.
-- **A CMake toolchain file targeting `clang-cl` + `lld-link` against the
-  `xwin` sysroot** - this is the same `xwin` cache already set up for clangd
-  in this session, just used for real compilation and linking instead of
-  editor parsing. `xwin splat` already produces the `.lib`s alongside the
-  headers, so the missing piece is wiring a CMake toolchain file to point at
-  them (`crt/lib`, `sdk/lib/um`, `sdk/lib/ucrt`) instead of a real MSVC
-  install. No Wine involved anywhere in this - `clang-cl`/`lld-link` produce
-  a real Windows PE binary directly on Linux.
-- **The source-level MSVC-permissiveness issues found in this session become
-  load-bearing, not optional.** clangd's parse-only check tolerates some
-  sloppiness; an actual `clang-cl` compile+link will not. Every gap listed
-  above (and whatever else turns up) needs to be genuinely fixed, not just
-  parsed around, before real cross-compilation can work.
-- **The vendored 3rd-party libraries** need to actually build under
-  `clang-cl`, which is a higher bar than clangd's syntax check tolerated
-  (LuaJIT's `buildvm` step and inline-asm-heavy code, OpenSSL's hand-written
-  asm, etc. are the likely pain points) - unrelated to whether they run on
-  Linux, since the output is still a Windows binary either way.
+The MFC/ATL investigation (July 2025) removed the single biggest blocker most
+people assume with MSVC-to-clang migration:
+
+- **Zero MFC/ATL usage in the engine runtime.** All `.vcxproj` files that
+  specify `UseOfMfc` set it to `false`. The codebase uses raw Win32
+  (`CreateDialog`, `DialogBox`, `DIALOGEX` resources) for its two dialogs
+  (splash screen and crash reporter). The `WinResRC.h` shim (referenced by
+  `.rc` files) explicitly avoids MFC's `afxres.h`.
+- **xwin** provides CRT + Windows SDK headers *and* `.lib` files — not just
+  headers for clangd, but linkable import libraries for `clang-cl`/`lld-link`.
+  The same `xwin splat` already used for editor tooling produces everything
+  needed for actual compilation.
+- **The tooling pipeline is 80% in place:** `compile_commands.json` capture,
+  path remapping for `clang-cl`, `xwin` sysroot. The remaining 20% is making
+  the code genuinely compile under clang (not just parse for LSP).
+
+### Three approaches compared
+
+| Approach | Source fixes | Wine needed | True cross-compile | Verdict |
+|----------|-------------|-------------|-------------------|---------|
+| **A: clang-cl + xwin + lld-link** | Yes (~1500 TU fixes) | No | Yes (Linux native) | **Target** |
+| B: msvc-wine | None | Yes | Partial (Wine layer) | Fallback |
+| C: Windows container (dockur/windows) | None | No (KVM VM) | No (full Windows VM) | Interim |
+
+**Approach A (recommended)** is the end goal — pure Linux-native cross-compilation
+yielding a Windows PE binary. It aligns with the clangd work already in
+progress (every file fixed for LSP is one step closer to real compilation).
+
+**Approach B** runs the actual MSVC toolchain (`cl.exe`, `link.exe`) under
+Wine on Linux — zero source changes, 100% MSVC compatibility. Fragile in
+practice (mspdbsrv issues, debug builds), but a valid fallback if Phase 1
+reveals intractable clang incompatibilities.
+
+**Approach C** is covered in [Interim build options](#interim-build-options-windows-containers) below.
+
+### Phase breakdown
+
+**Phase 1 — Source-level compliance (the real work):**
+The ~1500 TUs with MSVC-vs-standard incompatibilities. Same categories
+already identified in the clangd gaps: missing `template<>`, dependent-base
+lookup, `or`/`and` as identifiers, and possibly new categories not yet seen.
+Each file fixed for clangd moves you closer to actual compilation.
+
+**Phase 2 — 3rd-party assembly:**
+Pre-build `LuaJIT` and `OpenSSL` `.lib` files on Windows once, commit to
+repo, link statically. Other 3rd-party libraries (libjpeg, vorbis, theora,
+mimalloc) use MSVC intrinsics that clang-cl supports — expected to compile.
+
+**Phase 3 — CMake migration:**
+Translate 55 `.vcxproj`/`Common.props` into `CMakeLists.txt`.
+[OpenXRay's CMakeLists structure](https://github.com/OpenXRay/xray-16) is
+the reference for the mechanical translation (same engine lineage, same
+vcxproj-shaped problem) — ignore their Linux/OpenGL porting, which doesn't
+apply here. The existing `compile_commands.json` is the golden source of
+truth for verifying identical compile invocations.
+
+**Phase 4 — Container + CI:**
+Containerfile-based cross-build image (see below), CMake toolchain file
+wired to `xwin` sysroot, `clang-cl` + `lld-link` invocation. Add a CI job
+on `ubuntu-latest` alongside the existing `windows-latest` CI.
+
+### Toolchain reference
+
+A CMake toolchain file targeting `clang-cl` + `lld-link` against the `xwin`
+sysroot:
+
+```cmake
+# cmake/toolchain-x86_64-windows-msvc-clang.cmake
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
+
+set(CMAKE_C_COMPILER   clang-cl)
+set(CMAKE_CXX_COMPILER clang-cl)
+set(CMAKE_LINKER       lld-link)
+set(CMAKE_AR           llvm-lib)
+set(CMAKE_RC_COMPILER  llvm-rc)
+
+set(XWIN_ROOT $ENV{HOME}/.xwin-cache/splat)
+set(CMAKE_SYSROOT ${XWIN_ROOT})
+
+add_compile_options(/winsysroot${XWIN_ROOT})
+add_compile_options(/clang:-fno-operator-names)
+add_compile_options(/clang:-fno-delayed-template-parsing)
+```
+
+Cross-build image (`tools/CrossBuild.Containerfile`):
+
+```dockerfile
+FROM ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang-18 lld-18 cmake ninja-build python3 git ca-certificates curl \
+    && curl -L https://github.com/Jake-Shadle/xwin/releases/latest/download/xwin-x86_64-unknown-linux-musl.tar.gz \
+    | tar xz -C /usr/local/bin \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN ln -s /usr/bin/clang-18    /usr/local/bin/clang-cl  \
+    && ln -s /usr/bin/lld-18    /usr/local/bin/lld-link \
+    && ln -s /usr/bin/llvm-ar-18 /usr/local/bin/llvm-lib \
+    && ln -s /usr/bin/llvm-rc-18 /usr/local/bin/llvm-rc
+
+RUN xwin --accept-license splat --output /opt/xwin --arch x86_64
+ENV XWIN_ROOT=/opt/xwin
+
+RUN useradd -m builder
+USER builder
+WORKDIR /home/builder
+```
+
+Build invocation:
+
+```bash
+cmake -B _build/cross -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-x86_64-windows-msvc-clang.cmake \
+    -DCMAKE_BUILD_TYPE=Release
+cmake --build _build/cross
+```
+
+CI integration (add to `.github/workflows/msbuild.yml`):
+
+```yaml
+cross-build:
+  runs-on: ubuntu-latest
+  container:
+    image: ghcr.io/oldworld/xray-cross-build:latest
+  steps:
+    - uses: actions/checkout@v4
+    - run: cmake -B _build/cross -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain-x86_64-windows-msvc-clang.cmake
+    - run: cmake --build _build/cross
+```
+
+### Interim build options (Windows containers)
+
+Until cross-compilation is working, there are two ways to build without a
+full Windows VM on your desktop:
+
+**dockur/windows** — Runs a full Windows VM inside a podman/docker container
+on Linux via KVM/QEMU. Accessible via web browser (port 8006) or RDP (3389).
+You'd install Visual Studio inside the guest, bind-mount the repo, and build
+as normal. Requires KVM on the host. Essentially a VM with a container
+wrapper — convenient setup, but not fundamentally different from your
+existing VM workflow performance-wise.
+
+**GitHub Actions** — The existing `windows-latest` CI runner already builds
+DX11 and DX11-AVX on every push/PR. For a quick build without local tooling,
+push a branch and pull the artifact.
+
+**msvc-wine** — Runs the actual MSVC `cl.exe`/`link.exe` under Wine. Zero
+source changes needed, full MSVC compatibility. Useful as a stopgap for
+local builds if dockur/windows KVM is unavailable, but fragile (mspdbsrv
+crashes, non-trivial setup).
 

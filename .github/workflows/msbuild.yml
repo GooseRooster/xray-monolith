@@ -136,6 +136,9 @@ jobs:
     if: github.event_name == 'push'
     name: Release
     runs-on: ubuntu-latest
+    outputs:
+      release-url: ${{ steps.publish.outputs.url }}
+      release-tag: ${{ steps.datetime.outputs.today }}
     steps:
     - uses: actions/checkout@v4
       # with:
@@ -186,8 +189,8 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           BRANCH: ${{ github.ref_name }}
           AUTHOR: ${{ github.actor }}
-          RELEASE_URL: ${{ needs.release.outputs.publish-url }}
-          RELEASE_TAG: ${{ needs.release.outputs.publish-tag_name }}
+          RELEASE_URL: ${{ needs.release.outputs.release-url }}
+          RELEASE_TAG: ${{ needs.release.outputs.release-tag }}
         run: |
           # Send to Discord
           curl -H "Content-Type: application/json" \

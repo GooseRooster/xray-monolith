@@ -807,8 +807,6 @@ static class cl_near_far_plane : public R_constant_setup
 
 // Screen Space Shaders Stuff
 extern Fvector4 ps_ssfx_floravariation;
-extern Fvector4 ps_ssfx_fog;
-extern float    ps_ssfx_fog_terrain_y;
 
 extern Fvector4 ps_ssfx_pom;
 extern Fvector4 ps_ssfx_terrain_pom;
@@ -820,7 +818,6 @@ extern float ps_ssfx_hud_hemi;
 
 // OWA retro shader constants
 extern float ps_r__tf_contrast;
-extern float ps_r2_auto_fog;
 extern int   ps_r3_fog_temporal;
 // OWA Multi-Scale Bloom parameters
 extern float ps_r2_bloom_threshold;
@@ -837,7 +834,6 @@ extern Fvector4 ps_ssfx_terrain_offset;
 
 extern Fvector3 ps_ssfx_shadow_bias;
 extern int ps_r3_ssfx_shadows;
-extern int ps_r3_ssfx_fog;
 extern int ps_r3_ssfx_water;
 extern int ps_r3_ssfx_taa;
 extern int ps_r3_ssfx_il;
@@ -849,9 +845,6 @@ extern Fvector4 ps_ssfx_florafixes_2;
 
 extern int ps_ssfx_is_underground;
 extern Fvector4 ps_ssfx_lightsetup_1;
-extern Fvector4 ps_ssfx_hud_drops_1;
-extern Fvector4 ps_ssfx_hud_drops_2;
-extern Fvector4 ps_ssfx_blood_decals;
 
 //Sneaky debug stuff
 extern Fvector4 ps_dev_param_1;
@@ -926,30 +919,6 @@ static class dev_param_8 : public R_constant_setup
 		RCache.set_c(C, ps_dev_param_8.x, ps_dev_param_8.y, ps_dev_param_8.z, ps_dev_param_8.w);
 	}
 }    dev_param_8;
-
-static class ssfx_blood_decals : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_blood_decals);
-	}
-}    ssfx_blood_decals;
-
-static class ssfx_hud_drops_1 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_hud_drops_1);
-	}
-}    ssfx_hud_drops_1;
-
-static class ssfx_hud_drops_2 : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_hud_drops_2);
-	}
-}    ssfx_hud_drops_2;
 
 static class ssfx_lightsetup_1 : public R_constant_setup
 {
@@ -1079,28 +1048,6 @@ static class ssfx_il_setup1 : public R_constant_setup
 	}
 }    ssfx_il_setup1;
 
-// OWA: Perceptual Lighting (controlled by r3_gi command)
-extern Fvector4 ps_r3_gi_pl_params;
-extern Fvector4 ps_r3_gi_pl_params2;
-
-static class pl_params : public R_constant_setup
-{
-	virtual void setup(R_constant* C) override
-	{
-		// OWA: Just pass PL params - enable/disable is handled by
-		// compile-time #ifdef SSFX_INDIRECT_LIGHT in shaders (set via r3_gi)
-		RCache.set_c(C, ps_r3_gi_pl_params);
-	}
-}    pl_params;
-
-static class pl_params2 : public R_constant_setup
-{
-	virtual void setup(R_constant* C) override
-	{
-		RCache.set_c(C, ps_r3_gi_pl_params2);
-	}
-}    pl_params2;
-
 static class ssfx_hud_hemi : public R_constant_setup
 {
 	virtual void setup(R_constant* C) override
@@ -1177,22 +1124,6 @@ static class ssfx_fTimeDelta : public R_constant_setup
 		RCache.set_c(C, Device.fTimeDelta, 0, 0, 0);
 	}
 }    ssfx_fTimeDelta;
-
-static class ssfx_fog : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_fog);
-	}
-}    ssfx_fog;
-
-static class ssfx_fog_terrain_y_setup : public R_constant_setup
-{
-	virtual void setup(R_constant* C)
-	{
-		RCache.set_c(C, ps_ssfx_fog_terrain_y);
-	}
-}    ssfx_fog_terrain_y_setup;
 
 static class ssfx_floravariation : public R_constant_setup
 {
@@ -1369,15 +1300,7 @@ static class cl_owa_auto_fog : public R_constant_setup
 {
 	virtual void setup(R_constant* C) override
 	{
-		// OWA: r2_auto_fog > 0 acts as developer override for fog_auto_blend
-		// This lets you test auto fog color on the stratified path without editing weather files
-		// r2_auto_fog 0 (default) = use weather value, r2_auto_fog 0.5/1.0 = override
-		float fog_auto_blend;
-		if (ps_r2_auto_fog > 0.f)
-			fog_auto_blend = ps_r2_auto_fog;
-		else
-			fog_auto_blend = g_pGamePersistent->Environment().CurrentEnv->m_fFogAutoBlend;
-
+		float fog_auto_blend = g_pGamePersistent->Environment().CurrentEnv->m_fFogAutoBlend;
 		RCache.set_c(C, fog_auto_blend, 0, 0, 0);
 	}
 } binder_owa_auto_fog;
@@ -1503,8 +1426,6 @@ void CBlender_Compile::SetMapping()
 
 	// Screen Space Shaders	
 	r_Constant("ssfx_floravariation", &ssfx_floravariation);
-	r_Constant("ssfx_fog", &ssfx_fog);
-	r_Constant("ssfx_fog_terrain_y", &ssfx_fog_terrain_y_setup);
 	r_Constant("ssfx_timedelta", &ssfx_fTimeDelta);
 	r_Constant("ssfx_jitter", &ssfx_jitter);
 	r_Constant("ssfx_pom", &ssfx_pom);
@@ -1516,8 +1437,6 @@ void CBlender_Compile::SetMapping()
 	r_Constant("ssfx_hud_hemi", &ssfx_hud_hemi);
 	r_Constant("ssfx_il_setup", &ssfx_il);
 	r_Constant("ssfx_il_setup2", &ssfx_il_setup1);
-	r_Constant("pl_params", &pl_params);
-	r_Constant("pl_params2", &pl_params2);
 	r_Constant("ssfx_water", &ssfx_water);
 	r_Constant("ssfx_water_setup1", &ssfx_water_setup1);
 	r_Constant("ssfx_water_setup2", &ssfx_water_setup2);
@@ -1529,9 +1448,6 @@ void CBlender_Compile::SetMapping()
 	r_Constant("ssfx_wind_anim_prev", &ssfx_wind_anim_prev);
 	r_Constant("sky_color", &binder_sky_color);
 	r_Constant("sky_rotations", &binder_sky_rotations);  // OWA: Per-state sky rotations for fog sampling
-	r_Constant("ssfx_blood_decals", &ssfx_blood_decals);
-	r_Constant("ssfx_hud_drops_1", &ssfx_hud_drops_1);
-	r_Constant("ssfx_hud_drops_2", &ssfx_hud_drops_2);
 	r_Constant("ssfx_lightsetup_1", &ssfx_lightsetup_1);
 	r_Constant("ssfx_is_underground", &ssfx_is_underground);
 	r_Constant("ssfx_florafixes_1", &ssfx_florafixes_1);

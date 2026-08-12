@@ -639,12 +639,6 @@
     <ClInclude Include="blender_gasmask_dudv.h">
       <Filter>Shading templates</Filter>
     </ClInclude>
-    <ClInclude Include="blender_gasmask_drops.h">
-      <Filter>Shading templates</Filter>
-    </ClInclude>
-    <ClInclude Include="blender_ss_sunshafts.h">
-      <Filter>Shading templates</Filter>
-    </ClInclude>
     <ClInclude Include="..\xrRender\tga.h">
       <Filter>Core</Filter>
     </ClInclude>
@@ -1193,22 +1187,10 @@
     <ClCompile Include="blender_gasmask_dudv.cpp">
       <Filter>Shading templates</Filter>
     </ClCompile>
-    <ClCompile Include="blender_gasmask_drops.cpp">
-      <Filter>Shading templates</Filter>
-    </ClCompile>
-    <ClCompile Include="blender_ss_sunshafts.cpp">
-      <Filter>Shading templates</Filter>
-    </ClCompile>
-    <ClCompile Include="..\xrRender\rendertarget_phase_gasmask_drops.cpp">
-      <Filter>Core_Target</Filter>
-    </ClCompile>
     <ClCompile Include="..\xrRender\rendertarget_phase_gasmask_dudv.cpp">
       <Filter>Core_Target</Filter>
     </ClCompile>
     <ClCompile Include="..\xrRender\rendertarget_phase_nightvision.cpp">
-      <Filter>Core_Target</Filter>
-    </ClCompile>
-    <ClCompile Include="..\xrRender\rendertarget_phase_sunshafts.cpp">
       <Filter>Core_Target</Filter>
     </ClCompile>
     <ClCompile Include="..\xrRender\rendertarget_phase_dof.cpp">

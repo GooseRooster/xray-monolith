@@ -22,7 +22,6 @@
 
 
 // OWA: SSFX compile-time toggles
-extern int ps_r3_ssfx_fog;
 extern int ps_r3_ssfx_shadows;
 extern int ps_r3_ssfx_water;
 extern int ps_r3_ssfx_taa;
@@ -361,10 +360,6 @@ void CRender::create()
 	o.soc_shadows = ps_r2_ls_flags_ext.test(R2FLAGEXT_SOC_SHADOWS);  // OWA - classic SoC jittered shadows
 	o.staticlighting = (ps_r4_lighting_style == st_opt_static);      // OWA - R1-style static lightmaps (retro mode)
 
-	// OWA - PBR materials mode (GGX specular, analytical BRDF)
-	// Disabled in static lighting mode (R1 aesthetic consistency)
-	o.pbr_materials = (ps_r4_material_style == st_opt_pbr) && !o.staticlighting;
-
 	o.distortion_enabled = (strstr(Core.Params, "-nodistort")) ? FALSE : TRUE;
 	o.distortion = o.distortion_enabled;
 	o.disasm = (strstr(Core.Params, "-disasm")) ? TRUE : FALSE;
@@ -476,12 +471,8 @@ void CRender::create()
 	o.ssfx_volumetric = FS.exist(fn, "$game_shaders$", "r3\\ssfx_volumetric_blur", ".ps") ? 1 : 0;
 	o.ssfx_water = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_water", ".ps") && ps_r3_ssfx_water) ? 1 : 0;
 	o.ssfx_il = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_il", ".ps") && ps_r3_ssfx_il) ? 1 : 0;
-	// OWA: Perceptual Lighting - disabled for now, will revisit later
-	// o.ssfx_pl = (FS.exist(fn, "$game_shaders$", "r3\\pp_perceptual_lighting", ".ps") && ps_r3_ssfx_il) ? 1 : 0;
-	o.ssfx_pl = 0;
 	o.ssfx_sss = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_sss", ".ps") && ps_r3_ssfx_shadows) ? 1 : 0;
 	o.ssfx_taa = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_taa", ".ps") && ps_r3_ssfx_taa) ? 1 : 0;
-	o.ssfx_fog = (FS.exist(fn, "$game_shaders$", "r3\\ssfx_fog_scattering", ".ps") && ps_r3_ssfx_fog) ? 1 : 0;
 	o.ssfx_motionvectors = FS.exist(fn, "$game_shaders$", "r3\\screenspace_mvectors", ".h") ? 1 : 0;
 	o.ssfx_glass = FS.exist(fn, "$game_shaders$", "r3\\ssfx_glass", ".ps") ? 1 : 0;
 
@@ -1440,17 +1431,6 @@ HRESULT CRender::shader_compile(
 	sh_name[len] = '0' + char(o.staticlighting ? ps_r4_static_lighting_quality : 0);
 	++len;
 
-	// OWA: PBR materials mode (GGX specular, analytical BRDF)
-	// Disabled in static lighting mode for R1 aesthetic consistency
-	if (o.pbr_materials && !o.staticlighting)
-	{
-		defines[def_it].Name = "USE_PBR_MATERIALS";
-		defines[def_it].Definition = "1";
-		def_it++;
-	}
-	sh_name[len] = '0' + char(o.pbr_materials);
-	++len;
-
 	if (o.forceskinw)
 	{
 		defines[def_it].Name = "SKIN_COLOR";
@@ -1916,20 +1896,6 @@ HRESULT CRender::shader_compile(
 
 	// OWA: SSFX compile-time defines (controlled by r3_ssfx_* console commands)
 	// These replace the static defines in check_screenspace_*.h files for smaller compiled shaders
-	if (ps_r3_ssfx_fog && !o.staticlighting)
-	{
-		defines[def_it].Name = "SSFX_FOG";
-		defines[def_it].Definition = "1";
-		def_it++;
-		sh_name[len] = '1';
-		++len;
-	}
-	else
-	{
-		sh_name[len] = '0';
-		++len;
-	}
-
 	if (ps_r3_ssfx_shadows && !o.staticlighting)
 	{
 		// OWA: Define SSFX_SSS for Screen Space Shadows effect

@@ -329,7 +329,7 @@ void CDetailManager::hw_Render_dump(ref_constant x_array, u32 var_id, u32 lod_id
 			// Clean up
 			// KD: we must not clear vis on r2 since we want details shadows
 #if RENDER==R_R2
-			if (!psDeviceFlags2.test(rsGrassShadow) || ((ps_r2_ls_flags.test(R2FLAG_SUN_DETAILS) && (RImplementation.PHASE_SMAP ==
+			if (((ps_r2_ls_flags.test(R2FLAG_SUN_DETAILS) && (RImplementation.PHASE_SMAP ==
 					RImplementation.phase)) // phase smap with shadows
 				|| (ps_r2_ls_flags.test(R2FLAG_SUN_DETAILS) && (RImplementation.PHASE_NORMAL == RImplementation.phase)
 					&& (!RImplementation.is_sun())) // phase normal with shadows without sun

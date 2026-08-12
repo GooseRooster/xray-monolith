@@ -115,12 +115,7 @@ struct TL_2c3uv
 void CRenderTarget::phase_pp()
 {
 	// combination/postprocess
-	// OWA: When perceptual lighting is enabled (compile-time), write to rt_pl_source instead of backbuffer
-	// phase_perceptual_lighting will then read from rt_pl_source and write to backbuffer
-	if (RImplementation.o.ssfx_pl)
-		u_setrt(rt_pl_source, 0, 0, HW.pBaseZB);
-	else
-		u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT, NULL, NULL, HW.pBaseZB);
+	u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT, NULL, NULL, HW.pBaseZB);
 	//	Element 0 for for normal post-process
 	//	Element 4 for color map post-process
 	bool bCMap = u_need_CM();

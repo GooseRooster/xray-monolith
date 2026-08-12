@@ -16,11 +16,6 @@ static const u32   PROBES_PER_ROW = 256;            // 2D texture layout: probes
 static const float PORTAL_BRIDGE_OFFSET = 0.5f;     // offset from portal plane
 static const float RAY_MAX_DISTANCE = 100.0f;       // max ray distance for sky test
 static const int   RAYS_PER_PROBE = 8;              // Fibonacci hemisphere rays
-// Default albedo — used when material lookup fails
-// 0.35 approximates the Zone's predominantly dirty/weathered surfaces
-static const float DEFAULT_ALBEDO = 0.35f;
-static const float DEFAULT_BOUNCE_INTENSITY = 0.3f; // indirect sun multiplier
-
 // Soft shadow and received light constants
 static const int   SOFT_SHADOW_RAYS = 6;            // rays for soft sun shadows
 static const float SOFT_SHADOW_JITTER = 0.15f;      // jitter cone angle (radians, ~8.5 degrees)
@@ -33,13 +28,6 @@ static const float DEFAULT_HASH_CELL_SIZE = 2.5f;   // spatial hash cell size (j
 static const float INDOOR_RAY_RANGE = 30.0f;         // upward ray range for indoor detection
 static const int   INDOOR_RAY_COUNT = 5;             // number of upward rays for indoor detection
 static const int   INDOOR_RAY_THRESHOLD = 4;         // hits needed to classify as indoor
-static const int   DEFAULT_PROPAGATION_ITERS = 1;   // light propagation iterations per pass (amortized: 1 iter every 7 frames vs 3 every 20)
-static const int   DEFAULT_PROPAGATION_RATE = 7;    // frames between propagation passes
-
-// Point light injection constants
-static const float POINT_LIGHT_SEARCH_RADIUS = 20.0f;  // max distance to query lights
-static const int   MAX_POINT_LIGHTS_PER_PROBE = 5;     // cap per-probe to bound worst case
-static const int   MAX_BOUNCE_LIGHTS_PER_RAY = 2;      // cap per bounce ray (controls CDB shadow queries)
 
 // Volume texture constants
 static const u32   MAX_VOLUME_VOXELS = 500000;       // cap total voxels (~24MB for 3 textures)
@@ -49,8 +37,8 @@ static const u32   MAX_SPARSE_VOXEL_UPDATES = 65536;  // max dirty voxels before
 // Probe update quality levels
 enum EProbeQuality
 {
-    PROBE_QUALITY_FULL = 0,      // 8 hemisphere + 6 shadow + bounce rays (~30 CDB queries)
-    PROBE_QUALITY_REDUCED = 1,   // 6 hemisphere + 3 shadow, no bounce (~11 CDB queries)
+    PROBE_QUALITY_FULL = 0,      // 8 hemisphere + 6 shadow rays (~14 CDB queries)
+    PROBE_QUALITY_REDUCED = 1,   // 6 hemisphere + 3 shadow rays (~9 CDB queries)
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -65,13 +53,12 @@ struct CLightProbe
 {
     Fvector3 position;           // World-space position
     float    skyVisibility;      // 0-1 sky visibility fraction
-    Fvector3 ambient;            // Accumulated ambient (includes bounce)
+    Fvector3 ambient;            // Ambient = skyColor * skyVisibility
     float    sunVisibility;      // 0-1 direct sun visibility
-    Fvector3 bounce;             // Indirect sun contribution (debug)
-    Fvector3 shDirection;        // L1 SH directional vector (unnormalized — magnitude = directional strength)
+    Fvector3 shDirection;        // L1 SH directional vector (kept for GPU layout, always 0)
     float    _shPad;             // Padding (maintains 64-byte GPU layout)
-    Fvector3 pointLightColor;    // Accumulated point/spot light color
-    float    pointLightIntensity; // Point light luminance
+    Fvector3 pointLightColor;    // Point/spot light color (kept for GPU layout, always 0)
+    float    pointLightIntensity; // Point light luminance (kept for GPU layout, always 0)
     float    envLuminance;       // Environment luminance at last ray-update (for ToD snap)
     u16      sectorId;           // Reserved (0xFFFF) — preserves GPU layout
     u16      lastUpdateFrame;    // Frame counter for staggering
@@ -85,15 +72,6 @@ struct SpatialHashCell
     u32 probeIndices[MAX_PROBES_PER_CELL];  // Probe indices (u32 supports >65K probes)
     u8  count;                               // Number of valid entries
     u8  _pad[3];                             // Padding for alignment
-};
-
-//////////////////////////////////////////////////////////////////////////
-// Probe neighbor connectivity - for light propagation
-//////////////////////////////////////////////////////////////////////////
-struct ProbeNeighbors
-{
-    u32   indices[6];    // Neighbor probe indices: +X, -X, +Y, -Y, +Z, -Z (0xFFFFFFFF = none)
-    float distances[6];  // Distance to each neighbor
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -226,7 +204,6 @@ private:
     // Update state
     u32   m_updateBudget;
     u32   m_currentFrame;
-    float m_bounceIntensity;
     float m_lastUpdateTimeMs;
     bool  m_debugEnabled;
     u32   m_lastUploadFrame; // Frame of last GPU upload (for throttling)
@@ -246,24 +223,11 @@ private:
     Ivector m_gridDims;
 
     // Spatial hash acceleration structure (CPU-side only — used for UpdateProbesInRadius,
-    // SampleNearest/CROS, HasNearbyProbe, BuildNeighborConnectivity)
+    // SampleNearest/CROS, HasNearbyProbe)
     xr_vector<SpatialHashCell> m_spatialHash;
     Ivector m_hashDims;
     Fvector m_hashMin;
     float   m_hashCellSize;
-
-    // Neighbor connectivity for light propagation
-    xr_vector<ProbeNeighbors> m_probeNeighbors;
-
-    // Per-material RGB albedo (indexed by CDB vector index)
-    xr_vector<Fvector> m_materialAlbedos;
-
-    int   m_propagationIters;
-    int   m_propagationRate;
-
-    // Persistent propagation buffers (avoid per-call heap allocation)
-    xr_vector<Fvector> m_propagationBuffer;    // Sized to m_probes.size() at Build()
-    xr_vector<u32>     m_propagationActiveSet;  // Reusable active index list
 
     // Internal methods — placement
     void PlacePortalBridgeProbes(CPortal* portal);
@@ -275,21 +239,12 @@ private:
 
     // Internal methods — update
     // bInitialBuild=true: skips UpdateVolumeProbe (redundant — RasterizeVolume follows),
-    // m_gpuBufferDirty write (set once after the loop), and neighbor sunlit reads (UB with parallel threads).
+    // m_gpuBufferDirty write (set once after the loop).
     void UpdateProbe(CLightProbe& probe, u32 probeIndex, EProbeQuality quality = PROBE_QUALITY_FULL,
                      bool bInitialBuild = false);
     void WriteProbeToCache(u32 probeIndex);   // Write 64 bytes to persistent GPU cache
     void InitGPUCache();                       // Allocate cache and fill all entries
-    void CastBounceRay(const Fvector& hitPos, const Fvector& hitNormal, Fvector& bounceAccum,
-                       const Fvector& sunDir, const Fvector& sunColor,
-                       const Fvector& skyColor, const Fvector& albedo,
-                       float probeSkyVisibility);
-    Fvector ComputeTriangleNormal(const CDB::RESULT& hit);
     float ComputeEnvLuminance() const;
-
-    // Material albedo methods
-    void BuildMaterialAlbedos();       // Parse GMLib at Build() time → m_materialAlbedos
-    Fvector GetMaterialAlbedo(u16 materialIdx) const;  // Lookup by CDB vector index
 
     // Spatial hash methods (CPU-side only)
     void BuildSpatialHash();
@@ -303,10 +258,6 @@ private:
     void PrepareVolumeUpdate();    // Fill structured buffer from dirty flags for GPU dispatch
     void UploadFullVolume();       // UpdateSubresource for full rasterization (Build/time jump/overflow)
     void RebuildFrustumList();     // Classify probes as in/out of frustum
-
-    // Neighbor connectivity and propagation
-    void BuildNeighborConnectivity();
-    void PropagateLight(int iterations);
 };
 
 // Global instance pointer (set during level load)

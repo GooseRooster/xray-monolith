@@ -37,7 +37,6 @@ public:
 	IBlender* b_bloom;
 	IBlender* b_luminance;
 	IBlender* b_combine;
-	IBlender* b_sunshafts;
 	IBlender* b_postprocess_msaa;
 	IBlender* b_bloom_msaa;
 	IBlender* b_combine_msaa[8];
@@ -60,7 +59,6 @@ public:
 	IBlender* b_dof;
 	IBlender* b_dof_blur; // OWA: Kawase DOF downsample pyramid
 	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
-	IBlender* b_gasmask_drops;
 	IBlender* b_gasmask_dudv;
 	IBlender* b_nightvision;
 	IBlender* b_fakescope; //crookr
@@ -72,17 +70,13 @@ public:
 
 	// [SSS Stuff]
 	IBlender* b_ssfx_il; // Indirect Lighting
-	IBlender* b_ssfx_fog_scattering;
 	IBlender* b_ssfx_taa;
 	IBlender* b_ssfx_water_blur;
 	IBlender* b_ssfx_sss_ext;
 	IBlender* b_ssfx_sss;
 	IBlender* b_ssfx_volumetric_blur;
-	IBlender* b_blur_pl; // OWA: Perceptual Lighting cascaded blur
-	IBlender* b_perceptual_lighting; // OWA: Perceptual Lighting final composite
 	IBlender* b_cs_xegtao; // OWA: XeGTAO compute shader (Intel GTAO)
 	IBlender* b_cs_probe_volume; // OWA: Probe volume sparse update compute shader
-	IBlender* b_cs_sspe; // OWA: Screen-Space Probe Enhancement compute shader
 
 #ifdef DEBUG
 	struct		dbg_line_t		{
@@ -114,8 +108,6 @@ public:
 	//
 	ref_rt rt_Accumulator; // 64bit		(r,g,b,specular)
 	ref_rt rt_Accumulator_temp; // only for HW which doesn't feature fp16 blend
-	ref_rt rt_sunshafts_0; // ss0
-	ref_rt rt_sunshafts_1; // ss1
 	ref_rt rt_Generic_0; // 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	ref_rt rt_Generic_1; // 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 
@@ -137,21 +129,6 @@ public:
 
 	ref_rt rt_blur_h_8;
 	ref_rt rt_blur_8;
-
-	// OWA: Perceptual Lighting - FGFX LSPOIrr implementation
-	// Progressive downsampling chain (energy-conservative)
-	ref_rt rt_pl_half;    // 1/2 resolution downsample
-	ref_rt rt_pl_quad;    // 1/4 resolution downsample
-	ref_rt rt_pl_octo;    // 1/8 resolution downsample
-	ref_rt rt_pl_hexa;    // 1/16 resolution - base for cascaded blur
-	// Cascaded blur ping-pong buffers (1/16 resolution)
-	ref_rt rt_pl_hblur;   // Horizontal blur buffer
-	ref_rt rt_pl_vblur;   // Vertical blur buffer (also long blur output)
-	ref_rt rt_pl_short;   // Short blur capture (for recovery pass)
-	// Full resolution
-	ref_rt rt_pl_source;  // Full-res capture of post-PP image for PL
-
-	// OWA: rt_pp_bloom removed - phase_pp_bloom() output was never sampled
 
 	ref_rt rt_smaa_edgetex;
 	ref_rt rt_smaa_blendtex;
@@ -225,11 +202,6 @@ public:
 	ref_rt rt_gtao_edges;	// R8: Packed edge data for denoise
 	ref_rt rt_gtao_temp;	// RGBA16F: Temp copy for denoise pass (avoids read/write hazard)
 
-	// OWA SSPE - Screen-Space Probe Enhancement (ping-pong double-buffer)
-	ref_rt rt_sspe;			// RGBA16F half-res (UAV) — written on even frames, read on odd
-	ref_rt rt_sspe_prev;	// RGBA16F half-res (UAV) — written on odd frames, read on even
-	ref_rt rt_sspe_scene;	// Full-res copy of combine_1 output — persists across frames for SSPE reads
-
 	ref_shader s_ssfx_water;
 	ref_shader s_ssfx_water_blur;
 	ref_shader s_ssfx_water_ssr;
@@ -259,7 +231,6 @@ private:
 	// OCCq
 
 	ref_shader s_occq;
-	ref_shader s_sunshafts;
 	// SSAO
 	ref_rt rt_ssao_temp;
 	ref_rt rt_half_depth;
@@ -280,12 +251,9 @@ private:
 	ref_shader s_accum_reflected;
 	ref_shader s_accum_volume;
 	ref_shader s_blur;
-	ref_shader s_blur_pl; // OWA: Perceptual Lighting cascaded blur
-	ref_shader s_perceptual_lighting; // OWA: Perceptual Lighting final composite
 	ref_shader s_dof;
 	ref_shader s_dof_blur; // OWA: Kawase DOF downsample pyramid
 	// OWA: s_pp_bloom removed - phase_pp_bloom() output was never sampled
-	ref_shader s_gasmask_drops;
 	ref_shader s_gasmask_dudv;
 	ref_shader s_nightvision;
 	ref_shader s_fakescope; //crookr
@@ -310,7 +278,6 @@ private:
 
 	// Screen Space Shaders Stuff
 	ref_shader s_ssfx_il; // Indirect Lighting
-	ref_shader s_ssfx_fog_scattering;
 	ref_shader s_ssfx_taa;
 	ref_shader s_ssfx_sss_ext;
 	ref_shader s_ssfx_sss;
@@ -321,9 +288,6 @@ private:
 
 	// OWA Probe Volume Compute Update
 	ref_shader s_probe_volume_cs;
-
-	// OWA SSPE
-	ref_shader s_sspe;
 
 	ref_geom g_accum_point;
 	ref_geom g_accum_spot;
@@ -433,14 +397,10 @@ public:
 	bool u_need_CM();
 	BOOL u_DBT_enable(float zMin, float zMax);
 	void u_DBT_disable();
-	void phase_sunshafts();
 	void phase_blur();
-	void phase_blur_pl(); // OWA: Perceptual Lighting cascaded blur
-	void phase_perceptual_lighting(); // OWA: Perceptual Lighting final composite (post-PP)
 	// OWA: phase_pp_bloom() removed - output was never sampled, replaced by multi-scale Kawase bloom
 	void phase_dof_blur(); // OWA: Kawase downsample pyramid for DOF
 	void phase_dof();
-	void phase_gasmask_drops();
 	void phase_gasmask_dudv();
 	void phase_nightvision();
 	void phase_fakescope(); //crookr
@@ -454,7 +414,6 @@ public:
 	void phase_ssao();
 	void phase_xegtao(); // OWA: XeGTAO (Intel GTAO)
 	void phase_probe_volume_update(); // OWA: Sparse probe volume compute dispatch
-	void phase_sspe(); // OWA: Screen-Space Probe Enhancement compute dispatch
 	void phase_hdao();
 	void phase_downsamp();
 	void phase_wallmarks();
@@ -469,7 +428,6 @@ public:
 
 	// SSS Stuff
 	void phase_ssfx_taa();
-	void phase_ssfx_fog_scattering();
 	void phase_ssfx_sss(); // SSS
 	void phase_ssfx_sss_ext(light_Package& LP); // SSS Spot lights
 

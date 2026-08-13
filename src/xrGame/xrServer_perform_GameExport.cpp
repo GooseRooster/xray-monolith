@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 #include "xrServer.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 
 void xrServer::Perform_game_export()
 {

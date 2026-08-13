@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 #include "xrServer.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 
 void xrServer::SLS_Load(IReader& fs)
 {

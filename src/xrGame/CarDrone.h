@@ -1,5 +1,5 @@
 #pragma once
-#include "stdafx.h"
+#include "StdAfx.h"
 #ifdef CAR_NEW
 #include "Car.h"
 

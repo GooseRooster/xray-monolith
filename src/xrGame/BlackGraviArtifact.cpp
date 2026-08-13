@@ -10,7 +10,7 @@
 #include "entity_alive.h"
 #include "ParticlesObject.h"
 #include "PHMovementControl.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "PhysicsShellHolder.h"
 #include "Explosive.h"
 #include "../xrPhysics/IPHWorld.h"

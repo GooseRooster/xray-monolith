@@ -2,7 +2,7 @@
 #include "PhysicObject.h"
 #include "../xrPhysics/PhysicsShell.h"
 //#include "Physics.h"
-#include "xrserver_objects_alife.h"
+#include "xrServer_Objects_ALife.h"
 #include "Level.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "../Include/xrRender/KinematicsAnimated.h"

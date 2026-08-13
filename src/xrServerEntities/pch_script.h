@@ -9,7 +9,7 @@
 #ifndef PCH_SCRIPT_H
 #define PCH_SCRIPT_H
 
-#include "stdafx.h"
+#include "StdAfx.h"
 
 
 //AVO: lua re-org

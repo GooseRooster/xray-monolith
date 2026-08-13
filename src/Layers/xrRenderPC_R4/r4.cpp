@@ -17,7 +17,7 @@
 #include "../../xrCore/profiler.h"
 #include "../../xrCore/ShaderSourceCRC.h"
 
-#include "D3DX10Core.h"
+#include "D3DX10core.h"
 
 
 

@@ -35,7 +35,7 @@
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../xrRender/xrRender_console.h"
 
-#include <D3DX10Tex.h>
+#include <D3DX10tex.h>
 #include <DirectXPackedVector.h>  // OWA: For half-float conversion (HDR material LUT)
 
 using namespace DirectX::PackedVector;  // OWA: For HALF type and XMConvertFloatToHalf

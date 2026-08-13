@@ -5,7 +5,7 @@
 #include "Level.h"
 #include "Hit.h"
 #include "PHDestroyable.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "../Include/xrRender/KinematicsAnimated.h"
 #include "entity_alive.h"

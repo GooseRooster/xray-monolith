@@ -25,7 +25,7 @@
 
 #include "../xrRender/dxRenderDeviceRender.h"
 
-#include <D3DX10Tex.h>
+#include <D3DX10tex.h>
 
 void CRenderTarget::u_setrt(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, ID3DDepthStencilView* zb)
 {

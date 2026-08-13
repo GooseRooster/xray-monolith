@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 #include "WeaponRPG7.h"
-#include "xrserver_objects_alife_items.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include "ExplosiveRocket.h"
 #include "Entity.h"
 #include "Level.h"

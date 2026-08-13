@@ -5,7 +5,7 @@
 #include "Actor.h"
 #include "trade.h"
 #include "Inventory.h"
-#include "xrserver_objects_alife_items.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include "character_info.h"
 #include "script_game_object.h"
 #include "script_engine.h"

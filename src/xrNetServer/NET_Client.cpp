@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "NET_Common.h"
-#include "net_client.h"
-#include "net_server.h"
-#include "net_messages.h"
+#include "NET_Client.h"
+#include "NET_Server.h"
+#include "NET_Messages.h"
 #include "NET_Log.h"
 
 #pragma warning(push)
@@ -1198,8 +1198,8 @@ BOOL IPureClient::net_IsSyncronised()
 	return net_Syncronised;
 }
 
-#include <WINSOCK2.H>
-#include <Ws2tcpip.h>
+#include <WinSock2.h>
+#include <WS2tcpip.h>
 
 bool IPureClient::GetServerAddress(ip_address& pAddress, DWORD* pPort)
 {

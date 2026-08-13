@@ -20,7 +20,7 @@
 #include "math.h"
 #include "script_entity_action.h"
 #include "Inventory.h"
-#include "xrserver_objects_alife_items.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "Level.h"
 #include "ui/UIMainIngameWnd.h"

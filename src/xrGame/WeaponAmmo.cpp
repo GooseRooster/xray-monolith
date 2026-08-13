@@ -1,7 +1,7 @@
 #include "StdAfx.h"
 #include "WeaponAmmo.h"
 #include "../xrPhysics/PhysicsShell.h"
-#include "xrserver_objects_alife_items.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include "Actor_Flags.h"
 #include "Inventory.h"
 #include "Weapon.h"

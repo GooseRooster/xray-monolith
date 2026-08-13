@@ -5,7 +5,7 @@
 
 #include "StdAfx.h"
 #include "BottleItem.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "entity_alive.h"
 #include "EntityCondition.h"
 

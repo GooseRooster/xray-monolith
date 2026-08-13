@@ -12,8 +12,8 @@
 #	include "ESceneClassList.h"
 #	include "Scene.h"
 #	include "SceneObject.h"
-#	include "igame_persistent.h"
-#	include "environment.h"
+#	include "IGame_Persistent.h"
+#	include "Environment.h"
 #else
 #	include "../../xrEngine/IGame_Persistent.h"
 #	include "../../xrEngine/Environment.h"

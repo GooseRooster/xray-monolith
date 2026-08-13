@@ -6,7 +6,7 @@
 #include "PHSkeleton.h"
 #include "script_export_space.h"
 #include "animation_script_callback.h"
-#include "xrserver_objects_alife.h"
+#include "xrServer_Objects_ALife.h"
 
 // GhenTuong: physics object callback
 #ifndef CPHYSICOBJECT_CHANGE

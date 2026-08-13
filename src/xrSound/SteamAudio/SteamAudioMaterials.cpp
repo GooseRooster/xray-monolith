@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "../stdafx.h"
 #include "SteamAudioMaterials.h"
 
 extern int g_SA_DebugLogging;

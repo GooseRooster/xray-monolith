@@ -16,8 +16,8 @@
 
 #include <d3d10_1.h>
 #include <d3d11.h>
-#include <D3Dx10core.h>
-#include <D3DCompiler.h>
+#include <D3DX10core.h>
+#include <d3dcompiler.h>
 
 #include "../xrRender/xrD3DDefs.h"
 

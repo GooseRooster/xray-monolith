@@ -12,7 +12,7 @@
 #include <sys\stat.h>
 //#include "commdlg.h"
 
-#include <Shlobj.h>
+#include <ShlObj.h>
 //#include "OSDialog.h"
 //#pragma comment(lib, "OSDialogB.lib")
 

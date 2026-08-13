@@ -20,7 +20,7 @@
 #include "movement_manager.h"
 #include "entity_alive.h"
 #include "WeaponMagazined.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "Inventory.h"
 #include "script_ini_file.h"
 #include "../Include/xrRender/Kinematics.h"

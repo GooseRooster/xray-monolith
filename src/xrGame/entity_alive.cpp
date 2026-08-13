@@ -6,7 +6,7 @@
 #include "../xrEngine/GameMtlLib.h"
 #include "PHMovementControl.h"
 #include "Wound.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "Level.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "relation_registry.h"

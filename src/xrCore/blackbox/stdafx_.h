@@ -12,7 +12,7 @@
 #include <windows.h>
 #include <stdlib.h>
 #include <tchar.h>
-#include "PSAPI.h"
+#include "Psapi.h"
 #include "WarningsOn.h"
 
 namespace BlackBox

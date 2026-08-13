@@ -1,5 +1,6 @@
 #pragma once
 #include "../xr_level_controller.h"
+#include "../../xrCore/xrPool.h"
 
 class UIHint;
 class CScriptXmlInit;

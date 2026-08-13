@@ -168,7 +168,7 @@ struct CCloner
 		template <bool a>
 		IC static void clone(const T& _1, T& _2)
 		{
-			CHelper<T>::clone < object_type_traits::is_pointer<T>::value > (_1, _2);
+			CHelper<T>::template clone < object_type_traits::is_pointer<T>::value > (_1, _2);
 		}
 
 		template <>
@@ -181,7 +181,7 @@ struct CCloner
 	template <typename T>
 	IC static void clone(const T& _1, T& _2)
 	{
-		CHelper4<T>::clone < object_type_traits::is_stl_container<T>::value > (_1, _2);
+		CHelper4<T>::template clone < object_type_traits::is_stl_container<T>::value > (_1, _2);
 	}
 };
 

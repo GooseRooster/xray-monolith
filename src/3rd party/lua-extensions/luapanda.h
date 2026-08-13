@@ -14,7 +14,7 @@
 
 #if !defined(USE_SOURCE_CODE) && defined(_WIN32)
 #include <Windows.h>
-#include <Tlhelp32.h>
+#include <TlHelp32.h>
 #else
 //2.如果lua源码是C++形式，注释掉下面extern "C"
 extern "C" {

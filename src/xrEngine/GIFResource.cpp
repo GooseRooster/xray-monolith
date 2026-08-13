@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "../xrCore/Stream_Reader.h"
+#include "../xrCore/stream_reader.h"
 
 #include "GIFResource.h"
 

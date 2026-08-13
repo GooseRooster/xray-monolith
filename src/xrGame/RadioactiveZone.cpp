@@ -1,7 +1,7 @@
 #include "StdAfx.h"
 #include "RadioactiveZone.h"
 #include "Level.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "../xrEngine/bone.h"
 #include "Actor.h"
 #include "game_base_space.h"

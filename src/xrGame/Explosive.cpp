@@ -18,7 +18,7 @@
 #include "ActorEffector.h"
 #include "Level.h"
 #include "Level_Bullet_Manager.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "../xrEngine/GameMtlLib.h"
 #include "HudSound.h"
 #include "script_game_object.h"

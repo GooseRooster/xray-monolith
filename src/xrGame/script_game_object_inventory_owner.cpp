@@ -55,7 +55,7 @@
 #include "inventory_upgrade_root.h"
 #include "inventory_item.h"
 #include "inventory_item_impl.h"
-#include "xrserver_objects_alife_items.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include "./xrServerEntities/inventory_space.h"
 #include "ai_space.h"
 #include "ActorBackpack.h"

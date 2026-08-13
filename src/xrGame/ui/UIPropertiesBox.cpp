@@ -1,9 +1,9 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIPropertiesBox.h"
 #include "../Level.h"
 #include "UIListBoxItem.h"
 #include "UIXmlInit.h"
-#include "uicursor.h"
+#include "UICursor.h"
 
 #define OFFSET_X (5.0f)
 #define OFFSET_Y (5.0f)

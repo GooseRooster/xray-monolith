@@ -16,7 +16,7 @@
 #include "ParticleGroup.h"
 #include "ParticleEffect.h"
 #else
-    #include "fmesh.h"
+    #include "Fmesh.h"
     #include "FVisual.h"
     #include "FProgressive.h"
     #include "ParticleEffect.h"

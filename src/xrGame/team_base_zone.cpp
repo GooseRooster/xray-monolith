@@ -8,7 +8,7 @@
 
 #include "StdAfx.h"
 #include "team_base_zone.h"
-#include "xrserver_objects_alife_monsters.h"
+#include "xrServer_Objects_ALife_Monsters.h"
 #include "Hit.h"
 #include "Actor.h"
 #include "Level.h"

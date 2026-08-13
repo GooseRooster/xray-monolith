@@ -140,7 +140,7 @@ void CSXML_IdToIndex::DeleteIdToIndexData()
 }
 
 TEMPLATE_SPECIALIZATION
-typename void CSXML_IdToIndex::InitInternal()
+void CSXML_IdToIndex::InitInternal()
 {
 	VERIFY(!m_pItemDataVector);
 	T_INIT::InitXmlIdToIndex();

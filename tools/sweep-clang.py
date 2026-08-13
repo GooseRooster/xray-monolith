@@ -75,6 +75,7 @@ def project_of(entry, root):
 def build_cmd(entry, stale_root, root, extra):
     args = [rebase(a, stale_root, root) for a in entry['arguments'][1:]]
     src = rebase(os.path.join(entry['directory'], entry['file']), stale_root, root)
+    cwd = rebase(entry['directory'], stale_root, root)
     out = []
     for a in args:
         if a == src or a.endswith(os.path.basename(src)):
@@ -82,6 +83,9 @@ def build_cmd(entry, stale_root, root, extra):
         else:
             out.append(a)
     out = [a for a in out if a != '/c']
+    # See remap-compile-commands.py: put the entry's own dir on the include path
+    # so subdirectory files find their project's stdafx.h once /Yu is gone.
+    out = ['/I', cwd] + out
     out += extra + ['-Wno-microsoft-include', '-Wno-register', '-ferror-limit=6']
     return ['clang-cl'] + out
 

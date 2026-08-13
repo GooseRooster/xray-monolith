@@ -82,6 +82,18 @@ All are small, additive, and MSVC-compatible:
    `xrGame/StdAfx.h`, cascading `ENGINE_API`/`Device`/`THROW2` failures. Fixed
    per-project; `xrServerEntities/pch_script.h` and subdir files
    (`SteamAudio/`, `tri-colliderknoopc/`) now include the right PCH.
+
+   > **Gotcha — never `../`-qualify a PCH include.** MSVC compiles these TUs with
+   > `PrecompiledHeader=Use` (`/Yu"stdafx.h"`), which matches the *literal*
+   > `#include "stdafx.h"` line as the PCH load point. Rewriting it to
+   > `#include "../stdafx.h"` (an earlier attempt to help clang find the file
+   > from a subdirectory) breaks that match and produces **C1010 "unexpected end
+   > of file while looking for precompiled header"** on the Windows build, plus a
+   > cascade of linker errors for the missing objects. Only the *casing* of the
+   > PCH include is safe to change (MSVC matches it case-insensitively). The
+   > clang-side "can't find the PCH" problem for subdir files is a *tooling*
+   > concern (the project dir must be on the include path when `/Yu` is
+   > stripped), not a source fix.
 3. **Missing `template<>`** on explicit specializations — the
    `FACTORY_PTR_INSTANCIATE` macro (`Include/xrRender/FactoryPtr.h`) and
    `DEFINE_MIXED_DELEGATE_SCRIPT` (`xrGame/mixed_delegate.h`).

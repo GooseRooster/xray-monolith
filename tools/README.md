@@ -108,3 +108,8 @@ applied only when every candidate search root agrees on the same on-disk casing.
   is otherwise MSVC-compatible delayed template parsing — **don't** add
   `-fno-delayed-template-parsing` (it ~9×'s the error surface; see the doc).
 - The engine builds with exceptions off; `xrCore.h` `#error`s if you enable them.
+- Do **not** change a PCH include to a relative path (`../stdafx.h`) to "help"
+  clang find it from a subdir — MSVC's `/Yu"stdafx.h"` needs the literal
+  `#include "stdafx.h"` line and will C1010 otherwise (see
+  `docs/linux-cross-compile.md` §2). Only the casing is safe to change; the
+  clang-side path resolution is a tooling concern.

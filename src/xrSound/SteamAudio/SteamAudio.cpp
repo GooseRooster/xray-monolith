@@ -1,4 +1,4 @@
-#include "../stdafx.h"
+#include "stdafx.h"
 #include "SteamAudio.h"
 #include <ctime>  // For clock() in rate-limited logging
 

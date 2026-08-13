@@ -1,4 +1,4 @@
-#include "../stdafx.h"
+#include "stdafx.h"
 #include "SteamAudioSimulator.h"
 #include "SteamAudioScene.h"
 

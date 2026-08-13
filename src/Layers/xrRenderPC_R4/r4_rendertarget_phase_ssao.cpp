@@ -3,7 +3,6 @@
 
 // OWA: Extern declarations for probe lighting in IL phase
 extern int   ps_r3_ssfx_il;
-extern float ps_r_probe_bounce_intensity;
 
 void set_viewport(ID3DDeviceContext* dev, float w, float h)
 {

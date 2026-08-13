@@ -15,8 +15,6 @@
 #include "../xrRenderDX10/DX10 Rain/dx10RainBlender.h"
 
 ////////////////////////////lvutner
-#include "blender_ss_sunshafts.h"
-#include "blender_gasmask_drops.h"
 #include "blender_gasmask_dudv.h"
 #include "blender_smaa.h"
 #include "blender_blur.h"
@@ -27,7 +25,7 @@
 
 #include "../xrRender/dxRenderDeviceRender.h"
 
-#include <D3DX10Tex.h>
+#include <D3DX10tex.h>
 
 void CRenderTarget::u_setrt(const ref_rt& _1, const ref_rt& _2, const ref_rt& _3, ID3DDepthStencilView* zb)
 {
@@ -344,11 +342,9 @@ CRenderTarget::CRenderTarget()
 	b_ssao = xr_new<CBlender_SSAO_noMSAA>();
 
 	///////////////////////////////////lvutner
-	b_sunshafts = xr_new<CBlender_sunshafts>();
 	b_blur = xr_new<CBlender_blur>();
 	b_pp_bloom = xr_new<CBlender_pp_bloom>();
 	b_dof = xr_new<CBlender_dof>();
-	b_gasmask_drops = xr_new<CBlender_gasmask_drops>();
 	b_gasmask_dudv = xr_new<CBlender_gasmask_dudv>();
 	b_nightvision = xr_new<CBlender_nightvision>();
 	b_fakescope = xr_new<CBlender_fakescope>(); //crookr
@@ -448,10 +444,6 @@ CRenderTarget::CRenderTarget()
 
 		rt_dof.create(r2_RT_dof, w, h, D3DFMT_A8R8G8B8);
 
-		// RT - KD
-		rt_sunshafts_0.create(r2_RT_sunshafts0, w, h, D3DFMT_A8R8G8B8);
-		rt_sunshafts_1.create(r2_RT_sunshafts1, w, h, D3DFMT_A8R8G8B8);
-
 		// RT Blur
 		rt_blur_h_2.create(r2_RT_blur_h_2, u32(w/2), u32(h/2), D3DFMT_A8R8G8B8);
 		rt_blur_2.create(r2_RT_blur_2, u32(w/2), u32(h/2), D3DFMT_A8R8G8B8);
@@ -481,11 +473,9 @@ CRenderTarget::CRenderTarget()
 			rt_Generic_2.create(r2_RT_generic2, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 	}
 
-	s_sunshafts.create(b_sunshafts, "r2\\sunshafts");
 	s_blur.create(b_blur, "r2\\blur");
 	s_pp_bloom.create(b_pp_bloom, "r2\\pp_bloom");
 	s_dof.create(b_dof, "r2\\dof");
-	s_gasmask_drops.create(b_gasmask_drops, "r2\\gasmask_drops");
 	s_gasmask_dudv.create(b_gasmask_dudv, "r2\\gasmask_dudv");
 	s_nightvision.create(b_nightvision, "r2\\nightvision");
 	s_fakescope.create(b_fakescope, "r2\\fakescope"); //crookr
@@ -1154,7 +1144,6 @@ CRenderTarget::~CRenderTarget()
 	xr_delete(b_blur);
 	xr_delete(b_dof);
 	xr_delete(b_pp_bloom);
-	xr_delete(b_gasmask_drops);
 	xr_delete(b_gasmask_dudv);
 	xr_delete(b_nightvision);
 	xr_delete(b_fakescope); //crookr
@@ -1187,7 +1176,6 @@ CRenderTarget::~CRenderTarget()
 	}
 	xr_delete(b_accum_mask);
 	xr_delete(b_occq);
-	xr_delete(b_sunshafts);
 }
 
 void CRenderTarget::reset_light_marker(bool bResetStencil)

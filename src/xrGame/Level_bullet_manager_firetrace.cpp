@@ -10,7 +10,7 @@
 #include "Level.h"
 #include "GamePersistent.h"
 #include "game_cl_base.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "Actor.h"
 #include "ai/stalker/ai_stalker.h"

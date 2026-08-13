@@ -37,7 +37,6 @@ public:
 	IBlender* b_bloom;
 	IBlender* b_luminance;
 	IBlender* b_combine;
-	IBlender* b_sunshafts;
 	IBlender* b_postprocess_msaa;
 	IBlender* b_bloom_msaa;
 	IBlender* b_combine_msaa[8];
@@ -55,7 +54,6 @@ public:
 	IBlender* b_blur;
 	IBlender* b_dof;
 	IBlender* b_pp_bloom;
-	IBlender* b_gasmask_drops;
 	IBlender* b_gasmask_dudv;
 	IBlender* b_nightvision;
 	IBlender* b_fakescope; //crookr
@@ -85,8 +83,6 @@ public:
 	//
 	ref_rt rt_Accumulator; // 64bit		(r,g,b,specular)
 	ref_rt rt_Accumulator_temp; // only for HW which doesn't feature fp16 blend
-	ref_rt rt_sunshafts_0; // ss0
-	ref_rt rt_sunshafts_1; // ss1
 	ref_rt rt_Generic_0; // 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 	ref_rt rt_Generic_1; // 32bit		(r,g,b,a)				// post-process, intermidiate results, etc.
 
@@ -156,7 +152,6 @@ private:
 	// OCCq
 
 	ref_shader s_occq;
-	ref_shader s_sunshafts;
 	// SSAO
 	ref_rt rt_ssao_temp;
 	ref_rt rt_half_depth;
@@ -178,7 +173,6 @@ private:
 	ref_shader s_blur;
 	ref_shader s_dof;
 	ref_shader s_pp_bloom;
-	ref_shader s_gasmask_drops;
 	ref_shader s_gasmask_dudv;
 	ref_shader s_nightvision;
 	ref_shader s_fakescope; //crookr
@@ -302,12 +296,10 @@ public:
 	bool u_need_CM();
 	BOOL u_DBT_enable(float zMin, float zMax);
 	void u_DBT_disable();
-	void phase_sunshafts();
 
 	void phase_blur();
 	void phase_pp_bloom();
 	void phase_dof();
-	void phase_gasmask_drops();
 	void phase_gasmask_dudv();
 	void phase_nightvision();
 	void phase_fakescope(); //crookr

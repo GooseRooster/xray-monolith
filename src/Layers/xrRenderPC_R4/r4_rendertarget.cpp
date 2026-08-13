@@ -15,8 +15,6 @@
 #include "../xrRenderDX10/MSAA/dx10MSAABlender.h"
 #include "../xrRenderDX10/DX10 Rain/dx10RainBlender.h"
 ////////////////////////////lvutner
-#include "blender_ss_sunshafts.h"
-#include "blender_gasmask_drops.h"
 #include "blender_gasmask_dudv.h"
 #include "blender_smaa.h"
 #include "blender_blur.h"
@@ -33,12 +31,11 @@
 // OWA Probe Volume - Sparse compute update for irradiance volumes
 #include "blender_cs_probe_volume.h"
 // OWA SSPE - Screen-Space Probe Enhancement
-#include "blender_cs_sspe.h"
 
 #include "../xrRender/dxRenderDeviceRender.h"
 #include "../xrRender/xrRender_console.h"
 
-#include <D3DX10Tex.h>
+#include <D3DX10tex.h>
 #include <DirectXPackedVector.h>  // OWA: For half-float conversion (HDR material LUT)
 
 using namespace DirectX::PackedVector;  // OWA: For HALF type and XMConvertFloatToHalf
@@ -461,21 +458,11 @@ CRenderTarget::CRenderTarget()
 	b_cs_xegtao = xr_new<CBlender_CS_XeGTAO>();
 	// OWA Probe Volume - sparse compute update for irradiance volumes
 	b_cs_probe_volume = xr_new<CBlender_CS_ProbeVolume>();
-	// OWA SSPE - Screen-Space Probe Enhancement (compute shader)
-	b_cs_sspe = xr_new<CBlender_CS_SSPE>();
 	///////////////////////////////////lvutner
-	b_sunshafts = xr_new<CBlender_sunshafts>();
 	b_blur = xr_new<CBlender_blur>();
-	// OWA: Perceptual Lighting blenders (only create when PL is enabled at startup)
-	if (RImplementation.o.ssfx_pl)
-	{
-		b_blur_pl = xr_new<CBlender_blur_pl>();
-		b_perceptual_lighting = xr_new<CBlender_perceptual_lighting>();
-	}
 	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
 	b_dof = xr_new<CBlender_dof>();
 	b_dof_blur = xr_new<CBlender_dof_blur>(); // OWA: Kawase DOF blur pyramid
-	b_gasmask_drops = xr_new<CBlender_gasmask_drops>();
 	b_gasmask_dudv = xr_new<CBlender_gasmask_dudv>();
 	b_nightvision = xr_new<CBlender_nightvision>();
 	b_fakescope = xr_new<CBlender_fakescope>(); //crookr
@@ -484,7 +471,6 @@ CRenderTarget::CRenderTarget()
 
 	// Screen Space Shaders Stuff
 	b_ssfx_il = xr_new<CBlender_ssfx_il>(); // Indirect Lighting
-	b_ssfx_fog_scattering = xr_new<CBlender_ssfx_fog_scattering>();
 	b_ssfx_taa = xr_new<CBlender_ssfx_taa>();
 	b_ssfx_water_blur = xr_new<CBlender_ssfx_water_blur>();
 	b_ssfx_sss_ext = xr_new<CBlender_ssfx_sss_ext>(); // SSS
@@ -624,9 +610,6 @@ CRenderTarget::CRenderTarget()
 
 		// PDA, probably not ideal though
 // RT - KD
-		// OWA: Use FP16 for sunshafts when HDR10 or hires_rts enabled (better gradients)
-		rt_sunshafts_0.create(r2_RT_sunshafts0, w, h, use_hires_format ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8);
-		rt_sunshafts_1.create(r2_RT_sunshafts1, w, h, use_hires_format ? D3DFMT_A16B16G16R16F : D3DFMT_A8R8G8B8);
 
 		// RT Blur
 		// OWA: Use FP16 for blur when HDR10 or hires_rts enabled (better gradients)
@@ -639,23 +622,6 @@ CRenderTarget::CRenderTarget()
 
 		rt_blur_h_8.create(r2_RT_blur_h_8, u32(w/8), u32(h/8), blur_fmt);
 		rt_blur_8.create(r2_RT_blur_8, u32(w/8), u32(h/8), blur_fmt);
-
-		// OWA: Perceptual Lighting render targets - FGFX LSPOIrr implementation
-		// Uses RGBA16F for HDR compatibility (matching original ReShade shader)
-		if (RImplementation.o.ssfx_pl)
-		{
-			// Progressive downsampling chain (energy-conservative)
-			rt_pl_half.create(r2_RT_pl_half, u32(w/2), u32(h/2), D3DFMT_A16B16G16R16F);    // 1/2 res
-			rt_pl_quad.create(r2_RT_pl_quad, u32(w/4), u32(h/4), D3DFMT_A16B16G16R16F);    // 1/4 res
-			rt_pl_octo.create(r2_RT_pl_octo, u32(w/8), u32(h/8), D3DFMT_A16B16G16R16F);    // 1/8 res
-			rt_pl_hexa.create(r2_RT_pl_hexa, u32(w/16), u32(h/16), D3DFMT_A16B16G16R16F);  // 1/16 res (cascade base)
-			// Cascaded blur ping-pong buffers (1/16 resolution)
-			rt_pl_hblur.create(r2_RT_pl_hblur, u32(w/16), u32(h/16), D3DFMT_A16B16G16R16F);
-			rt_pl_vblur.create(r2_RT_pl_vblur, u32(w/16), u32(h/16), D3DFMT_A16B16G16R16F);
-			rt_pl_short.create(r2_RT_pl_short, u32(w/16), u32(h/16), D3DFMT_A16B16G16R16F);
-			// Full resolution capture
-			rt_pl_source.create(r2_RT_pl_source, w, h, D3DFMT_A16B16G16R16F);
-		}
 
 		// OWA: rt_pp_bloom removed - phase_pp_bloom() output was never sampled
 
@@ -700,19 +666,6 @@ CRenderTarget::CRenderTarget()
 		rt_gtao_edges.create(r2_RT_gtao_edges, w, h, D3DFMT_L8, 1, true);
 		rt_gtao_temp.create(r2_RT_gtao_temp, w, h, D3DFMT_A16B16G16R16F, 1, true);
 
-		// OWA SSPE render targets (half-resolution, compute shader)
-		// Ping-pong double-buffer: both UAV-capable, alternate write/read each frame
-		// Device.dwFrame & 1 determines which is written and which is read as "previous"
-		rt_sspe.create(r2_RT_sspe, w / 2, h / 2, D3DFMT_A16B16G16R16F, 1, true);
-		rt_sspe_prev.create(r2_RT_sspe_prev, w / 2, h / 2, D3DFMT_A16B16G16R16F, 1, true);
-		// Persistent copy of combine_1 output for SSPE to read next frame.
-		// rt_Generic_0 is volatile (water, forward, volumetric, AA overwrite it each frame),
-		// so we CopyResource here after combine_1 finishes. Same format for CopyResource compat.
-		if (use_hires_format)
-			rt_sspe_scene.create(r2_RT_sspe_scene, w, h, D3DFMT_A16B16G16R16F, 1);
-		else
-			rt_sspe_scene.create(r2_RT_sspe_scene, w, h, D3DFMT_A8R8G8B8, 1);
-
 		//rt_ssfx_hud.create(r2_RT_ssfx_hud, w, h, D3DFMT_A16B16G16R16F); // Deprecated
 
 		if (RImplementation.o.dx10_msaa)
@@ -730,18 +683,10 @@ CRenderTarget::CRenderTarget()
 			rt_Generic_2.create(r2_RT_generic2, w, h, D3DFMT_A16B16G16R16F, SampleCount);
 	}
 
-	s_sunshafts.create(b_sunshafts, "r2\\sunshafts");
 	s_blur.create(b_blur, "r2\\blur");
-	// OWA: Perceptual Lighting shaders (only create when PL is enabled at startup)
-	if (RImplementation.o.ssfx_pl)
-	{
-		s_blur_pl.create(b_blur_pl, "r2\\blur_pl");
-		s_perceptual_lighting.create(b_perceptual_lighting, "r2\\perceptual_lighting");
-	}
 	// OWA: s_pp_bloom removed - phase_pp_bloom() output was never sampled
 	s_dof.create(b_dof, "r2\\dof");
 	s_dof_blur.create(b_dof_blur, "r2\\dof_blur"); // OWA: Kawase DOF blur pyramid
-	s_gasmask_drops.create(b_gasmask_drops, "r2\\gasmask_drops");
 	s_gasmask_dudv.create(b_gasmask_dudv, "r2\\gasmask_dudv");
 	s_nightvision.create(b_nightvision, "r2\\nightvision");
 
@@ -753,7 +698,6 @@ CRenderTarget::CRenderTarget()
 
 	// Screen Space Shaders Stuff
 	s_ssfx_il.create(b_ssfx_il, "ssfx_il"); // Indirect Lighting
-	s_ssfx_fog_scattering.create(b_ssfx_fog_scattering, "ssfx_fog_scattering"); // SSS Fog Scattering
 	s_ssfx_taa.create(b_ssfx_taa, "ssfx_taa"); // SSS TAA
 	s_ssfx_sss_ext.create(b_ssfx_sss_ext, "ssfx_sss_ext"); // SSS Extended
 	s_ssfx_sss.create(b_ssfx_sss, "ssfx_sss"); // SSS
@@ -1052,8 +996,6 @@ CRenderTarget::CRenderTarget()
 	// OWA XeGTAO compute shader - Intel's Ground Truth Ambient Occlusion
 	s_xegtao.create(b_cs_xegtao, "r2\\xegtao");
 	s_probe_volume_cs.create(b_cs_probe_volume, "r2\\probe_volume");
-	// OWA SSPE - Screen-Space Probe Enhancement compute shader
-	s_sspe.create(b_cs_sspe, "r2\\sspe");
 
 	// COMBINE
 	{
@@ -1530,7 +1472,6 @@ CRenderTarget::~CRenderTarget()
 	xr_delete(b_dof);
 	xr_delete(b_dof_blur); // OWA: Kawase DOF blur pyramid
 	// OWA: b_pp_bloom removed - phase_pp_bloom() output was never sampled
-	xr_delete(b_gasmask_drops);
 	xr_delete(b_gasmask_dudv);
 	xr_delete(b_nightvision);
 	xr_delete(b_fakescope); //crookr
@@ -1539,7 +1480,6 @@ CRenderTarget::~CRenderTarget()
 
 	// [ SSS Stuff ]
 	xr_delete(b_ssfx_il); // Indirect Lighting
-	xr_delete(b_ssfx_fog_scattering); // SSS Fog Scattering
 	xr_delete(b_ssfx_taa); // SSS TAA
 	xr_delete(b_ssfx_water_blur); // SSS Water Blur
 	xr_delete(b_ssfx_sss_ext); // SSS Phase Ext
@@ -1573,7 +1513,6 @@ CRenderTarget::~CRenderTarget()
 	}
 	xr_delete(b_accum_mask);
 	xr_delete(b_occq);
-	xr_delete(b_sunshafts);
 
 	xr_delete(b_hdao_cs);
 	if (RImplementation.o.dx10_msaa)

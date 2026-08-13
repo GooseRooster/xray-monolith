@@ -3,7 +3,7 @@
 #include "Hit.h"
 #include "PHDestroyable.h"
 #include "Mincer.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "Level.h"
 #include "CustomZone.h"
 #include "entity_alive.h"

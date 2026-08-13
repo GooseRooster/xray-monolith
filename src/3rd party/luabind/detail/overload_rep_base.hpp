@@ -32,7 +32,9 @@ extern "C"
 namespace luabind::detail
 {
 	// this class represents a specific overload of a member-function.
+#if defined(_MSC_VER) && !defined(__clang__)
     template class LUABIND_API std::function<int(lua_State*)>;
+#endif
 
 	struct LUABIND_API overload_rep_base
 	{

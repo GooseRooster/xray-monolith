@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include <dinput.h>
 #include "UISpawnWnd.h"
 #include "UIXmlInit.h"
@@ -8,8 +8,8 @@
 #include "UIScrollView.h"
 #include "UI3tButton.h"
 #include "../xr_level_controller.h"
-#include "uicursor.h"
-#include "uigamecustom.h"
+#include "UICursor.h"
+#include "UIGameCustom.h"
 
 CUISpawnWnd::CUISpawnWnd()
 	: m_iCurTeam(0)

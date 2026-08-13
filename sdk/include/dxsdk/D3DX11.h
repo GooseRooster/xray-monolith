@@ -47,10 +47,10 @@
 
 // Includes
 #include "d3d11.h"
-#include "d3dx11.h"
-#include "d3dx11core.h"
-#include "d3dx11tex.h"
-#include "d3dx11async.h"
+#include "D3DX11.h"
+#include "D3DX11core.h"
+#include "D3DX11tex.h"
+#include "D3DX11async.h"
 
 
 // Errors

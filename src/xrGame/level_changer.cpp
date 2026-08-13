@@ -10,7 +10,7 @@
 #include "level_changer.h"
 #include "Hit.h"
 #include "Actor.h"
-#include "xrserver_objects_alife.h"
+#include "xrServer_Objects_ALife.h"
 #include "Level.h"
 #include "ai_object_location.h"
 #include "ai_space.h"

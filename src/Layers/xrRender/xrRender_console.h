@@ -3,8 +3,6 @@
 #pragma once
 
 // Common
-extern ECORE_API float ps_ssfx_fog_scattering;
-extern ECORE_API float ps_ssfx_fog_terrain_y;  // OWA: terrain Y under camera + pressure offset
 extern ECORE_API Fvector4 ps_ssfx_taa;
 extern ECORE_API int ps_ssfx_terrain_grass_align;
 extern ECORE_API int ps_ssfx_terrain_pom_refine;
@@ -24,21 +22,16 @@ extern ECORE_API Fvector3 ps_ssfx_shadows;
 extern ECORE_API Fvector4 ps_ssfx_volumetric;
 
 // OWA SSFX compile-time toggles (r3_ssfx_* commands, require restart)
-extern ECORE_API int ps_r3_ssfx_fog;        // r3-only - SSFX height fog
 extern ECORE_API int ps_r3_ssfx_shadows;    // r3-only - SSFX shadow biasing
 extern ECORE_API int ps_r3_ssfx_water;      // r3-only - SSFX water
 extern ECORE_API int ps_r3_ssfx_taa;        // r3-only - SSFX TAA
-// OWA Perceptual Global Illumination (r3_gi command) - enables both IL and PL
-extern ECORE_API int ps_r3_ssfx_il;         // r3-only - Perceptual GI toggle (IL + PL)
-// OWA: Perceptual Lighting parameters (part of r3_gi, no separate toggle)
-extern ECORE_API Fvector4 ps_r3_gi_pl_params;      // Intensity, Occlusion, Irradiance, Threshold
-extern ECORE_API Fvector4 ps_r3_gi_pl_params2;     // Radius, Saturation, Recovery, Reserved
+// OWA Perceptual Global Illumination (r3_gi command) - probe dynamic ambient
+extern ECORE_API int ps_r3_ssfx_il;         // r3-only - probe GI toggle
 extern ECORE_API u32 ps_r3_terrain_quality; // r3-only - OWA terrain quality (0=low, 1=mid, 2=high)
 
 extern ECORE_API Fvector4 ps_ssfx_wind_grass;
 extern ECORE_API Fvector4 ps_ssfx_wind_trees;
 
-extern ECORE_API Fvector4 ps_ssfx_grass_shadows;
 extern ECORE_API Fvector3 ps_ssfx_shadow_cascades;
 extern ECORE_API Fvector4 ps_ssfx_grass_interactive;
 extern ECORE_API Fvector4 ps_ssfx_int_grass_params_1;
@@ -82,30 +75,13 @@ extern ECORE_API u32 ps_r4_static_lighting_quality;
 extern ECORE_API xr_token static_lighting_quality_token[];
 
 // OWA: R4 Material style tokens (classic vs PBR)
-// PBR mode uses GGX specular BRDF, classic uses LUT-based material response
-enum eMaterialStyle : u32
-{
-	st_opt_classic = 0,   // LUT-based material response (default, retro look)
-	st_opt_pbr     = 1,   // GGX-based PBR materials
-};
-extern ECORE_API u32 ps_r4_material_style;
-extern ECORE_API xr_token material_style_token[];
-
 // OWA: Probe lighting system
 extern ECORE_API int   ps_r_probe_update_rate;      // Probes updated per frame (10-200)
-extern ECORE_API float ps_r_probe_bounce_intensity; // Indirect sun strength (0.0-1.0)
 extern ECORE_API int   ps_r_debug_probes;           // Debug visualization (0 or 1)
-extern ECORE_API float ps_r_probe_max_distance;     // Max distance for probe updates (30-500)
 extern ECORE_API int   ps_r_probe_upload_rate;      // GPU upload every N frames (1-16)
 extern ECORE_API float ps_r_probe_chroma_blend;     // Probe chrominance indoor blend cap (0.0-1.0)
-extern ECORE_API int   ps_r_probe_bounce_lights;   // Max point lights per bounce ray (0=disabled, 0-3)
 extern ECORE_API float ps_r_probe_ambient_floor;   // Minimum ambient in deepest interior (0.0-0.5)
 extern ECORE_API float ps_r_probe_gi_boost;        // GI multiplicative lift on base ambient (0.0-10.0)
-
-// OWA SSPE: Screen-Space Probe Enhancement
-extern ECORE_API float ps_r_sspe_radius;           // World-space sample reach in meters (0.5-5.0)
-extern ECORE_API float ps_r_sspe_intensity;        // Multiplicative scale on bounce (0.0-2.0)
-extern ECORE_API float ps_r_sspe_max_distance;     // Fadeout distance in meters (10-500)
 
 extern ECORE_API u32 ps_r_sun_quality; //	=	0;
 extern ECORE_API xr_token qsun_quality_token[];
@@ -200,7 +176,6 @@ extern ECORE_API float ps_r2_bloom_radius;    // r2-only - sample radius multipl
 extern ECORE_API float ps_r2_ls_bloom_speed;  // r2-only - eye adaptation speed (kept for luminance)
 
 extern ECORE_API float ps_r__tf_contrast; // OWA texture contrast (0=off, 1=full)
-extern ECORE_API float ps_r2_auto_fog; // r2-only - OWA auto fog (0=weather fog_color, 1=environment-derived)
 extern ECORE_API float ps_r2_ls_dsm_kernel; // r2-only
 extern ECORE_API float ps_r2_ls_psm_kernel; // r2-only
 extern ECORE_API float ps_r2_ls_ssm_kernel; // r2-only
@@ -239,7 +214,6 @@ extern ECORE_API int ps_r2_wait_sleep;
 extern ECORE_API int ps_r2_qsync;
 ////lvutner
 extern ECORE_API Fvector4 ps_r2_mask_control; // r2-only
-extern ECORE_API Fvector ps_r2_drops_control; // r2-only
 extern ECORE_API int ps_r2_nightvision;
 extern ECORE_API int scope_fake_enabled; //crookr
 extern ECORE_API int scope_3D_fake_enabled; // Redotix99: for 3D Shader Based Scopes
@@ -247,8 +221,6 @@ extern ECORE_API int ps_r2_heatvision;			//--DSR-- HeatVision
 extern ECORE_API int heat_vision_cooldown;		//--DSR-- HeatVision
 extern ECORE_API float heat_vision_cooldown_time;	//--DSR-- HeatVision
 extern ECORE_API int heat_vision_zombie_cold;	//--DSR-- HeatVision
-extern ECORE_API float ps_r2_ss_sunshafts_length;
-extern ECORE_API float ps_r2_ss_sunshafts_radius;
 extern u32 ps_sunshafts_mode;
 
 extern ECORE_API float hud_fov_aim_factor;
@@ -403,8 +375,6 @@ enum
 enum
 {
 	R2SS_VOLUMETRIC = 1,
-	R2SS_SCREEN_SPACE,
-	R2SS_COMBINE_SUNSHAFTS,
 };
 
 enum

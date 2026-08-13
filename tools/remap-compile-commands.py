@@ -150,7 +150,15 @@ def main():
             tokens = filtered
 
         tokens = [t for t in tokens if not is_pch_arg(t)]
-        tokens = [tokens[0]] + XWIN_SYSTEM_INCLUDES + extra_includes + tokens[1:]
+        # Add the entry's own directory as an include root. MSVC never needs it:
+        # these files' `#include "stdafx.h"` is the /Yu PCH load point (no file
+        # lookup). clang, which treats it as a real include after /Yu is
+        # stripped, does need the project dir on the search path for files in
+        # subdirectories (SteamAudio/, tri-colliderknoopc/, dcylinder/) whose PCH
+        # lives one level up. CMake will emit this automatically once it takes
+        # over include-path generation.
+        entry_includes = ["/I", directory]
+        tokens = [tokens[0]] + XWIN_SYSTEM_INCLUDES + entry_includes + extra_includes + tokens[1:]
 
         out.append({
             "directory": directory,

@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 #include "BreakableObject.h"
-#include "xrserver_objects_alife.h"
+#include "xrServer_Objects_ALife.h"
 #include "../xrPhysics/IPHStaticGeomShell.h"
 #include "../xrPhysics/PhysicsShell.h"
 //#include "../xrPhysics/ExtendedGeom.h"

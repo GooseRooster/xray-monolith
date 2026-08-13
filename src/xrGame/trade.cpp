@@ -5,7 +5,7 @@
 #include "ai/trader/ai_trader.h"
 #include "Artefact.h"
 #include "Inventory.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "character_info.h"
 #include "relation_registry.h"
 #include "Level.h"

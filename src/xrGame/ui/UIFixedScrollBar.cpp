@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIFixedScrollBar.h"
 #include "UI3tButton.h"
 #include "UIFrameLineWnd.h"

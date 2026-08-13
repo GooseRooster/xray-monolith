@@ -6,7 +6,7 @@
 //	Description : Templates for monster "Rat"
 ////////////////////////////////////////////////////////////////////////////
 
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "ai_rat.h"
 #include "../../ai_monsters_misc.h"
 #include "../../../game_graph.h"

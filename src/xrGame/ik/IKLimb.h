@@ -2,7 +2,7 @@
 
 
 #include "limb.h"
-#include "ikfoot.h"
+#include "IKFoot.h"
 
 #include "../../Include/xrRender/KinematicsAnimated.h"
 #include "../ik_anim_state.h"

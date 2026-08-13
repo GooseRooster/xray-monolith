@@ -1,5 +1,5 @@
-#include "stdafx.h"
-#include "./UIRadioButton.h"
+#include "StdAfx.h"
+#include "UIRadioButton.h"
 #include "UILines.h"
 
 

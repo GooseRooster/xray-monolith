@@ -7,11 +7,7 @@
 
 // OWA: Extern declarations for probe lighting
 extern int   ps_r3_ssfx_il;
-extern float ps_r_probe_bounce_intensity;
 extern float ps_r_probe_chroma_blend;
-// OWA: SSPE console variables
-extern float ps_r_sspe_max_distance;
-extern float ps_r_sspe_intensity;
 
 #define STENCIL_CULL 0
 
@@ -96,11 +92,6 @@ void CRenderTarget::phase_combine()
 	// Must run after AO passes (which also use compute) and before volume
 	// texture binding at the combine_1 setup section.
 	phase_probe_volume_update();
-
-	// OWA: Screen-Space Probe Enhancement — compute screen-space color bounce
-	// from G-buffer lit surfaces. Must run after probe volume update (needs vol SRVs)
-	// and before combine_1 draw (which reads rt_sspe).
-	phase_sspe();
 
 	// Save previus and current matrices
 	Fvector2 m_blur_scale;
@@ -333,13 +324,11 @@ void CRenderTarget::phase_combine()
 			RCache.set_c("probe_grid_min", bmin.x, bmin.y, bmin.z, (float)g_LightProbeGrid->GetProbeCount());
 			RCache.set_c("probe_grid_max", bmax.x, bmax.y, bmax.z, (float)PROBES_PER_ROW);
 			RCache.set_c("probe_grid_dims", (float)dims.x, (float)dims.y, (float)dims.z, ps_r_probe_chroma_blend);
-			RCache.set_c("probe_params", ps_r_probe_bounce_intensity, 2.0f, (float)ps_r_debug_probes, ps_r_probe_ambient_floor);
+			RCache.set_c("probe_params", 0.0f, 2.0f, (float)ps_r_debug_probes, ps_r_probe_ambient_floor);
 			Fvector volMin  = g_LightProbeGrid->GetVolumeMin();
 			Fvector volSize = g_LightProbeGrid->GetVolumeSize();
 			RCache.set_c("probe_vol_min",  volMin.x,  volMin.y,  volMin.z,  g_LightProbeGrid->GetVoxelSize());
 			RCache.set_c("probe_vol_size", volSize.x, volSize.y, volSize.z, ps_r_probe_gi_boost);
-			// OWA SSPE: Pass max distance for combine_1.ps distance fade
-			RCache.set_c("sspe_params2", ps_r_sspe_max_distance, ps_r_sspe_intensity, 0.0f, 0.0f);
 		};
 
 		// Draw
@@ -390,12 +379,6 @@ void CRenderTarget::phase_combine()
 			RCache.set_Stencil(FALSE, D3DCMP_EQUAL, 0x01, 0xff, 0);
 		}
 	}
-
-	// OWA: Copy combine_1 output for SSPE to read next frame.
-	// rt_Generic_0 is volatile — water, forward, volumetric, AA all overwrite it.
-	// This copy persists across frames so SSPE reads stable, composited scene data.
-	if (!RImplementation.o.dx10_msaa)
-		HW.pContext->CopyResource(rt_sspe_scene->pTexture->surface_get(), rt_Generic_0->pTexture->surface_get());
 
 	// OWA: Only copy rt_Generic to temp if water SSR needs it
 	// o.ssfx_water now includes r3_ssfx_water check (compile-time)
@@ -564,19 +547,6 @@ void CRenderTarget::phase_combine()
 
 
 
-	// OWA: Skip sunshafts in static lighting mode (relies on light accumulation data)
-	if (!_menu_pp && !RImplementation.o.staticlighting)
-	{
-		if (ps_sunshafts_mode == R2SS_SCREEN_SPACE || ps_sunshafts_mode == R2SS_COMBINE_SUNSHAFTS)
-			phase_sunshafts();
-	}
-
-	// OWA: o.ssfx_fog now includes r3_ssfx_fog check (compile-time)
-	if (RImplementation.o.ssfx_fog && ps_ssfx_fog_scattering > 0)
-	{
-		phase_ssfx_fog_scattering();
-	}
-
 	if (scope_3D_fake_enabled)
 	{
 		phase_3DSSReticle(); // Redotix99: for 3D Shader Based Scopes
@@ -586,9 +556,6 @@ void CRenderTarget::phase_combine()
 	if (!Device.m_SecondViewport.IsSVPFrame()) // Temp fix for blur buffer and SVP
 	{
 		phase_blur();
-		// OWA: Perceptual Lighting cascaded blur (only when PL enabled at startup)
-		if (RImplementation.o.ssfx_pl)
-			phase_blur_pl();
 	}
 
 	// OWA: phase_pp_bloom() removed - output was never sampled, replaced by multi-scale Kawase bloom
@@ -602,10 +569,6 @@ void CRenderTarget::phase_combine()
 	if(ps_r2_mask_control.x > 0)
 	{
 		phase_gasmask_dudv();
-		if (ps_r2_drops_control.x > 0)
-		{
-			phase_gasmask_drops();
-		}
 	}
 	
 	if(ps_r2_nightvision > 0)
@@ -647,18 +610,14 @@ void CRenderTarget::phase_combine()
 	PP_Complex = TRUE;
 
 	// Combine everything + perform AA
-	// OWA: When perceptual lighting is enabled (compile-time) and PP_Complex is false,
-	// write to rt_pl_source instead of backbuffer so phase_perceptual_lighting can process it
 	if (RImplementation.o.dx10_msaa)
 	{
 		if (PP_Complex) u_setrt(rt_Generic, 0, 0, HW.pBaseZB); // LDR RT
-		else if (RImplementation.o.ssfx_pl) u_setrt(rt_pl_source, 0, 0, HW.pBaseZB); // OWA: PL intermediate RT
 		else u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
 	}
 	else
 	{
 		if (PP_Complex) u_setrt(rt_Color, 0, 0, HW.pBaseZB); // LDR RT
-		else if (RImplementation.o.ssfx_pl) u_setrt(rt_pl_source, 0, 0, HW.pBaseZB); // OWA: PL intermediate RT
 		else u_setrt(Device.dwWidth, Device.dwHeight, HW.pBaseRT,NULL,NULL, HW.pBaseZB);
 	}
 	//. u_setrt				( Device.dwWidth,Device.dwHeight,HW.pBaseRT,NULL,NULL,HW.pBaseZB);
@@ -777,15 +736,6 @@ void CRenderTarget::phase_combine()
 	{
 		PIX_EVENT(phase_pp);
 		phase_pp();
-	}
-
-	// OWA: Perceptual Lighting phase - runs after ALL post-processing
-	// This matches the original ReShade implementation which operates on the final backbuffer
-	// Controlled by r3_gi command (compile-time flag, requires restart)
-	if (RImplementation.o.ssfx_pl)
-	{
-		PIX_EVENT(phase_perceptual_lighting);
-		phase_perceptual_lighting();
 	}
 
 	//	Re-adapt luminance

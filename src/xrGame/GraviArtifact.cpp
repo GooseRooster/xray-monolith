@@ -8,7 +8,7 @@
 #include "GraviArtifact.h"
 #include "../xrPhysics/PhysicsShell.h"
 #include "Level.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "game_cl_base.h"
 #include "../Include/xrRender/Kinematics.h"
 #include "../xrPhysics/IPHWorld.h"

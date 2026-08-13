@@ -1,4 +1,4 @@
-﻿#include "stdafx.h"
+﻿#include "StdAfx.h"
 #include "specific_character.h"
 
 #ifdef  XRGAME_EXPORTS
@@ -6,7 +6,7 @@
 #include "string_table.h"
 
 #include "ai_space.h"
-#include "Script_Game_Object.h"
+#include "script_game_object.h"
 
 SSpecificCharacterData::SSpecificCharacterData()
 {

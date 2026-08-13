@@ -12,8 +12,8 @@
 #	include "ESceneClassList.h"
 #	include "Scene.h"
 #	include "SceneObject.h"
-#	include "igame_persistent.h"
-#	include "environment.h"
+#	include "IGame_Persistent.h"
+#	include "Environment.h"
 #else
 #	include "../../xrEngine/IGame_Persistent.h"
 #	include "../../xrEngine/Environment.h"
@@ -491,9 +491,6 @@ void CDetailManager::details_clear()
 {
 	// Disable fade, next render will be scene
 	fade_distance = 99999;
-
-	if (ps_ssfx_grass_shadows.x <= 0)
-		return;
 
 	for (u32 x = 0; x < 3; x++)
 	{

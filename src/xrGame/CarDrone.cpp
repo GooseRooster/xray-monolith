@@ -1,11 +1,11 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #ifdef CAR_NEW
 #include "Car.h"
 #include "CarDrone.h"
 
 #include "Level.h"
 #include "../Include/xrRender/Kinematics.h"
-#include "../xrphysics/IPHWorld.h"
+#include "../xrPhysics/IPHWorld.h"
 
 #include "script_game_object.h"
 #include "CameraFirstEye.h"

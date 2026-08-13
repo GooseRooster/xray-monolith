@@ -7,10 +7,10 @@
 #include "Actor.h"
 #include "Inventory.h"
 #include "Level.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "xr_level_controller.h"
 #include "game_cl_base.h"
-#include "xrserver_objects_alife.h"
+#include "xrServer_Objects_ALife.h"
 #include "script_game_object.h"
 
 #ifdef EXPLOSIVE_CHANGE

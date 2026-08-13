@@ -67,10 +67,8 @@ public:
 		u32 ssfx_volumetric : 1;
 		u32 ssfx_water : 1;
 		u32 ssfx_il : 1;
-		u32 ssfx_pl : 1;  // OWA: Perceptual Lighting (part of r3_gi, compile-time flag)
 		u32 ssfx_core : 1;
 		u32 ssfx_sss : 1;
-		u32 ssfx_fog : 1;
 		u32 ssfx_taa : 1;
 		u32 ssfx_motionvectors : 1;
 		u32 ssfx_glass : 1;
@@ -112,7 +110,6 @@ public:
 		u32 Tshadows : 1; // transluent shadows
 		u32 soc_shadows : 1; // OWA - classic SoC jittered shadows
 		u32 staticlighting : 1; // OWA - R1-style static lightmap rendering (derived from r4_lighting_style)
-		u32 pbr_materials : 1; // OWA - GGX-based PBR materials (derived from r4_material_style)
 		u32 disasm : 1;
 		u32 advancedpp : 1; //	advanced post process (DOF, SSAO, volumetrics, etc.)
 		u32 volumetricfog : 1;

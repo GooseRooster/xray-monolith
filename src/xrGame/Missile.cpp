@@ -4,7 +4,7 @@
 #include "../xrPhysics/PhysicsShell.h"
 #include "Actor.h"
 #include "../xrEngine/CameraBase.h"
-#include "xrserver_objects_alife.h"
+#include "xrServer_Objects_ALife.h"
 #include "ActorEffector.h"
 #include "Level.h"
 #include "xr_level_controller.h"

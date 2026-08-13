@@ -4,7 +4,7 @@
 #include "Actor.h"
 #include "ActorEffector.h"
 #include "Missile.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "Level.h"
 #include "Inventory.h"
 #include "../xrEngine/CameraBase.h"

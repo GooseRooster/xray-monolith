@@ -15,7 +15,7 @@
 
 #include "eatable_item.h"
 #include "script_engine.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "xr_level_controller.h"
 #include "Level.h"
 #include "ai_space.h"

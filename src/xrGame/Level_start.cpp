@@ -3,7 +3,7 @@
 #include "Level_Bullet_Manager.h"
 #include "xrServer.h"
 #include "game_cl_base.h"
-#include "xrmessages.h"
+#include "xrMessages.h"
 #include "xrGameSpyServer.h"
 #include "../xrEngine/x_ray.h"
 #include "../xrEngine/device.h"

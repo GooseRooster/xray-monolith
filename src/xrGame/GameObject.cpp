@@ -12,7 +12,7 @@
 #include "level_graph.h"
 #include "ph_shell_interface.h"
 #include "script_game_object.h"
-#include "xrserver_objects_alife.h"
+#include "xrServer_Objects_ALife.h"
 #include "xrServer_Objects_ALife_Items.h"
 #include "game_cl_base.h"
 #include "object_factory.h"

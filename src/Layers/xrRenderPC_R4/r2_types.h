@@ -25,9 +25,6 @@
 #define		r2_T_sky0			"$user$sky0"
 #define		r2_T_sky1			"$user$sky1"
 
-#define 	r2_RT_sunshafts0	"$user$sun_shafts0"		// first rt
-#define		r2_RT_sunshafts1	"$user$sun_shafts1"		// second rt
-
 
 #define		r2_RT_ssao_temp		"$user$ssao_temp"		//temporary rt for ssao calculation
 #define		r2_RT_half_depth	"$user$half_depth"		//temporary rt for ssao calculation
@@ -70,19 +67,6 @@
 
 #define		r2_RT_blur_h_8	"$user$blur_h_8"
 #define		r2_RT_blur_8	"$user$blur_8"
-
-// OWA: Perceptual Lighting - FGFX LSPOIrr implementation
-// Progressive downsampling chain (energy-conservative)
-#define		r2_RT_pl_half		"$user$pl_half"			// 1/2 resolution
-#define		r2_RT_pl_quad		"$user$pl_quad"			// 1/4 resolution
-#define		r2_RT_pl_octo		"$user$pl_octo"			// 1/8 resolution
-#define		r2_RT_pl_hexa		"$user$pl_hexa"			// 1/16 resolution (cascaded blur base)
-// Cascaded blur ping-pong buffers (1/16 resolution)
-#define		r2_RT_pl_hblur		"$user$pl_hblur"		// Horizontal blur buffer
-#define		r2_RT_pl_vblur		"$user$pl_vblur"		// Vertical blur buffer (long blur output)
-#define		r2_RT_pl_short		"$user$pl_short"		// Short blur capture (for recovery)
-// Full resolution
-#define		r2_RT_pl_source		"$user$pl_source"		// Full-res capture of post-PP image
 
 // OWA: r2_RT_pp_bloom removed - phase_pp_bloom() output was never sampled
 
@@ -133,11 +117,6 @@
 #define		r2_RT_gtao				"$user$gtao"		// RGB = bent normal, A = obscurance
 #define		r2_RT_gtao_edges		"$user$gtao_edges"	// Packed edge data for denoise
 #define		r2_RT_gtao_temp			"$user$gtao_temp"	// Temp copy for denoise read/write hazard
-
-// OWA SSPE - Screen-Space Probe Enhancement (additive color bounce on top of probe GI)
-#define		r2_RT_sspe				"$user$sspe"		// RGB = bounce color, A = confidence
-#define		r2_RT_sspe_prev			"$user$sspe_prev"	// Previous frame for temporal EMA
-#define		r2_RT_sspe_scene		"$user$sspe_scene"	// Copy of combine_1 output for next-frame SSPE reads
 
 #define		JITTER(a) r2_jitter #a
 

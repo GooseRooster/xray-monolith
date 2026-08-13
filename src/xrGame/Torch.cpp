@@ -4,7 +4,7 @@
 #include "Actor.h"
 #include "../xrEngine/LightAnimLibrary.h"
 #include "../xrPhysics/PhysicsShell.h"
-#include "xrserver_objects_alife_items.h"
+#include "xrServer_Objects_ALife_Items.h"
 #include "ai_sounds.h"
 
 #include "Level.h"

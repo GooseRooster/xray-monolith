@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 #include "UIDialogWnd.h"
 #include "UICursor.h"
 

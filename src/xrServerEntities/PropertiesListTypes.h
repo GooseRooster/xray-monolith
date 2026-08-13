@@ -569,6 +569,8 @@ public:
 	T lim_mx;
 	T inc;
 	int dec;
+	using CustomValue<T>::value;
+	using CustomValue<T>::init_value;
 public:
 	NumericValue(T* val): CustomValue<T>(val)
 	{

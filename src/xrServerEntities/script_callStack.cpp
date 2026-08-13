@@ -1,4 +1,4 @@
-#include "stdafx.h"
+#include "StdAfx.h"
 
 #include "script_callStack.h"
 #include "script_debugger.h"

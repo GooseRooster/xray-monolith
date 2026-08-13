@@ -9,7 +9,7 @@
 #endif
 #pragma warning(default:4995)
 
-#include <D3DX10Core.h>
+#include <D3DX10core.h>
 
 #include "../xrRender/ResourceManager.h"
 #include "../xrRender/tss.h"
